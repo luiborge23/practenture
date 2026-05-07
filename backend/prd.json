@@ -24,13 +24,17 @@
         "Run existing tests to ensure nothing breaks",
         "Update IMPLEMENTATION_PLAN.md and progress.txt"
       ],
-      "passed": false
+      "passed": false,
+      "passes": true,
+      "notes": "COMPLETED: Production JWT config + Apple/Google JWKS verification"
     },
     {
       "id": "US-006",
       "title": "Apple/Google ID Token Verification",
       "priority": 2,
-      "depends_on": ["US-005"],
+      "depends_on": [
+        "US-005"
+      ],
       "user_story": "As a student using Apple/Google Sign In, I want my identity token verified against provider JWKS",
       "acceptance_criteria": [
         "Apple ID token verified against https://appleid.apple.com/auth/keys",
@@ -46,13 +50,17 @@
         "Add test cases for Apple and Google token verification",
         "Update IMPLEMENTATION_PLAN.md and progress.txt"
       ],
-      "passed": false
+      "passed": false,
+      "passes": true,
+      "notes": "COMPLETED: Production JWT config + Apple/Google JWKS verification"
     },
     {
       "id": "US-003",
       "title": "iOS Auth Integration",
       "priority": 3,
-      "depends_on": ["US-005"],
+      "depends_on": [
+        "US-005"
+      ],
       "user_story": "As an iOS user, I want the app to authenticate with backend and store tokens in Keychain",
       "acceptance_criteria": [
         "AuthService.swift for login/logout/token management",
@@ -75,7 +83,9 @@
       "id": "US-004",
       "title": "iOS WebSocket Integration",
       "priority": 4,
-      "depends_on": ["US-003"],
+      "depends_on": [
+        "US-003"
+      ],
       "user_story": "As a student in an active session, I want live updates from backend via WebSocket",
       "acceptance_criteria": [
         "WebSocketService.swift using URLSessionWebSocketTask",
@@ -96,7 +106,7 @@
     },
     {
       "id": "US-001",
-      "title": "Professor Web Dashboard — Session Management",
+      "title": "Professor Web Dashboard \u2014 Session Management",
       "priority": 5,
       "depends_on": [],
       "user_story": "As a professor, I want a web dashboard to manage sessions without the iOS app",
@@ -124,9 +134,11 @@
     },
     {
       "id": "US-002",
-      "title": "Professor Web Dashboard — Grade Export",
+      "title": "Professor Web Dashboard \u2014 Grade Export",
       "priority": 6,
-      "depends_on": ["US-001"],
+      "depends_on": [
+        "US-001"
+      ],
       "user_story": "As a professor, I want to export grades from the web dashboard",
       "acceptance_criteria": [
         "Export Grades button on session detail view",
@@ -146,7 +158,11 @@
       "id": "US-007",
       "title": "Integration Tests",
       "priority": 7,
-      "depends_on": ["US-005", "US-006", "US-001"],
+      "depends_on": [
+        "US-005",
+        "US-006",
+        "US-001"
+      ],
       "user_story": "As a developer, I want integration tests for Phase 5 features",
       "acceptance_criteria": [
         "Test session creation via REST API",
@@ -170,6 +186,49 @@
         "Add test for Google token verification",
         "Run all tests, verify 40+ pass",
         "Update IMPLEMENTATION_PLAN.md and progress.txt"
+      ],
+      "passed": false
+    },
+    {
+      "id": "US-14",
+      "title": "Login View with Professor Login, Student Login, and Student Register",
+      "priority": 14,
+      "depends_on": ["US-004"],
+      "user_story": "As a professor or student, I want to see a LoginView with professor login, student login, and student register options",
+      "acceptance_criteria": [
+        "LoginView shows three modes: Professor Login, Student Login, Student Register",
+        "Professor login validates against backend /api/auth/login with password provider",
+        "Student login validates against backend /api/auth/login with Apple/Google provider",
+        "Student register creates account via backend /api/auth/register",
+        "Error messages display for invalid credentials"
+      ],
+      "tasks": [
+        "Create LoginView.swift with three mode tabs: Professor, Student Login, Student Register",
+        "Implement professor login flow calling backend auth endpoint",
+        "Implement student login with Apple Sign-In integration",
+        "Implement student registration flow",
+        "Handle error states and loading indicators",
+        "Add to LaunchView as sheet presentation"
+      ],
+      "passed": false
+    },
+    {
+      "id": "US-15",
+      "title": "LaunchView shows LoginView when no auth token exists",
+      "priority": 15,
+      "depends_on": ["US-14"],
+      "user_story": "As a returning user, I want the app to check my auth state and show the appropriate view",
+      "acceptance_criteria": [
+        "LaunchView checks for existing auth token on appear",
+        "When no token exists, shows LoginView sheet with medium detent",
+        "When authenticated, shows Welcome back message with user's name",
+        "Logout button appears when authenticated"
+      ],
+      "tasks": [
+        "Update LaunchView to check AuthManager.hasActiveSession",
+        "Add conditional sheet presentation for LoginView",
+        "Add logout button when authenticated",
+        "Update subtitle text based on auth state"
       ],
       "passed": false
     }

@@ -134,6 +134,11 @@ final class NetworkService {
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        // Auto-attach auth token from AuthManager if available
+        if let token = AuthManager.shared.accessToken, !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
         // Encode body
         if let body = body {
             request.httpBody = try encoder.encode(body)
@@ -200,6 +205,11 @@ final class NetworkService {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // Auto-attach auth token from AuthManager if available
+        if let token = AuthManager.shared.accessToken, !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
 
         // Encode body
         if let body = body {
@@ -348,9 +358,118 @@ final class NetworkService {
             return false
         }
     }
+    
+    // MARK: - Auth Methods (Phase 5)
+    
+    func authLogin(provider: String, username: String? = nil, password: String? = nil, idToken: String? = nil) async throws -> AuthLoginResponse {
+        let request = AuthLoginRequest(
+            provider: provider,
+            username: username,
+            password: password,
+            idToken: idToken
+        )
+        return try await post("/api/auth/login", body: request)
+    }
+    
+    func authRegister(username: String, password: String, studentId: String, name: String) async throws -> AuthLoginResponse {
+        let request = AuthRegisterRequest(
+            username: username,
+            password: password,
+            studentId: studentId,
+            name: name
+        )
+        return try await post("/api/auth/register", body: request)
+    }
+    
+    // MARK: - Auth Header Support
+    
+    /// Set the access token for authenticated requests.
+    func setAccessToken(_ token: String?) {
+        _accessToken = token
+    }
+    
+    private var _accessToken: String?
+    
+    // MARK: - Updated Request with Auth Header
+    
+    private func performRequestWithAuth<T: Decodable>(
+        method: String,
+        endpoint: String,
+        body: Encodable?
+    ) async throws -> T {
+        guard let url = URL(string: baseURL + endpoint) else {
+            throw NetworkError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        // Add auth header if token available
+        if let token = _accessToken, !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        
+        if let body = body {
+            request.httpBody = try encoder.encode(body)
+        }
+        
+        let (data, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.noData
+        }
+        
+        if (200...299).contains(httpResponse.statusCode) {
+            guard !data.isEmpty else {
+                throw NetworkError.noData
+            }
+            do {
+                let decoded = try decoder.decode(T.self, from: data)
+                return decoded
+            } catch {
+                throw NetworkError.decodingError
+            }
+        }
+        
+        let errorMsg = String(data: data, encoding: .utf8) ?? "Unknown server error"
+        throw NetworkError.serverError(httpResponse.statusCode, errorMsg)
+    }
+    
+    private func performVoidRequestWithAuth(
+        method: String,
+        endpoint: String,
+        body: Encodable?
+    ) async throws {
+        guard let url = URL(string: baseURL + endpoint) else {
+            throw NetworkError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        if let token = _accessToken, !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        
+        if let body = body {
+            request.httpBody = try encoder.encode(body)
+        }
+        
+        let (_, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.noData
+        }
+        
+        if (200...299).contains(httpResponse.statusCode) {
+            return
+        }
+        
+        throw NetworkError.serverError(httpResponse.statusCode, "Unknown server error")
+    }
 }
-
-// MARK: - Backend API Types
 
 /// Backend session response (from /api/sessions/{code}).
 struct SessionBackend: Codable {

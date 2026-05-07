@@ -7,9 +7,15 @@ import SwiftUI
 
 struct LaunchView: View {
     @Environment(AppState.self) private var appState
-
+    
     @State private var animateCards = false
     @State private var animateLogo = false
+    @State private var showLogin = false
+    
+    // Check if user has an active session
+    private var hasActiveSession: Bool {
+        AuthManager.shared.isAuthenticated && AuthManager.shared.hasValidToken()
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -35,10 +41,17 @@ struct LaunchView: View {
                         .font(.system(size: 40, weight: .bold, design: .rounded))
                         .foregroundStyle(.primary)
 
-                    Text("Business Simulation for the Modern Classroom")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                    if hasActiveSession {
+                        Text("Welcome back, \(AuthManager.shared.currentUser?.username ?? "User")")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    } else {
+                        Text("Business Simulation for the Modern Classroom")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
                 }
             }
             .opacity(animateLogo ? 1 : 0)
@@ -50,25 +63,48 @@ struct LaunchView: View {
             HStack(spacing: 24) {
                 roleCard(
                     title: "Professor",
-                    subtitle: "Create & manage simulation sessions",
+                    subtitle: hasActiveSession ? "Manage simulation sessions" : "Login to manage sessions",
                     icon: "person.fill.viewfinder",
                     color: .blue,
                     delay: 0.1
                 ) {
-                    appState.selectMode(.professor)
+                    if hasActiveSession && AuthManager.shared.currentUser?.role == "professor" {
+                        appState.selectMode(.professor)
+                    } else {
+                        showLogin = true
+                    }
                 }
 
                 roleCard(
                     title: "Student",
-                    subtitle: "Join a session & run your business",
+                    subtitle: hasActiveSession ? "Continue your business" : "Register or login",
                     icon: "graduationcap.fill",
                     color: .green,
                     delay: 0.2
                 ) {
-                    appState.selectMode(.student)
+                    if hasActiveSession && AuthManager.shared.currentUser?.role == "student" {
+                        appState.selectMode(.student)
+                    } else {
+                        showLogin = true
+                    }
                 }
             }
             .padding(.horizontal, 40)
+            
+            // MARK: - Logout button (if authenticated)
+            if hasActiveSession {
+                Button {
+                    AuthManager.shared.logout()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                        Text("Logout")
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 40)
+            }
 
             Spacer()
 
@@ -80,6 +116,10 @@ struct LaunchView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(backgroundGradient)
+        .sheet(isPresented: $showLogin) {
+            LoginView()
+                .presentationDetents([.medium])
+        }
         .onAppear {
             withAnimation(.spring(duration: 0.8, bounce: 0.4)) {
                 animateLogo = true
