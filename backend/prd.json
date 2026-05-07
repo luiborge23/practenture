@@ -1,0 +1,181 @@
+{
+  "project": "BizSimAI Phase 5 Remaining",
+  "description": "Complete Phase 5: Professor Web Dashboard, iOS Auth/WebSocket integration, production JWT config, Apple/Google token verification, integration tests",
+  "stories": [
+    {
+      "id": "US-005",
+      "title": "Production JWT Configuration",
+      "priority": 1,
+      "depends_on": [],
+      "user_story": "As a deployer, I want JWT secret/configurable via env var so I don't modify code",
+      "acceptance_criteria": [
+        "BIZSIMAI_JWT_SECRET env var required, error if missing",
+        "BIZSIMAI_JWT_EXPIRY_HOURS env var (default 24)",
+        "BIZSIMAI_CORS_ORIGINS env var (default *)",
+        "BIZSIMAI_HOST env var (default localhost)",
+        "BIZSIMAI_PORT env var (default 8000)",
+        "Health check reflects config values"
+      ],
+      "tasks": [
+        "Update auth.py to read JWT_SECRET from os.environ.get('BIZSIMAI_JWT_SECRET') with required validation",
+        "Update auth.py to read JWT_EXPIRY_HOURS from os.environ.get('BIZSIMAI_JWT_EXPIRY_HOURS', '24')",
+        "Update main.py to read CORS_ORIGINS, HOST, PORT from env vars",
+        "Update health check to return config values",
+        "Run existing tests to ensure nothing breaks",
+        "Update IMPLEMENTATION_PLAN.md and progress.txt"
+      ],
+      "passed": false
+    },
+    {
+      "id": "US-006",
+      "title": "Apple/Google ID Token Verification",
+      "priority": 2,
+      "depends_on": ["US-005"],
+      "user_story": "As a student using Apple/Google Sign In, I want my identity token verified against provider JWKS",
+      "acceptance_criteria": [
+        "Apple ID token verified against https://appleid.apple.com/auth/keys",
+        "Google ID token verified against https://www.googleapis.com/oauth2/v3/certs",
+        "Token payload validated (issuer, audience, expiry)",
+        "JWKS keys cached with 6-hour TTL",
+        "Returns same token format as password login"
+      ],
+      "tasks": [
+        "Create backend/auth/providers.py with AppleIDVerifier and GoogleIDVerifier classes",
+        "Add JWKS caching (dict with expiry timestamp)",
+        "Update routers/auth.py to call provider verifiers",
+        "Add test cases for Apple and Google token verification",
+        "Update IMPLEMENTATION_PLAN.md and progress.txt"
+      ],
+      "passed": false
+    },
+    {
+      "id": "US-003",
+      "title": "iOS Auth Integration",
+      "priority": 3,
+      "depends_on": ["US-005"],
+      "user_story": "As an iOS user, I want the app to authenticate with backend and store tokens in Keychain",
+      "acceptance_criteria": [
+        "AuthService.swift for login/logout/token management",
+        "Token stored in Keychain (not UserDefaults)",
+        "Token auto-attached to all NetworkService requests",
+        "Token refresh handled transparently",
+        "Logout clears Keychain token"
+      ],
+      "tasks": [
+        "Create TokenStorage.swift with Keychain read/write/get/delete",
+        "Create AuthService.swift with login, register, logout, refresh methods",
+        "Update NetworkService.swift to attach Authorization header from TokenStorage",
+        "Update SettingsView or add AuthView for login UI",
+        "Update SyncService.swift to use AuthService for auth state",
+        "Build and verify no compilation errors"
+      ],
+      "passed": false
+    },
+    {
+      "id": "US-004",
+      "title": "iOS WebSocket Integration",
+      "priority": 4,
+      "depends_on": ["US-003"],
+      "user_story": "As a student in an active session, I want live updates from backend via WebSocket",
+      "acceptance_criteria": [
+        "WebSocketService.swift using URLSessionWebSocketTask",
+        "Auto-reconnect on disconnect (max 3 attempts)",
+        "UI updates on round_complete or leaderboard_update",
+        "Connection status indicator",
+        "Graceful fallback to polling"
+      ],
+      "tasks": [
+        "Create WebSocketService.swift with connect, disconnect, send, ping/pong",
+        "Add message type enum for server-to-client messages",
+        "Update SyncService.swift to use WebSocketService for live updates",
+        "Add connection status to BackendState.swift",
+        "Add status indicator to relevant views",
+        "Build and verify no compilation errors"
+      ],
+      "passed": false
+    },
+    {
+      "id": "US-001",
+      "title": "Professor Web Dashboard — Session Management",
+      "priority": 5,
+      "depends_on": [],
+      "user_story": "As a professor, I want a web dashboard to manage sessions without the iOS app",
+      "acceptance_criteria": [
+        "Login page at /dashboard/login",
+        "Dashboard shows all active sessions with status",
+        "Create Session form (name, rounds, teams, config)",
+        "Session detail view with live leaderboard",
+        "Start/End/Advance buttons",
+        "Real-time updates via WebSocket",
+        "Configurable backend URL"
+      ],
+      "tasks": [
+        "Create templates directory",
+        "Create templates/login.html with form for professor login",
+        "Create templates/dashboard.html with session list",
+        "Create templates/session_detail.html with controls and leaderboard",
+        "Add router/dashboard.py with login, dashboard, session_detail endpoints",
+        "Add JS for WebSocket connection in session_detail template",
+        "Add JS for session management actions (create, start, advance, end)",
+        "Test all pages render correctly",
+        "Update IMPLEMENTATION_PLAN.md and progress.txt"
+      ],
+      "passed": false
+    },
+    {
+      "id": "US-002",
+      "title": "Professor Web Dashboard — Grade Export",
+      "priority": 6,
+      "depends_on": ["US-001"],
+      "user_story": "As a professor, I want to export grades from the web dashboard",
+      "acceptance_criteria": [
+        "Export Grades button on session detail view",
+        "Export Leaderboard button on session detail view",
+        "Downloads trigger browser download with correct filename",
+        "No new backend endpoints needed (existing /export/grades and /export/leaderboard)"
+      ],
+      "tasks": [
+        "Add Export Grades and Export Leaderboard buttons to session_detail.html",
+        "Add JS fetch calls to download CSV files",
+        "Test both exports work from dashboard",
+        "Update IMPLEMENTATION_PLAN.md and progress.txt"
+      ],
+      "passed": false
+    },
+    {
+      "id": "US-007",
+      "title": "Integration Tests",
+      "priority": 7,
+      "depends_on": ["US-005", "US-006", "US-001"],
+      "user_story": "As a developer, I want integration tests for Phase 5 features",
+      "acceptance_criteria": [
+        "Test session creation via REST API",
+        "Test student login and token verification",
+        "Test session join via REST API",
+        "Test decision submission via REST API",
+        "Test WebSocket connect and message broadcast",
+        "Test grade CSV export",
+        "Test professor dashboard HTML renders",
+        "All tests pass (target: 40+ total)"
+      ],
+      "tasks": [
+        "Add test for session creation via REST",
+        "Add test for student login flow",
+        "Add test for session join flow",
+        "Add test for decision submission via REST",
+        "Add test for WebSocket broadcast",
+        "Add test for grade CSV export",
+        "Add test for dashboard HTML render",
+        "Add test for Apple token verification",
+        "Add test for Google token verification",
+        "Run all tests, verify 40+ pass",
+        "Update IMPLEMENTATION_PLAN.md and progress.txt"
+      ],
+      "passed": false
+    }
+  ],
+  "current_story": "US-005",
+  "learning_log": [],
+  "patterns": [],
+  "status": "in_progress"
+}
