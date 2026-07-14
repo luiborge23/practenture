@@ -284,6 +284,14 @@ final class SessionMonitorViewModel {
         do {
             let results = try await NetworkService.shared.processRound(code: sessionCode)
 
+            // Sync local round counter with backend (process_round advances internally)
+            if let status = try? await NetworkService.shared.getSessionStatus(code: sessionCode) {
+                session.currentRound = status.currentRound
+                if status.state == "finished" || status.state == "completed" {
+                    session.state = .completed
+                }
+            }
+
             // Update local state from backend results
             for result in results {
                 let teamUUID = UUID(uuidString: result.teamId) ?? UUID()
@@ -303,7 +311,8 @@ final class SessionMonitorViewModel {
                 }
             }
 
-            session.advanceRound()
+            // Backend process_round already advances the round counter internally.
+            // Do NOT call session.advanceRound() here — that would double-advance.
             refreshTeamStatuses()
         } catch {
             // Backend failed — fall back to local processing

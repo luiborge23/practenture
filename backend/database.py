@@ -589,7 +589,7 @@ class Database:
                 del self.sessions[code]
                 conn.execute("DELETE FROM decisions WHERE session_code=?", (code,))
                 conn.execute("DELETE FROM results WHERE session_code=?", (code,))
-                conn.execute("DELETE FROM announcements WHERE session_id=? OR session_code=?", (code, code))
+                conn.execute("DELETE FROM announcements WHERE session_id=?", (code,))
                 conn.execute("DELETE FROM team_states WHERE session_code=?", (code,))
                 conn.execute("DELETE FROM sessions WHERE code=?", (code,))
                 conn.commit()

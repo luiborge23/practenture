@@ -421,7 +421,7 @@ final class NetworkService {
             createdBy: "professor",
             maxHumanTeams: config.maxHumanTeams
         )
-        let response: CreateSessionResponseBackend = try await post("/api/dashboard/sessions", body: request)
+        let response: CreateSessionResponseBackend = try await post("/api/sessions", body: request)
         // Return a SessionBackend built from the response
         return SessionBackend(code: response.code)
     }
@@ -486,10 +486,10 @@ final class NetworkService {
     }
 
     func processRound(code: String) async throws -> [RoundResultBackend] {
-        // POST to start round processing, then GET results from /results
-        try await postVoid("/api/sessions/\(code)/process_round")
-        let results: [RoundResultBackend] = try await get("/api/sessions/\(code)/results")
-        return results
+        // POST to process the round — backend returns {round, results}
+        // and internally advances currentRound. We must NOT call advance separately.
+        let response: ProcessRoundResponseBackend = try await post("/api/sessions/\(code)/process_round", body: EmptyBody())
+        return response.results
     }
 
     func advanceRound(code: String) async throws -> [RoundResultBackend] {
@@ -833,6 +833,15 @@ struct DecisionsResponseBackend: Codable {
 }
 
 struct HealthCheckResponse: Codable {}
+
+/// Empty body for POST endpoints that don't need a request body.
+struct EmptyBody: Encodable {}
+
+/// Response from POST /api/sessions/{code}/process_round
+struct ProcessRoundResponseBackend: Decodable {
+    var round: Int = 0
+    var results: [RoundResultBackend] = []
+}
 
 struct LeaderboardResponseBackend: Codable {
     var sessionId: String = ""

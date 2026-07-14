@@ -179,20 +179,7 @@ async def delete_session(code: str):
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # Delete decisions
-    if code in db.decisions:
-        del db.decisions[code]
-
-    # Delete team states
-    if code in db.team_states:
-        del db.team_states[code]
-
-    # Delete results
-    if code in db.results:
-        del db.results[code]
-
-    # Delete session
-    if code in db.sessions:
-        del db.sessions[code]
+    # Use the database method which handles both SQLite and in-memory cleanup
+    db.delete_session(code)
 
     return None
