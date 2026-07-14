@@ -47,7 +47,7 @@ struct TeamManagementView: View {
     private func enrollmentHeader(_ session: SimulationSession) -> some View {
         HStack(spacing: 20) {
             statCard(title: "Enrolled", value: "\(session.enrolledStudents.filter(\.isActive).count)", icon: "person.fill", color: .blue)
-            statCard(title: "Assigned", value: "\(session.enrolledStudents.filter { $0.teamId != nil && $0.isActive }.count)", icon: "person.badge.checkmark", color: .green)
+            statCard(title: "Assigned", value: "\(session.enrolledStudents.filter { $0.teamId != nil && $0.isActive }.count)", icon: "person.badge.star", color: .green)
             statCard(title: "Unassigned", value: "\(session.unassignedStudents.count)", icon: "person.badge.clock", color: .orange)
             statCard(title: "Teams", value: "\(session.teams.filter { !$0.isAI }.count)", icon: "person.3", color: .purple)
         }

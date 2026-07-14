@@ -185,14 +185,17 @@ final class LeaderboardViewModel {
             let sessionCode = session.sessionCode
             do {
                 let backendEntries = try await NetworkService.shared.getLeaderboard(code: sessionCode)
-                rankings = backendEntries.map { entry in
-                    RankingEntry(
+                rankings = backendEntries.map { entry -> RankingEntry in
+                    let teamNameOrId = session.playerTeam?.name ?? ""
+                    let isCurrentTeam = (entry.teamName == currentTeamId?.uuidString) ||
+                                        (entry.studentName != nil && entry.studentName! == teamNameOrId)
+                    return RankingEntry(
                         rank: entry.rank,
                         teamName: entry.teamName,
                         score: entry.totalScore,
                         trend: .stable,
-                        isCurrentTeam: entry.teamName == currentTeamId?.uuidString,
-                        sqRating: entry.imageRating,
+                        isCurrentTeam: isCurrentTeam,
+                        sqRating: 0,
                         imageRating: entry.imageRating,
                         investorScore: entry.totalScore
                     )

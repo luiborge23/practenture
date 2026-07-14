@@ -1,0 +1,176 @@
+# BizSimAI - GitHub Actions CI/CD Pipeline
+# Automated testing, building, and deployment
+
+name: BizSimAI CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  BIZSIMAI_JWT_SECRET: ${{ secrets.BIZSIMAI_JWT_SECRET || 'dev-secret-key-for-ci-testing-only' }}
+  PYTHON_VERSION: '3.11'
+  XCODE_VERSION: '15.4'
+
+jobs:
+  # ─── Backend Tests ───────────────────────────────────────────────
+  backend-test:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: BizSimAI/backend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov httpx
+      
+      - name: Run unit tests
+        run: |
+          python -m pytest test_backend.py -v --cov=app --cov-report=xml
+      
+      - name: Run Phase 5 tests
+        run: |
+          python -m pytest test_phase5.py -v --cov=app --cov-report=xml
+      
+      - name: Run E2E tests
+        run: |
+          python -m pytest test_e2e.py -v
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./backend/coverage.xml
+          flags: backend
+
+  # ─── iOS Build & Test ────────────────────────────────────────────
+  ios-build:
+    name: iOS Build
+    runs-on: macos-latest
+    needs: backend-test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Select Xcode version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+      
+      - name: Resolve Swift Package Dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project BizSimAI/BizSimAI.xcodeproj \
+            -scheme BizSimAI
+      
+      - name: Build for iPhone 17 Pro Simulator
+        run: |
+          xcodebuild build \
+            -project BizSimAI/BizSimAI.xcodeproj \
+            -scheme BizSimAI \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            -configuration Debug \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            | xcpretty
+      
+      - name: Run iOS Unit Tests
+        run: |
+          xcodebuild test \
+            -project BizSimAI/BizSimAI.xcodeproj \
+            -scheme BizSimAI \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            -configuration Debug \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            | xcpretty
+
+  # ─── Lint & Static Analysis ──────────────────────────────────────
+  lint:
+    name: Lint & Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install linters
+        run: |
+          pip install ruff flake8 pylint
+      
+      - name: Run Ruff linter
+        run: |
+          ruff check BizSimAI/backend/
+      
+      - name: Run Flake8
+        run: |
+          flake8 BizSimAI/backend/ --max-line-length=120 --extend-ignore=E501
+
+  # ─── Docker Build (Production) ───────────────────────────────────
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [backend-test, ios-build]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./BizSimAI/Dockerfile
+          push: true
+          tags: |
+            luisborges/bizsimai:latest
+            luisborges/bizsimai:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─── Deploy to Heroku (Production) ───────────────────────────────
+  deploy:
+    name: Deploy to Heroku
+    runs-on: ubuntu-latest
+    needs: docker-build
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Deploy to Heroku
+        uses: akhileshns/heroku-deploy@v3.12.12
+        with:
+          heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
+          heroku_app_name: ${{ secrets.HEROKU_APP_NAME }}
+          heroku_email: ${{ secrets.HEROKU_EMAIL }}
+          usedocker: true

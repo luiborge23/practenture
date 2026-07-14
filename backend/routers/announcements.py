@@ -3,6 +3,7 @@
 import uuid
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from database import db
 from models import (
@@ -14,7 +15,24 @@ from models import (
 router = APIRouter(prefix="/api/sessions", tags=["announcements"])
 
 
-@router.post("/{code}/announcements")
+class CreateAnnouncementResponse(BaseModel):
+    status: str = "sent"
+    announcementId: str
+
+
+class AnnouncementItem(BaseModel):
+    id: str
+    message: str
+    authorId: str
+    authorName: str
+    timestamp: str
+
+
+class GetAnnouncementsResponse(BaseModel):
+    announcements: list[AnnouncementItem]
+
+
+@router.post("/{code}/announcements", response_model=CreateAnnouncementResponse)
 async def create_announcement(code: str, req: CreateAnnouncementRequest):
     """Professor sends an announcement to all teams in the session."""
     session = db.get_session(code)
@@ -29,7 +47,7 @@ async def create_announcement(code: str, req: CreateAnnouncementRequest):
         authorName=req.authorName,
     )
     db.add_announcement(code, announcement)
-    return {"status": "sent", "announcementId": announcement.id}
+    return CreateAnnouncementResponse(announcementId=announcement.id)
 
 
 @router.get("/{code}/announcements")
@@ -43,6 +61,7 @@ async def get_announcements(code: str):
     return [
         {
             "id": a.id,
+            "sessionId": a.sessionId,
             "message": a.message,
             "authorId": a.authorId,
             "authorName": a.authorName,

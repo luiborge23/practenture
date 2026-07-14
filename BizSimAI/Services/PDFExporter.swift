@@ -3,8 +3,10 @@
 //
 // Generates PDF reports of simulation results for sharing with professors.
 // Uses UIGraphicsPDFRenderer for native iOS PDF generation.
+// Supports multi-page output with automatic page breaks.
 
 import SwiftUI
+import os
 import UIKit
 
 // MARK: - PDF Exporter
@@ -27,16 +29,20 @@ private struct PDFRenderer {
     private let pageWidth: CGFloat = 612
     private let pageHeight: CGFloat = 792
     private let margin: CGFloat = 50
-    private let lineHeight: CGFloat = 20
+    private let lineHeight: CGFloat = 18
     
+    /// Generate the PDF, handling multi-page layout.
     func generate() -> URL? {
         let fileURL = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("BizSimAI_Results_\(session.sessionCode).pdf")
         
-        let renderer = UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight))
+        let bounds = CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight)
+        let renderer = UIGraphicsPDFRenderer(bounds: bounds)
         
         let data = renderer.pdfData { context in
-            var mutableY = pageHeight - margin
+            var y: CGFloat = margin
+            
+            context.beginPage()
             
             // Title
             let title = "BizSimAI — Simulation Results"
@@ -44,9 +50,8 @@ private struct PDFRenderer {
                 .font: UIFont.boldSystemFont(ofSize: 22),
                 .foregroundColor: UIColor.systemBlue
             ]
-            let titleRect = CGRect(x: margin, y: mutableY, width: pageWidth - 2 * margin, height: lineHeight * 2)
-            title.draw(in: titleRect, withAttributes: titleAttrs)
-            mutableY -= lineHeight * 3
+            title.draw(at: CGPoint(x: margin, y: y), withAttributes: titleAttrs)
+            y += lineHeight * 2.5
             
             // Session info
             let infoLines: [String] = [
@@ -65,11 +70,11 @@ private struct PDFRenderer {
             
             let font = UIFont.systemFont(ofSize: 11)
             for line in infoLines {
-                let rect = CGRect(x: margin, y: mutableY, width: pageWidth - 2 * margin, height: lineHeight)
-                line.draw(in: rect, withAttributes: [.font: font])
-                mutableY -= lineHeight
+                y = ensureSpace(y: &y, needed: lineHeight, context: context)
+                line.draw(at: CGPoint(x: margin, y: y), withAttributes: [.font: font])
+                y += lineHeight
             }
-            mutableY -= 10
+            y += 8
             
             // Cumulative spending
             let spendingLines: [(String, String)] = [
@@ -83,46 +88,54 @@ private struct PDFRenderer {
                 .font: UIFont.boldSystemFont(ofSize: 14),
                 .foregroundColor: UIColor.darkGray
             ]
-            let spendingHeader = "Cumulative Investments"
-            let spendingRect = CGRect(x: margin, y: mutableY, width: pageWidth - 2 * margin, height: lineHeight)
-            spendingHeader.draw(in: spendingRect, withAttributes: headerAttrs)
-            mutableY -= lineHeight + 5
+            y = ensureSpace(y: &y, needed: lineHeight * 2, context: context)
+            "Cumulative Investments".draw(at: CGPoint(x: margin, y: y), withAttributes: headerAttrs)
+            y += lineHeight + 4
             
             for (label, value) in spendingLines {
-                let labelRect = CGRect(x: margin, y: mutableY, width: 200, height: lineHeight)
-                label.draw(in: labelRect, withAttributes: [.font: UIFont.systemFont(ofSize: 10)])
-                let valueRect = CGRect(x: pageWidth - margin - 120, y: mutableY, width: 120, height: lineHeight)
-                value.draw(in: valueRect, withAttributes: [.font: UIFont.monospacedDigitSystemFont(ofSize: 10, weight: .regular), .foregroundColor: UIColor.systemGreen])
-                mutableY -= lineHeight
+                y = ensureSpace(y: &y, needed: lineHeight, context: context)
+                label.draw(at: CGPoint(x: margin, y: y), withAttributes: [.font: UIFont.systemFont(ofSize: 10)])
+                value.draw(at: CGPoint(x: pageWidth - margin - 120, y: y), withAttributes: [
+                    .font: UIFont.monospacedDigitSystemFont(ofSize: 10, weight: .regular),
+                    .foregroundColor: UIColor.systemGreen
+                ])
+                y += lineHeight
             }
-            mutableY -= 10
+            y += 8
             
             // Round table
-            let roundHeader = "Round-by-Round Results"
-            let roundHeaderRect = CGRect(x: margin, y: mutableY, width: pageWidth - 2 * margin, height: lineHeight)
-            roundHeader.draw(in: roundHeaderRect, withAttributes: headerAttrs)
-            mutableY -= lineHeight + 5
+            y = ensureSpace(y: &y, needed: lineHeight * 3, context: context)
+            "Round-by-Round Results".draw(at: CGPoint(x: margin, y: y), withAttributes: headerAttrs)
+            y += lineHeight + 4
             
             let colHeaders = ["Round", "Revenue", "Profit", "Mkt Share", "Price", "S/Q"]
             let colWidths: [CGFloat] = [50, 90, 90, 80, 90, 60]
-            var x = margin
             let colFont = UIFont.boldSystemFont(ofSize: 9)
             
+            // Draw header row background
+            let headerBgRect = CGRect(x: margin, y: y, width: pageWidth - 2 * margin, height: lineHeight)
+            UIColor.systemGray5.setFill()
+            UIGraphicsGetCurrentContext()?.fill(headerBgRect)
+            
+            var x = margin
             for (i, col) in colHeaders.enumerated() {
-                let rect = CGRect(x: x, y: mutableY, width: colWidths[i], height: lineHeight)
-                col.draw(in: rect, withAttributes: [.font: colFont, .foregroundColor: UIColor.white, .backgroundColor: UIColor.systemGray5])
+                col.draw(at: CGPoint(x: x, y: y + 2), withAttributes: [.font: colFont, .foregroundColor: UIColor.white])
                 x += colWidths[i]
             }
-            mutableY -= lineHeight + 3
+            y += lineHeight + 2
             
             let rowFont = UIFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular)
             for (roundIdx, round) in rounds.enumerated() {
-                x = margin
-                let bgColor = roundIdx % 2 == 0 ? UIColor.systemGray6 : UIColor.clear
-                let bgRect = CGRect(x: margin, y: mutableY, width: pageWidth - 2 * margin, height: lineHeight)
-                bgColor.setFill()
-                UIGraphicsGetCurrentContext()?.fill(bgRect)
+                y = ensureSpace(y: &y, needed: lineHeight, context: context)
                 
+                // Alternating row background
+                if roundIdx % 2 == 0 {
+                    let bgRect = CGRect(x: margin, y: y, width: pageWidth - 2 * margin, height: lineHeight)
+                    UIColor.systemGray6.setFill()
+                    UIGraphicsGetCurrentContext()?.fill(bgRect)
+                }
+                
+                x = margin
                 let values: [String] = [
                     "\(round.roundNumber)",
                     formatted(round.revenue),
@@ -133,34 +146,39 @@ private struct PDFRenderer {
                 ]
                 
                 for (i, value) in values.enumerated() {
-                    let rect = CGRect(x: x, y: mutableY, width: colWidths[i], height: lineHeight)
-                    value.draw(in: rect, withAttributes: [.font: rowFont, .foregroundColor: UIColor.darkGray])
+                    value.draw(at: CGPoint(x: x, y: y + 2), withAttributes: [.font: rowFont, .foregroundColor: UIColor.darkGray])
                     x += colWidths[i]
                 }
-                mutableY -= lineHeight
-                
-                if mutableY < margin + lineHeight * 2 {
-                    break
-                }
+                y += lineHeight
             }
             
             // Footer
+            y = ensureSpace(y: &y, needed: lineHeight, context: context)
             let footer = "Generated by BizSimAI • \(Date().formatted(date: .numeric, time: .standard))"
-            let footerAttrs: [NSAttributedString.Key: Any] = [
+            footer.draw(at: CGPoint(x: margin, y: y), withAttributes: [
                 .font: UIFont.systemFont(ofSize: 8),
                 .foregroundColor: UIColor.systemGray
-            ]
-            let footerRect = CGRect(x: margin, y: mutableY, width: pageWidth - 2 * margin, height: lineHeight)
-            footer.draw(in: footerRect, withAttributes: footerAttrs)
+            ])
         }
         
         do {
             try data.write(to: fileURL)
+            Logger.pdf.info("PDF exported to \(fileURL.lastPathComponent)")
             return fileURL
         } catch {
-            print("PDF export failed: \(error)")
+            Logger.pdf.error("PDF export failed: \(error.localizedDescription)")
             return nil
         }
+    }
+    
+    /// Ensure there is enough vertical space; if not, start a new page.
+    @discardableResult
+    private func ensureSpace(y: inout CGFloat, needed: CGFloat, context: UIGraphicsPDFRendererContext) -> CGFloat {
+        if y + needed > pageHeight - margin {
+            context.beginPage()
+            y = margin
+        }
+        return y
     }
     
     private func formatted(_ value: Double) -> String {

@@ -42,14 +42,92 @@ final class NetworkService {
 
     static let shared = NetworkService()
 
-    var baseURL: String = "http://localhost:8000"
+    /// Environment-aware base URL. Single source of truth: Info.plist BIZSIMAI_BACKEND_URL key.
+    /// Falls back to EC2 IP only if plist key is missing (never at runtime).
+    var baseURL: String {
+        if let plistURL = Bundle.main.object(forInfoDictionaryKey: "BIZSIMAI_BACKEND_URL") as? String, !plistURL.isEmpty {
+            return plistURL
+        }
+        // Only default to EC2 — no env var fallback (prevents config drift)
+        return "http://18.215.180.58:80"
+    }
 
     private let session: URLSession
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
+    // MARK: - Token Refresh
+
+    /// Request body for POST /api/auth/refresh.
+    private struct RefreshTokenRequest: Encodable {
+        let refreshToken: String
+        
+        enum CodingKeys: String, CodingKey {
+            case refreshToken = "refreshToken"
+        }
+    }
+
+    /// Lock to serialise concurrent refresh attempts.
+    private let refreshLock = NSLock()
+    /// Holds any in-flight refresh Task so concurrent 401s share the same refresh.
+    private var refreshTask: Task<String, Error>?
+
+    /// Refresh the access token via /api/auth/refresh.
+    /// Concurrent callers coalesce — only one refresh HTTP call is made; others await the same result.
+    func refreshToken() async throws -> String {
+        // Fast path: if a refresh is already in flight, await it.
+        refreshLock.lock()
+        if let existing = refreshTask {
+            refreshLock.unlock()
+            return try await existing.value
+        }
+
+        // Start a new refresh task.
+        // Uses performRequest with retryingAfterRefresh=true so a 401 on the
+        // refresh endpoint itself does NOT trigger another refresh (preventing infinite recursion).
+        let task = Task<String, Error> { [keychain = KeychainWrapper()] in
+            guard let refreshToken = keychain.string(forKey: "refresh_token") else {
+                throw AuthError.tokenExpired
+            }
+            let request = RefreshTokenRequest(refreshToken: refreshToken)
+            // Bypass the public post() to avoid double 401 handling.
+            let response: AuthLoginResponse = try await self.performRequest(
+                method: "POST",
+                endpoint: "/api/auth/refresh",
+                body: request,
+                retryingAfterRefresh: true
+            )
+
+            // Persist new tokens to Keychain (single source of truth)
+            keychain.set(response.accessToken, forKey: "jwt_token")
+            if let rt = response.refreshToken {
+                keychain.set(rt, forKey: "refresh_token")
+            }
+            return response.accessToken
+        }
+
+        refreshTask = task
+        refreshLock.unlock()
+
+        do {
+            let newToken = try await task.value
+            refreshLock.lock()
+            refreshTask = nil
+            refreshLock.unlock()
+            return newToken
+        } catch {
+            refreshLock.lock()
+            refreshTask = nil
+            refreshLock.unlock()
+            throw error
+        }
+    }
+
     private init(timeout: TimeInterval = 15) {
         let config = URLSessionConfiguration.default
+        let cache = URLCache(memoryCapacity: 10 * 1024 * 1024, diskCapacity: 50 * 1024 * 1024, directory: nil)
+        config.urlCache = cache
+        config.requestCachePolicy = .returnCacheDataElseLoad
         config.timeoutIntervalForRequest = timeout
         config.timeoutIntervalForResource = timeout
         config.waitsForConnectivity = true
@@ -84,8 +162,17 @@ final class NetworkService {
         try await requestVoid(method: "DELETE", endpoint: endpoint, body: nil)
     }
 
-    private func postVoid(_ endpoint: String, body: Encodable? = nil) async throws {
+    func postVoid(_ endpoint: String, body: Encodable? = nil) async throws {
         try await requestVoid(method: "POST", endpoint: endpoint, body: body)
+    }
+
+    /// POST that returns a raw JSON dictionary (for endpoints with dynamic responses)
+    func postRaw(_ endpoint: String, body: Encodable? = nil) async throws -> [String: Any] {
+        let data = try await requestRaw(method: "POST", endpoint: endpoint, body: body)
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return [:]
+        }
+        return json
     }
 
     // MARK: - Void Request (no response body decoding)
@@ -124,7 +211,8 @@ final class NetworkService {
     private func performVoidRequest(
         method: String,
         endpoint: String,
-        body: Encodable?
+        body: Encodable?,
+        retryingAfterRefresh: Bool = false
     ) async throws {
         guard let url = URL(string: baseURL + endpoint) else {
             throw NetworkError.invalidURL
@@ -144,11 +232,24 @@ final class NetworkService {
             request.httpBody = try encoder.encode(body)
         }
 
-        let (_, response) = try await session.data(for: request)
+        let (data, response) = try await session.data(for: request)
 
         // Check response
         guard let httpResponse = response as? HTTPURLResponse else {
             throw NetworkError.noData
+        }
+
+        // Handle 401 — attempt token refresh and retry once
+        if httpResponse.statusCode == 401 && !retryingAfterRefresh {
+            do {
+                let newToken = try await refreshToken()
+                request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                return try await performVoidRequest(method: method, endpoint: endpoint, body: body, retryingAfterRefresh: true)
+            } catch {
+                // Refresh failed — force logout and surface the error
+                await AuthManager.shared.logout()
+                throw NetworkError.serverError(401, "Session expired. Please log in again.")
+            }
         }
 
         // Handle success
@@ -156,8 +257,15 @@ final class NetworkService {
             return
         }
 
-        // Handle error responses
-        throw NetworkError.serverError(httpResponse.statusCode, "Unknown server error")
+        // Handle error responses — extract detail from JSON body
+        let errorBody = String(data: data, encoding: .utf8) ?? "Unknown server error"
+        var detail = errorBody
+        if let jsonData = errorBody.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+           let msg = json["detail"] as? String {
+            detail = msg
+        }
+        throw NetworkError.serverError(httpResponse.statusCode, detail)
     }
 
     // MARK: - Core Request with Retry
@@ -196,7 +304,8 @@ final class NetworkService {
     private func performRequest<T: Decodable>(
         method: String,
         endpoint: String,
-        body: Encodable?
+        body: Encodable?,
+        retryingAfterRefresh: Bool = false
     ) async throws -> T {
         guard let url = URL(string: baseURL + endpoint) else {
             throw NetworkError.invalidURL
@@ -223,6 +332,19 @@ final class NetworkService {
             throw NetworkError.noData
         }
 
+        // Handle 401 — attempt token refresh and retry once
+        if httpResponse.statusCode == 401 && !retryingAfterRefresh {
+            do {
+                let newToken = try await refreshToken()
+                request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                return try await performRequest(method: method, endpoint: endpoint, body: body, retryingAfterRefresh: true)
+            } catch {
+                // Refresh failed — force logout and surface the error
+                await AuthManager.shared.logout()
+                throw NetworkError.serverError(401, "Session expired. Please log in again.")
+            }
+        }
+
         // Handle success
         if (200...299).contains(httpResponse.statusCode) {
             guard !data.isEmpty else {
@@ -241,6 +363,55 @@ final class NetworkService {
         throw NetworkError.serverError(httpResponse.statusCode, errorMsg)
     }
 
+    // MARK: - Raw Request (returns Data, for dynamic JSON responses)
+
+    private func requestRaw(
+        method: String,
+        endpoint: String,
+        body: Encodable?
+    ) async throws -> Data {
+        guard let url = URL(string: baseURL + endpoint) else {
+            throw NetworkError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        if let token = AuthManager.shared.accessToken, !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        if let body = body {
+            request.httpBody = try encoder.encode(body)
+        }
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.noData
+        }
+
+        if httpResponse.statusCode == 401 {
+            do {
+                let newToken = try await refreshToken()
+                request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                let (retryData, _) = try await session.data(for: request)
+                return retryData
+            } catch {
+                await AuthManager.shared.logout()
+                throw NetworkError.serverError(401, "Session expired. Please log in again.")
+            }
+        }
+
+        if (200...299).contains(httpResponse.statusCode) {
+            return data
+        }
+
+        let errorMsg = String(data: data, encoding: .utf8) ?? "Unknown server error"
+        throw NetworkError.serverError(httpResponse.statusCode, errorMsg)
+    }
+
     // MARK: - Session Operations
 
     func createSession(config: SessionConfiguration, teams: [TeamConfig]) async throws -> SessionBackend {
@@ -250,7 +421,7 @@ final class NetworkService {
             createdBy: "professor",
             maxHumanTeams: config.maxHumanTeams
         )
-        let response: CreateSessionResponseBackend = try await post("/api/sessions", body: request)
+        let response: CreateSessionResponseBackend = try await post("/api/dashboard/sessions", body: request)
         // Return a SessionBackend built from the response
         return SessionBackend(code: response.code)
     }
@@ -267,7 +438,7 @@ final class NetworkService {
 
     func getTeams(code: String) async throws -> [TeamConfigBackend] {
         // Backend returns list of TeamConfig in /teams or within session
-        let session: SessionBackend = try await get("/api/sessions/\\(code)")
+        let session: SessionBackend = try await get("/api/sessions/\(code)")
         return session.teams
     }
 
@@ -279,13 +450,24 @@ final class NetworkService {
         try await postVoid("/api/sessions/\(code)/end")
     }
 
+    func startSession(code: String) async throws {
+        try await postVoid("/api/sessions/\(code)/start")
+    }
+
+    func deleteSession(code: String) async throws {
+        try await delete("/api/sessions/\(code)")
+    }
+
     // MARK: - Decision Operations
 
-    func submitDecision(code: String, round: Int, teamId: UUID, decision: PlayerDecision) async throws {
+    func submitDecision(code: String, round: Int, teamId: UUID, decision: PlayerDecision, backendTeamId: String? = nil) async throws {
         let backendDecision = decision.toBackendDecision()
+        // Backend expects team name as teamId string, not a UUID.
+        // Use backendTeamId if provided (from join response), otherwise fall back to uuidString.
+        let teamIdString = backendTeamId ?? teamId.uuidString
         let request = SubmitDecisionRequestBackend(
             round: round,
-            teamId: teamId.uuidString,
+            teamId: teamIdString,
             decision: backendDecision
         )
         try await postVoid("/api/sessions/\(code)/submit_decision", body: request)
@@ -304,12 +486,14 @@ final class NetworkService {
     }
 
     func processRound(code: String) async throws -> [RoundResultBackend] {
+        // POST to start round processing, then GET results from /results
         try await postVoid("/api/sessions/\(code)/process_round")
         let results: [RoundResultBackend] = try await get("/api/sessions/\(code)/results")
         return results
     }
 
     func advanceRound(code: String) async throws -> [RoundResultBackend] {
+        // POST to advance to next round, then GET results from /results
         try await postVoid("/api/sessions/\(code)/advance")
         let results: [RoundResultBackend] = try await get("/api/sessions/\(code)/results")
         return results
@@ -318,7 +502,7 @@ final class NetworkService {
     // MARK: - Results and Leaderboard
 
     func getResults(code: String) async throws -> [Int: [RoundResultBackend]] {
-        let results: [RoundResultBackend] = try await get("/api/sessions/\\(code)/results")
+        let results: [RoundResultBackend] = try await get("/api/sessions/\(code)/results")
         var grouped: [Int: [RoundResultBackend]] = [:]
         for result in results {
             grouped[result.round, default: []].append(result)
@@ -348,6 +532,114 @@ final class NetworkService {
         try await get("/api/sessions/\(code)/announcements")
     }
 
+    // MARK: - Professor Dashboard Sessions
+
+    /// Backend response for dashboard session list item.
+    struct DashboardSessionResponse: Codable, Identifiable {
+        var id: String { code }
+        var code: String = ""
+        var state: String = "creating"
+        var currentRound: Int = 0
+        var totalRounds: Int = 20
+        var teamsCount: Int = 0
+        var aiTeamsCount: Int = 0
+        var totalTeams: Int = 0
+        var totalSubmissions: Int = 0
+        var lastRound: Int = 0
+    }
+
+    /// Backend wraps the session list in {"sessions": [...]} — decode the wrapper.
+    private struct DashboardSessionListWrapper: Codable {
+        var sessions: [DashboardSessionResponse]
+    }
+
+    /// Fetch all sessions for the professor dashboard.
+    func getDashboardSessions() async throws -> [DashboardSessionResponse] {
+        // Backend returns {"sessions": [...]} (wrapped object), not a bare array.
+        // Try wrapped decode first; fall back to bare array for older backends.
+        do {
+            let wrapper: DashboardSessionListWrapper = try await get("/api/dashboard/sessions")
+            return wrapper.sessions
+        } catch {
+            // Older backend may return bare array
+            return try await get("/api/dashboard/sessions")
+        }
+    }
+
+    // MARK: - Grade Export
+
+    /// Fetch grade export CSV as string (for parsing or download).
+    func exportGrades(code: String, retryingAfterRefresh: Bool = false) async throws -> String {
+        guard let url = URL(string: baseURL + "/api/sessions/\(code)/export/grades") else {
+            throw NetworkError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let token = AuthManager.shared.accessToken, !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.serverError(0, "Connection failed")
+        }
+
+        // Handle 401 — attempt token refresh and retry once
+        if httpResponse.statusCode == 401 && !retryingAfterRefresh {
+            do {
+                let newToken = try await refreshToken()
+                request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                return try await exportGrades(code: code, retryingAfterRefresh: true)
+            } catch {
+                await AuthManager.shared.logout()
+                throw NetworkError.serverError(401, "Session expired. Please log in again.")
+            }
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw NetworkError.serverError(httpResponse.statusCode, "Connection failed")
+        }
+        guard let csv = String(data: data, encoding: .utf8) else {
+            throw NetworkError.decodingError
+        }
+        return csv
+    }
+
+    /// Fetch leaderboard export CSV as string.
+    func exportLeaderboard(code: String, retryingAfterRefresh: Bool = false) async throws -> String {
+        guard let url = URL(string: baseURL + "/api/sessions/\(code)/export/leaderboard") else {
+            throw NetworkError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let token = AuthManager.shared.accessToken, !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.serverError(0, "Connection failed")
+        }
+
+        // Handle 401 — attempt token refresh and retry once
+        if httpResponse.statusCode == 401 && !retryingAfterRefresh {
+            do {
+                let newToken = try await refreshToken()
+                request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                return try await exportLeaderboard(code: code, retryingAfterRefresh: true)
+            } catch {
+                await AuthManager.shared.logout()
+                throw NetworkError.serverError(401, "Session expired. Please log in again.")
+            }
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw NetworkError.serverError(httpResponse.statusCode, "Connection failed")
+        }
+        guard let csv = String(data: data, encoding: .utf8) else {
+            throw NetworkError.decodingError
+        }
+        return csv
+    }
+
     // MARK: - Health Check
 
     func healthCheck() async -> Bool {
@@ -373,101 +665,11 @@ final class NetworkService {
     
     func authRegister(username: String, password: String, studentId: String, name: String) async throws -> AuthLoginResponse {
         let request = AuthRegisterRequest(
-            username: username,
-            password: password,
             studentId: studentId,
-            name: name
+            name: name,
+            password: password
         )
         return try await post("/api/auth/register", body: request)
-    }
-    
-    // MARK: - Auth Header Support
-    
-    /// Set the access token for authenticated requests.
-    func setAccessToken(_ token: String?) {
-        _accessToken = token
-    }
-    
-    private var _accessToken: String?
-    
-    // MARK: - Updated Request with Auth Header
-    
-    private func performRequestWithAuth<T: Decodable>(
-        method: String,
-        endpoint: String,
-        body: Encodable?
-    ) async throws -> T {
-        guard let url = URL(string: baseURL + endpoint) else {
-            throw NetworkError.invalidURL
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        // Add auth header if token available
-        if let token = _accessToken, !token.isEmpty {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
-        
-        if let body = body {
-            request.httpBody = try encoder.encode(body)
-        }
-        
-        let (data, response) = try await session.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw NetworkError.noData
-        }
-        
-        if (200...299).contains(httpResponse.statusCode) {
-            guard !data.isEmpty else {
-                throw NetworkError.noData
-            }
-            do {
-                let decoded = try decoder.decode(T.self, from: data)
-                return decoded
-            } catch {
-                throw NetworkError.decodingError
-            }
-        }
-        
-        let errorMsg = String(data: data, encoding: .utf8) ?? "Unknown server error"
-        throw NetworkError.serverError(httpResponse.statusCode, errorMsg)
-    }
-    
-    private func performVoidRequestWithAuth(
-        method: String,
-        endpoint: String,
-        body: Encodable?
-    ) async throws {
-        guard let url = URL(string: baseURL + endpoint) else {
-            throw NetworkError.invalidURL
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        if let token = _accessToken, !token.isEmpty {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
-        
-        if let body = body {
-            request.httpBody = try encoder.encode(body)
-        }
-        
-        let (_, response) = try await session.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw NetworkError.noData
-        }
-        
-        if (200...299).contains(httpResponse.statusCode) {
-            return
-        }
-        
-        throw NetworkError.serverError(httpResponse.statusCode, "Unknown server error")
     }
 }
 
@@ -514,6 +716,9 @@ struct TeamConfig: Codable {
     var isAI: Bool = false
     var playerName: String?
     var studentId: String?
+    /// Backend uses team name as teamId (not UUID). Stored here so
+    /// submit_decision can send the correct identifier back to the API.
+    var backendTeamId: String?
 }
 
 /// Backend session status response (from /status).
@@ -580,6 +785,7 @@ struct AnnouncementBackend: Codable, Identifiable {
     var authorId: String = ""
     var authorName: String = ""
     var timestamp: String = ""
+    var roundNumber: Int? = nil
 }
 
 // MARK: - Backend Request/Response Models
@@ -684,7 +890,7 @@ extension SessionConfiguration {
         SessionConfigBackend(
             totalRounds: totalRounds,
             numberOfAICompetitors: numberOfAICompetitors,
-            randomSeed: Int(randomSeed),
+            randomSeed: Int(min(randomSeed, UInt64(Int.max))),
             startingCash: startingCash,
             initialEquity: initialEquity,
             plantCapacity: plantCapacity,

@@ -9,6 +9,7 @@ struct AnnouncementsView: View {
     @Environment(AppState.self) private var appState
     @State private var newMessage: String = ""
     @State private var isRoundDebrief: Bool = false
+    @State private var isLoading: Bool = false
 
     private var session: SimulationSession? { appState.activeSession }
 
@@ -29,6 +30,36 @@ struct AnnouncementsView: View {
             .padding(24)
         }
         .navigationTitle("Announcements")
+        .task {
+            await fetchAnnouncements()
+        }
+        .refreshable {
+            await fetchAnnouncements()
+        }
+    }
+
+    // MARK: - Fetch from Backend
+
+    private func fetchAnnouncements() async {
+        guard let session = session else { return }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let backend = try await NetworkService.shared.getAnnouncements(code: session.sessionCode)
+            // Merge backend announcements into local session, avoiding duplicates by message+timestamp
+            for ba in backend {
+                let existing = session.announcements.contains { local in
+                    local.message == ba.message && abs(local.postedAt.timeIntervalSince1970 - (ISO8601DateFormatter().date(from: ba.timestamp)?.timeIntervalSince1970 ?? 0)) < 2
+                }
+                if !existing {
+                    let date = ISO8601DateFormatter().date(from: ba.timestamp) ?? Date()
+                    let ann = Announcement(message: ba.message, roundNumber: ba.roundNumber, postedAt: date)
+                    session.addAnnouncement(ann.message, forRound: ann.roundNumber)
+                }
+            }
+        } catch {
+            // Silently fail — local announcements still display
+        }
     }
 
     // MARK: - Compose
@@ -61,11 +92,23 @@ struct AnnouncementsView: View {
                 Spacer()
 
                 Button {
-                    let trimmed = newMessage.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !trimmed.isEmpty else { return }
-                    session.addAnnouncement(trimmed, forRound: isRoundDebrief ? session.currentRound : nil)
-                    newMessage = ""
-                    isRoundDebrief = false
+                    Task {
+                        let trimmed = newMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmed.isEmpty else { return }
+                        do {
+                            try await NetworkService.shared.sendAnnouncement(
+                                code: session.sessionCode,
+                                message: trimmed,
+                                authorId: AuthManager.shared.userId ?? "",
+                                authorName: AuthManager.shared.userName ?? "Professor"
+                            )
+                            session.addAnnouncement(trimmed, forRound: isRoundDebrief ? session.currentRound : nil)
+                        } catch {
+                            session.addAnnouncement(trimmed, forRound: isRoundDebrief ? session.currentRound : nil)
+                        }
+                        newMessage = ""
+                        isRoundDebrief = false
+                    }
                 } label: {
                     Label("Post", systemImage: "paperplane.fill")
                 }

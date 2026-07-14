@@ -1,7 +1,16 @@
 """BizSimAI FastAPI application."""
 
 import os
+import sys
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+
+# Load .env file into environment (local dev only)
+load_dotenv()
+
+# Ensure sibling modules (database, auth, models, etc.) are importable
+# when running via gunicorn from /app (Docker) or uvicorn locally
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -9,22 +18,30 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from database import db
-from routers import announcements, auth, decisions, grades, leaderboard, sessions, websocket
+from models import (
+    AdvanceResponse,
+    ProcessRoundResponse,
+    RoundResult,
+    SessionState,
+)
+from routers import ai, announcements, auth, classes, dashboard, decisions, grades, leaderboard, professor, sessions, websocket
+from simulation_engine import process_round
 
 
 # ── Production configuration ──────────────────────────────────────────────
 
 HOST = os.environ.get("BIZSIMAI_HOST", "0.0.0.0")
 PORT = int(os.environ.get("BIZSIMAI_PORT", "8000"))
-CORS_ORIGINS = [
-    origin.strip()
-    for origin in os.environ.get("BIZSIMAI_CORS_ORIGINS", "*").split(",")
-]
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifecycle — startup/shutdown hooks."""
+    # Bootstrap owner account (creates in SQLite if not exists)
+    from auth import ensure_owner, ensure_professor
+    ensure_owner()
+    ensure_professor()
+
     # Startup logging
     print(f"[BizSimAI] Starting on {HOST}:{PORT}")
     print(f"[BizSimAI] CORS origins: {CORS_ORIGINS}")
@@ -42,10 +59,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — allow all origins in dev, configurable via env var for prod
+# CORS — use configured origins (SOTA: no wildcard in production)
+# Default: iOS native app origins + localhost for dev
+_DEFAULT_CORS = "http://localhost,http://localhost:8080,capacitor://,http://localhost"
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get("BIZSIMAI_CORS_ORIGINS", _DEFAULT_CORS).split(",")
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -93,13 +116,23 @@ async def health_check():
 
 # ── Register routers ───────────────────────────────────────────────────────
 
+app.include_router(ai.router)
 app.include_router(auth.router)
+app.include_router(dashboard.router)
 app.include_router(websocket.router)
 app.include_router(sessions.router)
 app.include_router(decisions.router)
 app.include_router(announcements.router)
 app.include_router(grades.router)
 app.include_router(leaderboard.router)
+app.include_router(classes.router)
+app.include_router(professor.router)
+
+# SOTA Phase 2: SAML SSO + SCIM 2.0 user provisioning
+import saml as saml_router_mod
+import scim as scim_router_mod
+app.include_router(saml_router_mod.router)
+app.include_router(scim_router_mod.router)
 
 
 # ── Team listing endpoint ──────────────────────────────────────────────────
@@ -145,7 +178,7 @@ async def get_results(code: str):
 # ── Advance endpoint ───────────────────────────────────────────────────────
 
 
-@app.post("/api/sessions/{code}/advance")
+@app.post("/api/sessions/{code}/advance", response_model=AdvanceResponse)
 async def advance_round(code: str):
     """Advance to next round: process current round, then auto-generate AI decisions for next."""
     session = db.get_session(code)
@@ -156,16 +189,12 @@ async def advance_round(code: str):
     if current_round >= session.config.totalRounds:
         return JSONResponse(status_code=400, content={"detail": "All rounds completed"})
 
-    # Process current round (will also auto-advance via process_round logic)
-    # We use the decisions router's logic
-    from models import ProcessRoundResponse
-
     # Get decisions
     decisions_map = db.get_decisions(code, current_round)
 
     # If no human decisions, we still want to process (AI will auto-generate)
     team_states = db.team_states.get(code, {})
-    engine_results, new_team_states = __import__("simulation_engine", fromlist=["process_round"]).process_round(
+    engine_results, new_team_states = process_round(
         config=session.config,
         teams=session.teams,
         decisions=decisions_map,
@@ -180,14 +209,13 @@ async def advance_round(code: str):
     # Advance round
     next_round = current_round + 1
     if next_round > session.config.totalRounds:
-        new_state = "finished"
+        new_state = SessionState.FINISHED
     else:
-        new_state = "active"
+        new_state = SessionState.ACTIVE
     db.update_session(code, {"currentRound": next_round, "state": new_state})
 
-    return {
-        "round": current_round,
-        "status": "processed",
-        "nextRound": next_round,
-        "results": [r.model_dump() for r in engine_results],
-    }
+    return AdvanceResponse(
+        round=current_round,
+        status="processed",
+        results=engine_results,
+    )

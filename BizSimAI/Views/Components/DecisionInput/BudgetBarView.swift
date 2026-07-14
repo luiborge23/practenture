@@ -26,7 +26,7 @@ struct BudgetBarView: View {
                     .fontWeight(.medium)
             }
             
-            ProgressView(value: min(viewModel.budgetUtilization, 1.0))
+            ProgressView(value: min(max(viewModel.budgetUtilization, 0.0), 1.0))
                 .tint(viewModel.isOverBudget ? .red : .blue)
             
             if !viewModel.warnings.isEmpty {

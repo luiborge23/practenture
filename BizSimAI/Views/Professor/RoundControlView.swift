@@ -5,6 +5,7 @@
 // Shows current round, submission status, advance/pause/end controls.
 
 import SwiftUI
+import Combine
 
 struct RoundControlView: View {
     @Environment(AppState.self) private var appState
@@ -17,6 +18,8 @@ struct RoundControlView: View {
 
     // Team submission tracking
     @State private var teamSubmissions: [TeamSubmission] = []
+
+    @State private var isProcessing: Bool = false
 
     private var submittedCount: Int {
         teamSubmissions.filter(\.hasSubmitted).count
@@ -55,17 +58,21 @@ struct RoundControlView: View {
         .onAppear {
             loadFromSession()
         }
+        .onReceive(Timer.publish(every: 5, on: .main, in: .common).autoconnect()) { _ in
+            loadFromSession()
+        }
     }
 
     private func loadFromSession() {
         guard let session = appState.activeSession else { return }
         currentRound = session.currentRound
         totalRounds = session.config.totalRounds
+        isPaused = session.isPaused
         teamSubmissions = session.teams.map { team in
             TeamSubmission(
                 id: team.id, name: team.name, isAI: team.isAI,
                 hasSubmitted: team.hasSubmittedDecisions || team.isAI,
-                submittedAt: (team.hasSubmittedDecisions || team.isAI) ? Date() : nil
+                submittedAt: team.hasSubmittedDecisions ? Date() : nil
             )
         }
     }
@@ -105,7 +112,7 @@ struct RoundControlView: View {
 
             // Round progress bar
             VStack(spacing: 6) {
-                ProgressView(value: Double(currentRound), total: Double(totalRounds))
+                ProgressView(value: Double(currentRound), total: Double(max(totalRounds, 1)))
                     .tint(.blue)
                     .animation(.spring, value: currentRound)
 
@@ -143,7 +150,7 @@ struct RoundControlView: View {
                     .foregroundStyle(allSubmitted ? .green : .orange)
             }
 
-            ProgressView(value: Double(submittedCount), total: Double(teamSubmissions.count))
+            ProgressView(value: Double(submittedCount), total: Double(max(teamSubmissions.count, 1)))
                 .tint(allSubmitted ? .green : .blue)
                 .animation(.spring, value: submittedCount)
 
@@ -251,7 +258,7 @@ struct RoundControlView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(!allSubmitted || isPaused)
+            .disabled(!allSubmitted || isPaused || isProcessing)
 
             HStack(spacing: 12) {
                 // Pause / Resume toggle
@@ -287,20 +294,29 @@ struct RoundControlView: View {
     // MARK: - Actions
 
     private func advanceRound() {
-        withAnimation(.spring(duration: 0.4)) {
-            if isLastRound {
-                endSession()
+        guard let gameController = appState.gameController else { return }
+
+        if isLastRound {
+            endSession()
+            return
+        }
+
+        isProcessing = true
+
+        // Run AI decisions + simulation via game controller
+        // Uses snapshot→background→apply pattern internally
+        gameController.processRoundAfterPlayerSubmit()
+
+        // Poll for completion (processRoundAfterPlayerSubmit runs async)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.isProcessing = gameController.isProcessing
+            if !self.isProcessing {
+                self.loadFromSession()
             } else {
-                currentRound += 1
-                // Reset submission status for human teams; AI auto-submits
-                teamSubmissions = teamSubmissions.map { team in
-                    TeamSubmission(
-                        id: team.id,
-                        name: team.name,
-                        isAI: team.isAI,
-                        hasSubmitted: team.isAI,
-                        submittedAt: team.isAI ? Date() : nil
-                    )
+                // Still processing, check again
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.isProcessing = gameController.isProcessing
+                    self.loadFromSession()
                 }
             }
         }

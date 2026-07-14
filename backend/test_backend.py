@@ -9,21 +9,51 @@ from database import db
 client = TestClient(app)
 
 
-# ── Fixtures ───────────────────────────────────────────────────────────────
+# ── Auth helper ─────────────────────────────────────────────────────────────
+
+def get_professor_token():
+    """Login as the default professor and return Bearer token."""
+    response = client.post("/api/auth/login", json={
+        "provider": "password",
+        "username": "professor",
+        "password": "bizsimai2026",
+    })
+    assert response.status_code == 200, f"Professor login failed: {response.text}"
+    return response.json()["accessToken"]
+
+
+# ── Fixtures ────────────────────────────────────────────────────────────────
 
 @pytest.fixture(autouse=True)
 def clean_db():
-    """Reset in-memory DB before each test."""
+    """Reset in-memory DB and SQLite before each test."""
     db.sessions.clear()
     db.decisions.clear()
     db.announcements.clear()
     db.results.clear()
     db.team_states.clear()
+    # Clear SQLite users table to avoid stale data from previous test runs
+    conn = db._get_conn()
+    conn.execute("DELETE FROM users")
+    conn.execute("DELETE FROM sessions")
+    conn.execute("DELETE FROM professor_codes")
+    conn.execute("DELETE FROM classes")
+    conn.execute("DELETE FROM class_enrollments")
+    conn.commit()
+    # Re-bootstrap professor after clearing (tests expect it to exist)
+    from auth import ensure_professor
+    ensure_professor()
     yield
 
 
 @pytest.fixture
-def created_session():
+def professor_token():
+    """Return a valid professor JWT token."""
+    return get_professor_token()
+
+
+@pytest.fixture
+def created_session(professor_token):
     """Create a session and return its code."""
     response = client.post("/api/sessions", json={
         "config": {
@@ -45,7 +75,7 @@ def created_session():
             {"teamName": "Team Gamma", "isAI": True, "aiStrategy": "balanced"},
         ],
         "created_by": "professor-1",
-    })
+    }, headers={"Authorization": f"Bearer {professor_token}"})
     assert response.status_code == 201
     data = response.json()
     assert "sessionId" in data

@@ -1504,6 +1504,13 @@ struct Announcement: Codable, Identifiable {
         self.postedAt = Date()
         self.roundNumber = roundNumber
     }
+
+    init(message: String, roundNumber: Int?, postedAt: Date) {
+        self.id = UUID()
+        self.message = message
+        self.postedAt = postedAt
+        self.roundNumber = roundNumber
+    }
 }
 
 // MARK: - Enrolled Student

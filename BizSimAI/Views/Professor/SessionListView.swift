@@ -5,18 +5,75 @@
 // create new session, and clone session capabilities.
 
 import SwiftUI
+import os
 
 struct SessionListView: View {
     @Environment(AppState.self) private var appState
     @State private var showingCreateSession = false
     @State private var searchText = ""
+    @State private var isSyncingFromBackend = false
+
+        /// Fetch sessions from the backend and merge with local list.
+    private func syncSessionsFromBackend() async {
+        isSyncingFromBackend = true
+        defer { isSyncingFromBackend = false }
+        do {
+            let backendSessions = try await NetworkService.shared.getDashboardSessions()
+            await MainActor.run {
+                for bs in backendSessions {
+                    if let existing = appState.professorSessions.first(where: { $0.code == bs.code || $0.sessionCode == bs.code }) {
+                        // Update existing with backend state
+                        existing.currentRound = bs.currentRound
+                        existing.state = mapBackendState(bs.state)
+                        existing.lastSyncedAt = Date()
+                    } else {
+                        let config = SessionConfiguration(
+                            name: "Session \(bs.code)",
+                            totalRounds: bs.totalRounds,
+                            startingCash: 500_000,
+                            marketType: .moderate,
+                            aiDifficulty: .medium,
+                            numberOfAICompetitors: 3,
+                            scoringMetric: .investorScore,
+                            courseCode: "",
+                            semester: ""
+                        )
+                        // Create local session then immediately overwrite generated code with backend code
+                        let session = SimulationSession(config: config)
+                        session.code = bs.code
+                        session.currentRound = bs.currentRound
+                        session.state = mapBackendState(bs.state)
+                        session.lastSyncedAt = Date()
+                        appState.professorSessions.insert(session, at: 0)
+                    }
+                }
+                // Force @Observable refresh
+                appState.professorSessions = appState.professorSessions
+            }
+        } catch {
+            Logger.sync.error("Failed to sync sessions from backend: \(error.localizedDescription)")
+        }
+    }
 
     private var filteredSessions: [SimulationSession] {
         if searchText.isEmpty {
             return appState.professorSessions
         }
         return appState.professorSessions.filter {
-            $0.config.name.localizedCaseInsensitiveContains(searchText)
+            $0.config.name.localizedCaseInsensitiveContains(searchText) ||
+            $0.sessionCode.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+
+    /// Map backend session state string to iOS SessionState enum.
+    /// Backend uses "creating"/"active"/"completed"/"finished"; iOS uses different raw values.
+    private func mapBackendState(_ state: String) -> SessionState {
+        switch state {
+        case "creating":    return .waitingForPlayers
+        case "active":      return .inProgress
+        case "completed", "finished": return .completed
+        case "roundProcessing": return .roundProcessing
+        default:            return .waitingForPlayers
         }
     }
 
@@ -30,6 +87,9 @@ struct SessionListView: View {
         }
         .navigationTitle("Sessions")
         .searchable(text: $searchText, prompt: "Search sessions")
+        .onAppear {
+            Task { await syncSessionsFromBackend() }
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -46,6 +106,15 @@ struct SessionListView: View {
                 } label: {
                     Label("Back to Home", systemImage: "house")
                 }
+            }
+
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    Task { await syncSessionsFromBackend() }
+                } label: {
+                    Image(systemName: isSyncingFromBackend ? "hourglass.circle.fill" : "arrow.clockwise")
+                }
+                .disabled(isSyncingFromBackend)
             }
         }
         .sheet(isPresented: $showingCreateSession) {

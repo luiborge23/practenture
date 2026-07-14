@@ -43,23 +43,53 @@ final class JoinSessionViewModel {
                 studentId: studentId
             )
 
+            // Backend uses team name as teamId (not a UUID). Store the raw teamId
+            // string on TeamConfig so submit_decision can send it back correctly.
+            let rawTeamId = result.teamId
             joinedTeam = TeamConfig(
-                id: UUID(uuidString: result.teamId) ?? UUID(),
+                id: UUID(),  // local UUID for SwiftData
                 name: result.teamName,
                 isAI: false,
-                studentId: studentId
+                studentId: studentId,
+                backendTeamId: rawTeamId
             )
-            availableTeams = 1 // Will be updated by session monitor
+
+            // Fetch real session data from backend (config, teams, announcements)
+            do {
+                let session = try await NetworkService.shared.getSession(byCode: sessionCode)
+                loadedSession = session
+            } catch {
+                loadedSession = nil
+            }
+            
+            do {
+                let teams = try await NetworkService.shared.getTeams(code: sessionCode)
+                loadedTeams = teams
+            } catch {
+                loadedTeams = []
+            }
+            
+            do {
+                let announcements = try await SyncService.shared.syncAnnouncements(sessionCode: sessionCode)
+                loadedAnnouncements = announcements
+            } catch {
+                loadedAnnouncements = []
+            }
 
         } catch {
             errorMessage = error.localizedDescription
             // Local fallback: just mark as joined
             joinedTeam = TeamConfig(id: UUID(), name: teamName, isAI: false, studentId: studentId)
             availableTeams = 1
+            loadedAnnouncements = []
         }
 
         isLoading = false
     }
+
+    var loadedSession: SessionBackend?
+    var loadedTeams: [TeamConfigBackend] = []
+    var loadedAnnouncements: [AnnouncementBackend] = []
 
     // MARK: - Verify Session Code
 

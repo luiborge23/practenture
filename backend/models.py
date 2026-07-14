@@ -200,6 +200,7 @@ class CreateSessionRequest(BaseModel):
     teams: List[TeamConfig] = []
     created_by: str = "professor"
     maxHumanTeams: int = 30
+    classId: Optional[str] = None
 
 
 class CreateSessionResponse(BaseModel):
@@ -263,5 +264,189 @@ class CreateAnnouncementRequest(BaseModel):
     authorName: str = "Professor"
 
 
+class DashboardSessionResponse(BaseModel):
+    code: str
+    state: str
+    currentRound: int = 0
+    totalRounds: int = 20
+    teamsCount: int = 0
+    aiTeamsCount: int = 0
+    totalTeams: int = 0
+    totalSubmissions: int = 0
+    lastRound: int = 0
+
+
 class ErrorResponse(BaseModel):
     detail: str
+
+
+# ── Multi-tenant Models ─────────────────────────────────────────────────────
+
+class CreateClassRequest(BaseModel):
+    name: str
+    description: str = ""
+
+
+class ClassResponse(BaseModel):
+    id: str
+    professor_user_id: str
+    name: str
+    description: str = ""
+    join_code: str
+    is_active: bool = True
+
+
+class JoinClassRequest(BaseModel):
+    join_code: str
+
+
+class EnrollStudentResponse(BaseModel):
+    status: str = "enrolled"
+    class_id: str
+    class_name: str
+    message: Optional[str] = None
+
+
+class StudentClassListResponse(BaseModel):
+    classes: list[ClassResponse]
+
+
+class ClassListResponse(BaseModel):
+    classes: list[ClassResponse]
+
+
+class ClassStudentsResponse(BaseModel):
+    students: list[dict]
+
+
+# ── Professor Code Models ──────────────────────────────────────────────────
+
+class ProfessorCodeCreateRequest(BaseModel):
+    university_name: str = ""
+    notes: str = ""
+
+
+class ProfessorCodeResponse(BaseModel):
+    code: str
+    university_name: str = ""
+    notes: str = ""
+    used: bool = False
+    used_by: Optional[str] = None
+
+
+class ProfessorCodeListResponse(BaseModel):
+    codes: list[ProfessorCodeResponse]
+
+
+class RedeemCodeRequest(BaseModel):
+    code: str
+
+
+class RedeemCodeResponse(BaseModel):
+    status: str = "promoted"
+    role: str = "professor"
+    access_token: str = Field(alias="accessToken")
+    token_type: str = Field(default="bearer", alias="tokenType")
+
+    model_config = {"populate_by_name": True}
+
+
+# ── Password Change Models ─────────────────────────────────────────────────
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+
+class ChangePasswordResponse(BaseModel):
+    status: str = "changed"
+
+
+# ── Password Reset Models ──────────────────────────────────────────────────
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ForgotPasswordResponse(BaseModel):
+    status: str = "email_sent"
+    token: Optional[str] = None
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(alias="newPassword")
+
+    model_config = {"populate_by_name": True}
+
+
+class ResetPasswordResponse(BaseModel):
+    status: str = "password_reset"
+
+
+# ── Pre-create Professor Models ────────────────────────────────────────────
+
+class PreCreateProfessorRequest(BaseModel):
+    username: str
+    password: str
+    name: str = ""
+    email: str = ""
+    university_name: str = ""
+
+
+class PreCreateProfessorResponse(BaseModel):
+    status: str = "created"
+    username: str
+    professor_code: str
+    message: str = ""
+
+
+# ── AI Service Models ────────────────────────────────────────────────────────
+
+class GenerateScenarioRequest(BaseModel):
+    industry: str = "consumer_electronics"
+    difficulty: str = "medium"  # easy, medium, hard
+    round_num: int = 1
+    total_rounds: int = 20
+
+
+class ScenarioResponse(BaseModel):
+    scenario: str
+    source: str = "ai"  # "ai" or "fallback"
+
+
+class ProvideFeedbackRequest(BaseModel):
+    decision: Dict[str, Any]
+    round_result: Dict[str, Any]
+    context: str = ""
+
+
+class FeedbackResponse(BaseModel):
+    feedback: str
+    source: str = "ai"
+
+
+class GenerateHintRequest(BaseModel):
+    current_state: Dict[str, Any]
+    problem: str = ""
+
+
+class HintResponse(BaseModel):
+    hint: str
+    source: str = "ai"
+
+
+class GenerateInsightsRequest(BaseModel):
+    session_results: List[Dict[str, Any]] = []
+    team_count: int = 1
+
+
+class InsightsResponse(BaseModel):
+    insights: str
+    source: str = "ai"
+
+
+class AIStatusResponse(BaseModel):
+    enabled: bool
+    model: str
+    region: str

@@ -15,8 +15,12 @@ struct TeamDashboardView: View {
     @State private var showCoach = false
     @State private var showResults = false
     @State private var showShareSheet = false
+    @State private var showAnnouncements = false
     @State private var shareURL: URL? = nil
     @State private var lastProcessedRound: Int = 0
+    @State private var liveTeamCount: Int = 0
+    @State private var liveSubmittedCount: Int = 0
+    @State private var liveSessionState: SessionBackendState = .disconnected
 
     private var session: SimulationSession? { appState.activeSession }
     private var gameController: GameController? { appState.gameController }
@@ -33,6 +37,24 @@ struct TeamDashboardView: View {
     private var marketPosition: Int { playerTeam?.rank ?? 1 }
     private var totalTeams: Int { session?.teams.count ?? 1 }
 
+    // MARK: - Live backend status
+
+    private var isOnline: Bool {
+        BackendState.shared.isOnline && BackendState.shared.sessionState != .disconnected
+    }
+
+    private var backendCurrentRound: Int {
+        BackendState.shared.currentRound > 0 ? BackendState.shared.currentRound : currentRound
+    }
+
+    private var backendTeamCount: Int {
+        BackendState.shared.teamCount > 0 ? BackendState.shared.teamCount : (session?.teams.count ?? 1)
+    }
+
+    private var backendSubmittedCount: Int {
+        BackendState.shared.submittedCount
+    }
+
     private var canSubmitDecisions: Bool {
         guard let team = playerTeam else { return true }
         return !team.hasSubmittedDecisions
@@ -41,6 +63,24 @@ struct TeamDashboardView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
+                // Processing indicator for Quick Demo
+                if gameController?.isProcessing == true {
+                    VStack(spacing: 10) {
+                        ProgressView()
+                            .controlSize(.large)
+                        Text("Running simulation...")
+                            .font(.headline)
+                            .foregroundStyle(.blue)
+                        if let results = gameController?.lastRoundResults, !results.isEmpty {
+                            Text("Round \(results.first?.round ?? 0) of \(totalRounds) complete")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(20)
+                    .frame(maxWidth: .infinity)
+                    .background(RoundedRectangle(cornerRadius: 16).fill(Color.blue.opacity(0.08)))
+                }
                 roundHeader
                 investorScorecard
                 metricsGrid
@@ -49,7 +89,24 @@ struct TeamDashboardView: View {
             .padding(24)
         }
         .onAppear {
+            NSLog("[BizSimAI] TeamDashboardView onAppear")
+            NSLog("[BizSimAI] session exists: \(session != nil)")
+            NSLog("[BizSimAI] gameController exists: \(gameController != nil)")
+            NSLog("[BizSimAI] isProcessing: \(gameController?.isProcessing ?? false)")
+            NSLog("[BizSimAI] totalTeams: \(totalTeams)")
+            NSLog("[BizSimAI] currentRound: \(currentRound)")
+            NSLog("[BizSimAI] totalRounds: \(totalRounds)")
+            NSLog("[BizSimAI] playerTeam exists: \(playerTeam != nil)")
+            NSLog("[BizSimAI] cash: \(cash)")
+            NSLog("[BizSimAI] isOnline: \(isOnline)")
+            NSLog("[BizSimAI] backendCurrentRound: \(backendCurrentRound)")
+            NSLog("[BizSimAI] backendTeamCount: \(backendTeamCount)")
+            NSLog("[BizSimAI] TeamDashboardView onAppear DONE")
             lastProcessedRound = session?.currentRound ?? 0
+            // Sync live backend status
+            liveTeamCount = BackendState.shared.teamCount
+            liveSubmittedCount = BackendState.shared.submittedCount
+            liveSessionState = BackendState.shared.sessionState
         }
         .navigationTitle(teamName)
         #if os(macOS)
@@ -68,6 +125,9 @@ struct TeamDashboardView: View {
                 }
                 Button { showCoach = true } label: {
                     Label("AI Coach", systemImage: "brain.head.profile")
+                }
+                Button { showAnnouncements = true } label: {
+                    Label("Announcements", systemImage: "megaphone.fill")
                 }
                 Button { generatePDF() } label: {
                     Label("Export PDF", systemImage: "doc.badge.plus")
@@ -140,6 +200,16 @@ struct TeamDashboardView: View {
             .frame(minWidth: 600, minHeight: 500)
             #endif
         }
+        .sheet(isPresented: $showAnnouncements) {
+            NavigationStack {
+                StudentAnnouncementsView()
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") { showAnnouncements = false }
+                        }
+                    }
+            }
+        }
     }
 
     // MARK: - Round Header
@@ -148,7 +218,7 @@ struct TeamDashboardView: View {
         HStack {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
-                    Text("Round \(currentRound)")
+                    Text("Round \(backendCurrentRound)")
                         .font(.title)
                         .fontWeight(.bold)
                     Text("of \(totalRounds)")
@@ -158,20 +228,32 @@ struct TeamDashboardView: View {
                 HStack(spacing: 4) {
                     ForEach(1...totalRounds, id: \.self) { round in
                         RoundedRectangle(cornerRadius: 2)
-                            .fill(round <= currentRound ? Color.blue : Color.secondary.opacity(0.2))
+                            .fill(round <= backendCurrentRound ? Color.blue : Color.secondary.opacity(0.2))
                             .frame(height: 6)
                     }
                 }
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
-                Text("Session")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                Text(session?.sessionCode ?? "DEMO")
-                    .font(.caption)
-                    .fontDesign(.monospaced)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    Image(systemName: isOnline ? "wifi" : "wifi.slash")
+                        .font(.caption2)
+                        .foregroundStyle(isOnline ? .green : .red)
+                    Text("Session")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                HStack(spacing: 4) {
+                    Text(session?.sessionCode ?? "DEMO")
+                        .font(.caption)
+                        .fontDesign(.monospaced)
+                        .foregroundStyle(.secondary)
+                    if isOnline {
+                        Text("\(liveTeamCount) teams")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+                }
             }
         }
         .padding(20)

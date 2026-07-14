@@ -7,9 +7,8 @@
 import SwiftUI
 
 struct StudentLeaderboardView: View {
-    @Environment(AppState.self) private var appState
-
     @State private var viewModel = LeaderboardViewModel()
+    @Environment(AppState.self) private var appState
 
     var body: some View {
         VStack(spacing: 20) {
@@ -29,6 +28,14 @@ struct StudentLeaderboardView: View {
                 }
             } else {
                 loadSampleData()
+            }
+        }
+        .refreshable {
+            // Pull-to-refresh for live leaderboard updates
+            if let session = appState.activeSession {
+                Task {
+                    await viewModel.loadLeaderboard(from: session, currentTeamId: session.playerTeam?.id)
+                }
             }
         }
     }

@@ -1,6 +1,7 @@
 """Leaderboard endpoint."""
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from database import db
 from models import LeaderboardEntry
@@ -8,7 +9,13 @@ from models import LeaderboardEntry
 router = APIRouter(prefix="/api/sessions", tags=["leaderboard"])
 
 
-@router.get("/{code}/leaderboard")
+class LeaderboardResponse(BaseModel):
+    sessionId: str
+    round: int
+    leaderboard: list[LeaderboardEntry]
+
+
+@router.get("/{code}/leaderboard", response_model=LeaderboardResponse)
 async def get_leaderboard(code: str):
     """Get current leaderboard sorted by total investor score."""
     session = db.get_session(code)
@@ -27,7 +34,11 @@ async def get_leaderboard(code: str):
             ))
         # Sort by name if no results
         entries.sort(key=lambda e: e.teamName)
-        return {"sessionId": session.id, "round": session.currentRound, "leaderboard": entries}
+        return LeaderboardResponse(
+            sessionId=session.id,
+            round=session.currentRound,
+            leaderboard=entries,
+        )
 
     # Aggregate results per team
     team_scores: dict = {}
@@ -75,8 +86,8 @@ async def get_leaderboard(code: str):
     for i, entry in enumerate(entries):
         entry.rank = i + 1
 
-    return {
-        "sessionId": session.id,
-        "round": session.currentRound,
-        "leaderboard": entries,
-    }
+    return LeaderboardResponse(
+        sessionId=session.id,
+        round=session.currentRound,
+        leaderboard=entries,
+    )

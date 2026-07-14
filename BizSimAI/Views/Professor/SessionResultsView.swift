@@ -32,6 +32,101 @@ struct FinalTeamResult: Identifiable {
     ]
 }
 
+// MARK: - CSV Export View Model
+
+/// ViewModel for CSV export from backend.
+@Observable
+final class CSVExportViewModel {
+    var isExporting = false
+    var exportError: String?
+    var exportSuccess = false
+
+    private let gradesCode: String
+    private let leaderboardCode: String
+
+    init(gradesCode: String, leaderboardCode: String) {
+        self.gradesCode = gradesCode
+        self.leaderboardCode = leaderboardCode
+    }
+
+    func exportGrades() async {
+        isExporting = true
+        exportError = nil
+        exportSuccess = false
+
+        do {
+            let csv = try await NetworkService.shared.exportGrades(code: gradesCode)
+            #if os(macOS)
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = [.commaSeparatedText]
+            panel.nameFieldStringValue = "bizsimai_grades.csv"
+            let result = await NSApplication.shared.begin { response in
+                if response == .OK, let url = panel.url {
+                    try? csv.write(to: url, atomically: true, encoding: .utf8)
+                }
+                await MainActor.run {
+                    isExporting = false
+                    exportSuccess = true
+                }
+            }
+            // Non-blocking — handled in the completion handler
+            _ = result
+            #else
+            let tempDir = FileManager.default.temporaryDirectory
+            let fileURL = tempDir.appendingPathComponent("bizsimai_grades.csv")
+            try csv.write(to: fileURL, atomically: true, encoding: .utf8)
+            await MainActor.run {
+                isExporting = false
+                exportSuccess = true
+            }
+            #endif
+        } catch {
+            await MainActor.run {
+                isExporting = false
+                exportError = "Failed to export grades: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func exportLeaderboard() async {
+        isExporting = true
+        exportError = nil
+        exportSuccess = false
+
+        do {
+            let csv = try await NetworkService.shared.exportLeaderboard(code: leaderboardCode)
+            #if os(macOS)
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = [.commaSeparatedText]
+            panel.nameFieldStringValue = "bizsimai_leaderboard.csv"
+            let result = await NSApplication.shared.begin { response in
+                if response == .OK, let url = panel.url {
+                    try? csv.write(to: url, atomically: true, encoding: .utf8)
+                }
+                await MainActor.run {
+                    isExporting = false
+                    exportSuccess = true
+                }
+            }
+            _ = result
+            #else
+            let tempDir = FileManager.default.temporaryDirectory
+            let fileURL = tempDir.appendingPathComponent("bizsimai_leaderboard.csv")
+            try csv.write(to: fileURL, atomically: true, encoding: .utf8)
+            await MainActor.run {
+                isExporting = false
+                exportSuccess = true
+            }
+            #endif
+        } catch {
+            await MainActor.run {
+                isExporting = false
+                exportError = "Failed to export leaderboard: \(error.localizedDescription)"
+            }
+        }
+    }
+}
+
 // MARK: - Session Results View
 
 struct SessionResultsView: View {
@@ -39,9 +134,9 @@ struct SessionResultsView: View {
     @State private var results: [FinalTeamResult] = FinalTeamResult.samples
     @State private var sessionName: String = "MBA 510 - Spring 2026"
     @State private var totalRounds: Int = 10
+    @State private var csvExport: CSVExportViewModel?
     @State private var showExportSuccess = false
-    @State private var showShareSheet = false
-    @State private var exportCSVText = ""
+    @State private var showExportError = false
 
     var body: some View {
         ScrollView {
@@ -63,16 +158,27 @@ struct SessionResultsView: View {
         } message: {
             Text("Session results have been exported as CSV.")
         }
-        .onAppear {
-            loadFromSession()
-        }
-        #if !os(macOS)
-        .sheet(isPresented: $showShareSheet) {
-            if !exportCSVText.isEmpty {
-                ShareSheet(activityItems: [exportCSVText])
+        .alert("Export Error", isPresented: $showExportError) {
+            Button("OK") { }
+        } message: {
+            if let error = csvExport?.exportError {
+                Text(error)
             }
         }
-        #endif
+        .onAppear {
+            loadFromSession()
+            if let session = appState.activeSession {
+                csvExport = CSVExportViewModel(
+                    gradesCode: session.sessionCode,
+                    leaderboardCode: session.sessionCode
+                )
+            }
+        }
+        .onChange(of: csvExport?.exportError) {
+            if csvExport?.exportError != nil {
+                showExportError = true
+            }
+        }
     }
 
     private func loadFromSession() {
@@ -327,41 +433,48 @@ struct SessionResultsView: View {
     // MARK: - Export
 
     private var exportSection: some View {
-        HStack {
-            Spacer()
+        VStack(spacing: 16) {
+            Text("Export")
+                .font(.headline)
 
-            Button {
-                exportCSV()
-            } label: {
-                Label("Export CSV", systemImage: "square.and.arrow.up")
+            HStack(spacing: 16) {
+                Button {
+                    Task {
+                        await csvExport?.exportGrades()
+                        await MainActor.run {
+                            showExportSuccess = true
+                        }
+                    }
+                } label: {
+                    Label("Export Grades", systemImage: "tablecells.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(csvExport?.isExporting ?? true)
+
+                Button {
+                    Task {
+                        await csvExport?.exportLeaderboard()
+                        await MainActor.run {
+                            showExportSuccess = true
+                        }
+                    }
+                } label: {
+                    Label("Export Leaderboard", systemImage: "chart.bar.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(csvExport?.isExporting ?? true)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+
+            if let csvExport = csvExport, csvExport.isExporting {
+                ProgressView("Exporting...")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
-    // MARK: - Actions
-
-    private func exportCSV() {
-        // Generate CSV data
-        var csv = "Rank,Team,AI,Total Profit,Total Revenue,Avg Market Share,Avg Satisfaction\n"
-        for r in results {
-            csv += "\(r.rank),\"\(r.teamName)\",\(r.isAI),\(r.totalProfit),\(r.totalRevenue),\(r.avgMarketShare),\(r.avgSatisfaction)\n"
-        }
-
-        #if os(macOS)
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.commaSeparatedText]
-        panel.nameFieldStringValue = "\(sessionName)-results.csv"
-        panel.begin { response in
-            if response == .OK, let url = panel.url {
-                try? csv.write(to: url, atomically: true, encoding: .utf8)
-                showExportSuccess = true
-            }
-        }
-        #else
-        exportCSVText = csv
-        showShareSheet = true
-        #endif
-    }
 }

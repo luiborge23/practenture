@@ -1,4 +1,5 @@
 import SwiftUI
+import os
 
 // MARK: - RoundResultsViewModel
 /// Round results with investor scorecard, revenue by channel,
@@ -166,7 +167,7 @@ final class RoundResultsViewModel {
                 }
             } catch {
                 // Backend failed or no results - fall back to local session data
-                print("Backend fetch failed, falling back to local: \(error)")
+                Logger.network.error("Backend fetch failed, falling back to local: \(error)")
             }
             
             // Fallback to local session data

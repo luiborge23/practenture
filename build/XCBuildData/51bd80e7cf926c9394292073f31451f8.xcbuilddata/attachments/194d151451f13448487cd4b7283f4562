@@ -1,0 +1,4 @@
+module GoogleUtilities_Environment {
+umbrella "/Users/luisborges/Library/Developer/Xcode/DerivedData/BizSimAI-gnkdwjzcdkadgxfhlqyihwluovcu/SourcePackages/checkouts/GoogleUtilities/GoogleUtilities/Environment/Public"
+export *
+}

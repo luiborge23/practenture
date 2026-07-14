@@ -5,6 +5,7 @@
 // Table-like layout with sortable columns: Rank, Team, Revenue, Profit, Market Share, Satisfaction.
 
 import SwiftUI
+import os
 
 // MARK: - Sort Column
 
@@ -100,22 +101,41 @@ struct ProfessorLeaderboardView: View {
 
     private func loadFromSession() {
         guard let session = appState.activeSession else { return }
-        let sessionTeams = session.teams.sorted { $0.rank < $1.rank }
-        var loaded: [TeamMetricData] = []
-        for (idx, team) in sessionTeams.enumerated() {
-            let results = session.resultsForTeam(team.id)
-            let totalRevenue = results.reduce(0) { $0 + $1.revenue }
-            let totalProfit = results.reduce(0) { $0 + $1.profit }
-            let avgMarketShare = results.isEmpty ? 0 : results.reduce(0) { $0 + $1.marketShare } / Double(results.count)
-            let avgSatisfaction = results.isEmpty ? 0 : results.reduce(0) { $0 + $1.customerSatisfaction } / Double(results.count)
-            loaded.append(TeamMetricData(
-                id: team.id, rank: idx + 1, name: team.name, isAI: team.isAI,
-                revenue: totalRevenue, profit: totalProfit,
-                marketShare: avgMarketShare, satisfaction: avgSatisfaction
-            ))
-        }
-        if !loaded.isEmpty {
-            teams = loaded
+        
+        // First try backend leaderboard API
+        Task.detached { [session, self] in
+            do {
+                let leaderboardData = try await NetworkService.shared.getLeaderboard(code: session.sessionCode)
+                
+                if !leaderboardData.isEmpty {
+                    // Backend has data — use it
+                    var loaded: [TeamMetricData] = []
+                    for (_, entry) in leaderboardData.enumerated() {
+                        let teamResult = await self.sessionResultsForTeam(session, teamId: entry.teamName)
+                        loaded.append(teamResult)
+                    }
+
+                    // Sort by backend ranking
+                    loaded.sort { a, b in a.rank < b.rank }
+
+                    await MainActor.run { [loaded] in
+                        if !loaded.isEmpty {
+                            self.teams = loaded
+                        }
+                    }
+                } else {
+                    // Backend has no data yet — fall back to local session teams
+                    await MainActor.run { [self, session] in
+                        loadFromLocalSession(session)
+                    }
+                }
+            } catch {
+                Logger.network.error("Backend leaderboard fetch failed: \(error.localizedDescription)")
+                // Fall back to local data on error
+                await MainActor.run { [self, session] in
+                    loadFromLocalSession(session)
+                }
+            }
         }
     }
 
@@ -270,6 +290,42 @@ struct ProfessorLeaderboardView: View {
     }
 
     // MARK: - Helpers
+
+    private func loadFromLocalSession(_ session: SimulationSession) {
+        let sessionTeams = session.teams.sorted { $0.rank < $1.rank }
+        var loaded: [TeamMetricData] = []
+        for (idx, team) in sessionTeams.enumerated() {
+            let results = session.resultsForTeam(team.id)
+            let totalRevenue = results.reduce(0) { $0 + $1.revenue }
+            let totalProfit = results.reduce(0) { $0 + $1.profit }
+            let avgMarketShare = results.isEmpty ? 0 : results.reduce(0) { $0 + $1.marketShare } / Double(results.count)
+            let avgSatisfaction = results.isEmpty ? 0 : results.reduce(0) { $0 + $1.customerSatisfaction } / Double(results.count)
+            loaded.append(TeamMetricData(
+                id: team.id, rank: idx + 1, name: team.name, isAI: team.isAI,
+                revenue: totalRevenue, profit: totalProfit,
+                marketShare: avgMarketShare, satisfaction: avgSatisfaction
+            ))
+        }
+        if !loaded.isEmpty {
+            teams = loaded
+        }
+    }
+
+    private func sessionResultsForTeam(_ session: SimulationSession, teamId: String) -> TeamMetricData {
+        let idx = session.teams.firstIndex(where: { $0.name == teamId }) ?? -1
+        let rank = (idx >= 0) ? idx + 1 : 0
+        let team = session.teams.filter({ $0.name == teamId }).first
+        let results = session.resultsForTeam(team?.id ?? UUID())
+        let totalRevenue = results.reduce(0) { $0 + $1.revenue }
+        let totalProfit = results.reduce(0) { $0 + $1.profit }
+        let avgMarketShare = results.isEmpty ? 0 : results.reduce(0) { $0 + $1.marketShare } / Double(results.count)
+        let avgSatisfaction = results.isEmpty ? 0 : results.reduce(0) { $0 + $1.customerSatisfaction } / Double(results.count)
+        return TeamMetricData(
+            id: team?.id ?? UUID(), rank: max(rank, 1), name: teamId, isAI: team?.isAI ?? false,
+            revenue: totalRevenue, profit: totalProfit,
+            marketShare: avgMarketShare, satisfaction: avgSatisfaction
+        )
+    }
 
     @ViewBuilder
     private func rankBadge(_ rank: Int) -> some View {

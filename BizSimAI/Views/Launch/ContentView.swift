@@ -2,7 +2,8 @@
 // BizSimAI
 //
 // Root view that switches between LaunchView, ProfessorTabView, or Student flow
-// based on AppState.currentMode.
+// based on AppState.currentMode. Also observes AuthManager so 401 logout
+// propagates back to launch.
 
 import SwiftUI
 
@@ -46,18 +47,26 @@ extension AppState {
 
 struct ContentView: View {
     @Environment(AppState.self) private var appState
+    // Observe auth so a forced logout (401 refresh fail) resets UI
+    @State private var authManager = AuthManager.shared
 
     var body: some View {
-        switch appState.currentMode {
-        case .none:
-            LaunchView()
-
-        case .professor:
-            ProfessorTabView()
-
-        case .student:
-            NavigationStack {
-                studentFlow
+        Group {
+            switch appState.currentMode {
+            case .none:
+                LaunchView()
+            case .professor:
+                ProfessorTabView()
+            case .student:
+                NavigationStack {
+                    studentFlow
+                }
+            }
+        }
+        .onChange(of: authManager.isAuthenticated) { _, isAuthed in
+            // If token expired elsewhere (NetworkService 401 path) push back to launch
+            if !isAuthed && authManager.accessToken == nil && appState.currentMode != nil {
+                appState.resetToLaunch()
             }
         }
     }

@@ -518,12 +518,15 @@ final class DecisionInputViewModel {
                 sessionCode: sessionCode,
                 round: session.currentRound,
                 teamId: teamId,
-                decision: decision
+                decision: decision,
+                backendTeamId: session.backendTeamId
             )
             submittedViaBackend = true
+            HapticsManager.success()
         } catch {
             // Backend failed — decision is already stored locally, keep working
             submissionError = "Decision saved locally. Cloud sync failed: \(error.localizedDescription)"
+            HapticsManager.warning()
         }
 
         isSubmitting = false

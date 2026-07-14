@@ -10,14 +10,14 @@ import SwiftUI
 /// Action to queue for backend sync when offline.
 enum SyncAction: Sendable, Identifiable {
     case joinSession(sessionId: String, teamName: String, studentId: String)
-    case submitDecision(sessionId: String, round: Int, teamId: UUID, decision: PlayerDecision)
+    case submitDecision(sessionId: String, round: Int, teamId: UUID, decision: PlayerDecision, backendTeamId: String?)
     case syncResults(sessionId: String)
     case sendAnnouncement(sessionId: String, message: String, authorId: String, authorName: String)
 
     var id: String {
         switch self {
         case .joinSession(let sessionId, _, _): return "join_\(sessionId)"
-        case .submitDecision(let sessionId, let round, let teamId, _): return "decision_\(sessionId)_\(round)_\(teamId)"
+        case .submitDecision(let sessionId, let round, let teamId, _, let backendTeamId): return "decision_\(sessionId)_\(round)_\(teamId)"
         case .syncResults(let sessionId): return "results_\(sessionId)"
         case .sendAnnouncement(let sessionId, _, _, _): return "announce_\(sessionId)"
         }
@@ -76,13 +76,15 @@ final class SyncService {
         sessionCode: String,
         round: Int,
         teamId: UUID,
-        decision: PlayerDecision
+        decision: PlayerDecision,
+        backendTeamId: String? = nil
     ) async throws {
         try await NetworkService.shared.submitDecision(
             code: sessionCode,
             round: round,
             teamId: teamId,
-            decision: decision
+            decision: decision,
+            backendTeamId: backendTeamId
         )
         isSynced = true
         lastSyncTime = Date()
@@ -155,13 +157,14 @@ final class SyncService {
         switch action {
         case .joinSession(let sessionId, let teamName, let studentId):
             _ = try await syncSessionJoin(sessionCode: sessionId, teamName: teamName, studentId: studentId)
-        case .submitDecision(let sessionId, let round, let teamId, let decision):
-            // teamId is already UUID, decision is already PlayerDecision
+        case .submitDecision(let sessionId, let round, let teamId, let decision, let backendTeamId):
+            // teamId is UUID for local SwiftData; backendTeamId is the backend's team name string.
             try await NetworkService.shared.submitDecision(
                 code: sessionId,
                 round: round,
                 teamId: teamId,
-                decision: decision
+                decision: decision,
+                backendTeamId: backendTeamId
             )
         case .syncResults(let sessionId):
             _ = try await syncRoundResults(sessionCode: sessionId)

@@ -85,12 +85,16 @@ def _find_key_by_kid(jwks: Dict[str, Any], kid: Optional[str]) -> Optional[Dict[
 def _verify_with_jwt(token: str, provider: str, expected_audience: Optional[str]) -> Optional[Dict[str, Any]]:
     """Attempt verification using PyJWT with JWKS auto-fetch."""
     try:
-        import jwt
+        import jwt as _jwt_module
+    except ImportError:
+        # PyJWT not installed — fall through to unsigned token check
+        return None
 
+    try:
         config = _PROVIDER_CONFIGS[provider]
         verify_aud = expected_audience if expected_audience else False
 
-        payload = jwt.decode(
+        payload = _jwt_module.decode(
             token,
             algorithms=["RS256"],
             options={
@@ -103,7 +107,17 @@ def _verify_with_jwt(token: str, provider: str, expected_audience: Optional[str]
             audience=expected_audience if expected_audience else None,
         )
         return payload
-    except (ImportError, Exception):
+    except _jwt_module.exceptions.InvalidAudienceError:
+        # No audience configured — accept token without aud check
+        return None
+    except _jwt_module.exceptions.DecodeError:
+        # Token structure invalid or signature mismatch
+        return None
+    except _jwt_module.exceptions.ExpiredSignatureError:
+        # Token expired
+        return None
+    except Exception:
+        # Any other error — fall through to unsigned token check
         return None
 
 

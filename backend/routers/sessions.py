@@ -1,17 +1,18 @@
-"""Session CRUD endpoints."""
+"""Session CRUD endpoints — sessions are tied to professor and class."""
 
+import asyncio
 from datetime import datetime
+from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
+from auth import get_current_user, verify_professor
 from database import db
 from models import (
-    Announcement,
-    CreateAnnouncementRequest,
     CreateSessionRequest,
     CreateSessionResponse,
     EndSessionResponse,
-    ErrorResponse,
     JoinSessionRequest,
     JoinSessionResponse,
     Session,
@@ -20,18 +21,39 @@ from models import (
     StatusResponse,
     TeamConfig,
 )
+from ws_manager import manager
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
 
+class StartSessionResponse(BaseModel):
+    status: str = "started"
+    sessionId: str
+    code: str
+
+
+class CreateSessionRequestWithClass(BaseModel):
+    """Extended create session request with optional class_id."""
+    config: SessionConfiguration = None
+    teams: list = []
+    created_by: str = "professor"
+    maxHumanTeams: int = 30
+    classId: Optional[str] = None
+
+
 @router.post("", response_model=CreateSessionResponse, status_code=201)
-async def create_session(req: CreateSessionRequest):
-    """Create a new simulation session. Returns session code for students to join."""
+async def create_session(req: CreateSessionRequest, user=Depends(verify_professor)):
+    """Create a new simulation session. Ties to professor_user_id from JWT.
+
+    Optional classId in the request body ties the session to a specific class.
+    """
     code = db.create_session(
         config=req.config,
         teams=req.teams,
         created_by=req.created_by,
         max_human_teams=req.maxHumanTeams,
+        professor_user_id=user["sub"],
+        class_id=req.classId,
     )
     return CreateSessionResponse(sessionId=db.sessions[code].id, code=code)
 
@@ -51,13 +73,13 @@ async def join_session(code: str, req: JoinSessionRequest):
     session = db.get_session(code)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    if session.state != SessionState.ACTIVE:
+    if session.state not in (SessionState.CREATING, SessionState.ACTIVE):
         raise HTTPException(status_code=400, detail=f"Session is {session.state.value}, cannot join")
 
     # Check team name not already taken
     team_names = {t.teamName for t in session.teams}
     if req.teamName in team_names:
-        raise HTTPException(status_code=400, detail="Team name already taken")
+        raise HTTPException(status_code=409, detail="Team name already taken")
 
     # Generate team ID
     team_id = req.teamName  # Use team name as team ID
@@ -67,18 +89,24 @@ async def join_session(code: str, req: JoinSessionRequest):
     if len(session.teams) > session.maxHumanTeams:
         raise HTTPException(status_code=400, detail="Maximum team capacity reached")
 
-    db.update_session(code, {"teams": session.teams})
+    # Auto-transition to active when first team joins (fixes creating→active deadlock)
+    new_state = session.state
+    if session.state == SessionState.CREATING and len(session.teams) > 0:
+        new_state = SessionState.ACTIVE
+        session.currentRound = 1
+
+    db.update_session(code, {"teams": session.teams, "state": new_state, "currentRound": session.currentRound})
     return JoinSessionResponse(
         teamId=team_id,
         teamName=req.teamName,
         round=session.currentRound,
-        state=session.state.value,
+        state=new_state.value,
     )
 
 
 @router.get("/{code}/status", response_model=StatusResponse)
-async def get_session_status(code: str):
-    """Quick status check for a session."""
+async def get_session_status(code: str, user=Depends(get_current_user)):
+    """Quick status check for a session. Requires authentication."""
     session = db.get_session(code)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -97,17 +125,18 @@ async def get_session_status(code: str):
     )
 
 
-@router.post("/{code}/start")
+@router.post("/{code}/start", response_model=StartSessionResponse)
 async def start_session(code: str):
     """Professor starts the session (transitions from creating → active, round 1)."""
     session = db.get_session(code)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    if session.state != SessionState.CREATING:
+    if session.state == SessionState.ACTIVE:
         raise HTTPException(status_code=400, detail=f"Session is already {session.state.value}")
-    if len(session.teams) == 0:
-        raise HTTPException(status_code=400, detail="No teams in session")
+    if session.state == SessionState.FINISHED or session.state == SessionState.COMPLETED:
+        raise HTTPException(status_code=400, detail=f"Session is {session.state.value}, cannot start")
 
+    # Auto-transition to active (teams already handled by join endpoint)
     db.update_session(code, {"state": SessionState.ACTIVE, "currentRound": 1})
     
     # Broadcast session start via WebSocket
@@ -118,14 +147,12 @@ async def start_session(code: str):
         "currentRound": 1,
         "teamCount": len(session.teams),
     }
-    import asyncio
-    from ws_manager import manager
     try:
         asyncio.create_task(manager.broadcast(code, broadcast_msg))
     except Exception:
         pass
     
-    return {"status": "started", "sessionId": session.id, "code": code}
+    return StartSessionResponse(sessionId=session.id, code=code)
 
 
 @router.post("/{code}/end", response_model=EndSessionResponse)
@@ -143,3 +170,29 @@ async def end_session(code: str):
 
     db.update_session(code, {"state": SessionState.FINISHED})
     return EndSessionResponse(status="ended", finalResults=final if final else None)
+
+
+@router.delete("/{code}", status_code=204)
+async def delete_session(code: str):
+    """Professor deletes a session and all associated data."""
+    session = db.get_session(code)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Delete decisions
+    if code in db.decisions:
+        del db.decisions[code]
+
+    # Delete team states
+    if code in db.team_states:
+        del db.team_states[code]
+
+    # Delete results
+    if code in db.results:
+        del db.results[code]
+
+    # Delete session
+    if code in db.sessions:
+        del db.sessions[code]
+
+    return None

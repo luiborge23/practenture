@@ -1,0 +1,406 @@
+{
+  "" : {
+    "const-values" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/BizSimAI-primary.swiftconstvalues",
+    "dependencies" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/BizSimAI-primary.d",
+    "diagnostics" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/BizSimAI-primary.dia",
+    "emit-module-dependencies" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/BizSimAI-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/BizSimAI-primary-emit-module.dia",
+    "pch" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/BizSimAI-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/BizSimAI-primary.swiftdeps"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/BizSimAIApp.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/BizSimAIApp.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/BizSimAIApp.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/BizSimAIApp.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Engine/AICompetitor.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AICompetitor.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AICompetitor.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AICompetitor.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Engine/GameController.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/GameController.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/GameController.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/GameController.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Engine/SimulationEngine.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SimulationEngine.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SimulationEngine.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SimulationEngine.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Models/AuthModels.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AuthModels.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AuthModels.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AuthModels.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Models/SimulationModels.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SimulationModels.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SimulationModels.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SimulationModels.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Models/SimulationSession.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SimulationSession.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SimulationSession.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SimulationSession.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Services/AuthManager.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AuthManager.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AuthManager.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AuthManager.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Services/AuthRepositoryImpl.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AuthRepositoryImpl.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AuthRepositoryImpl.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AuthRepositoryImpl.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Services/BackendState.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/BackendState.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/BackendState.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/BackendState.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Services/CoachingService.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/CoachingService.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/CoachingService.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/CoachingService.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Services/DecisionRepositoryImpl.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionRepositoryImpl.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionRepositoryImpl.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionRepositoryImpl.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Services/HapticsManager.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/HapticsManager.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/HapticsManager.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/HapticsManager.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Services/I18NManager.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/I18NManager.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/I18NManager.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/I18NManager.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Services/LeaderboardRepositoryImpl.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LeaderboardRepositoryImpl.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LeaderboardRepositoryImpl.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LeaderboardRepositoryImpl.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Services/LifecycleAwarePolling.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LifecycleAwarePolling.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LifecycleAwarePolling.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LifecycleAwarePolling.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Services/LoggerExtensions.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LoggerExtensions.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LoggerExtensions.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LoggerExtensions.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Services/NetworkService.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/NetworkService.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/NetworkService.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/NetworkService.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Services/PDFExporter.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/PDFExporter.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/PDFExporter.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/PDFExporter.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Services/RepositoryProtocols.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/RepositoryProtocols.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/RepositoryProtocols.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/RepositoryProtocols.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Services/SessionRepositoryImpl.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SessionRepositoryImpl.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SessionRepositoryImpl.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SessionRepositoryImpl.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Services/SyncService.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SyncService.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SyncService.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SyncService.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Services/WebSocketManager.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/WebSocketManager.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/WebSocketManager.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/WebSocketManager.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/ViewModels/AICoachViewModel.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AICoachViewModel.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AICoachViewModel.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AICoachViewModel.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/ViewModels/AppState.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AppState.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AppState.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AppState.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/ViewModels/CreateSessionViewModel.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/CreateSessionViewModel.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/CreateSessionViewModel.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/CreateSessionViewModel.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/ViewModels/DecisionInputViewModel.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionInputViewModel.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionInputViewModel.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionInputViewModel.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/ViewModels/JoinSessionViewModel.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/JoinSessionViewModel.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/JoinSessionViewModel.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/JoinSessionViewModel.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/ViewModels/LeaderboardViewModel.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LeaderboardViewModel.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LeaderboardViewModel.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LeaderboardViewModel.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/ViewModels/PerformanceHistoryViewModel.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/PerformanceHistoryViewModel.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/PerformanceHistoryViewModel.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/PerformanceHistoryViewModel.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/ViewModels/RoundResultsViewModel.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/RoundResultsViewModel.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/RoundResultsViewModel.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/RoundResultsViewModel.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/ViewModels/SessionListViewModel.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SessionListViewModel.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SessionListViewModel.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SessionListViewModel.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/ViewModels/SessionMonitorViewModel.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SessionMonitorViewModel.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SessionMonitorViewModel.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SessionMonitorViewModel.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/ViewModels/TeamDashboardViewModel.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/TeamDashboardViewModel.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/TeamDashboardViewModel.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/TeamDashboardViewModel.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Components/CoachingBubble.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/CoachingBubble.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/CoachingBubble.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/CoachingBubble.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Components/DecisionInput/BudgetBarView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/BudgetBarView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/BudgetBarView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/BudgetBarView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Components/DecisionInput/CSRSectionView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/CSRSectionView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/CSRSectionView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/CSRSectionView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Components/DecisionInput/DecisionInputCategoryPicker.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionInputCategoryPicker.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionInputCategoryPicker.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionInputCategoryPicker.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Components/DecisionInput/DecisionInputSectionView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionInputSectionView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionInputSectionView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionInputSectionView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Components/DecisionInput/DecisionInputSlider.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionInputSlider.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionInputSlider.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionInputSlider.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Components/DecisionInput/DecisionInputView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionInputView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionInputView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionInputView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Components/DecisionInput/FinanceSectionView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/FinanceSectionView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/FinanceSectionView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/FinanceSectionView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Components/DecisionInput/MarketingSectionView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/MarketingSectionView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/MarketingSectionView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/MarketingSectionView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Components/DecisionInput/PricingSectionView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/PricingSectionView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/PricingSectionView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/PricingSectionView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Components/DecisionInput/ProductDesignSectionView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/ProductDesignSectionView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/ProductDesignSectionView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/ProductDesignSectionView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Components/DecisionInput/ProductionSectionView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/ProductionSectionView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/ProductionSectionView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/ProductionSectionView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Components/DecisionInput/SocialMediaSectionView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SocialMediaSectionView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SocialMediaSectionView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SocialMediaSectionView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Components/DecisionInput/WorkforceSectionView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/WorkforceSectionView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/WorkforceSectionView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/WorkforceSectionView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Components/DecisionSlider.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionSlider.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionSlider.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/DecisionSlider.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Components/LeaderboardRow.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LeaderboardRow.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LeaderboardRow.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LeaderboardRow.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Components/MetricCard.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/MetricCard.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/MetricCard.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/MetricCard.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Components/RoundChart.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/RoundChart.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/RoundChart.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/RoundChart.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Components/StatusBadge.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/StatusBadge.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/StatusBadge.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/StatusBadge.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Launch/ContentView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/ContentView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/ContentView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/ContentView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Launch/LaunchView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LaunchView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LaunchView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LaunchView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Professor/AnalyticsDashboardView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AnalyticsDashboardView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AnalyticsDashboardView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AnalyticsDashboardView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Professor/AnnouncementsView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AnnouncementsView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AnnouncementsView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AnnouncementsView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Professor/CreateSessionView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/CreateSessionView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/CreateSessionView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/CreateSessionView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Professor/GradeMappingView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/GradeMappingView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/GradeMappingView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/GradeMappingView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Professor/ProfessorLeaderboardView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/ProfessorLeaderboardView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/ProfessorLeaderboardView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/ProfessorLeaderboardView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Professor/ProfessorTabView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/ProfessorTabView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/ProfessorTabView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/ProfessorTabView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Professor/RoundControlView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/RoundControlView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/RoundControlView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/RoundControlView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Professor/SessionListView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SessionListView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SessionListView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SessionListView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Professor/SessionMonitorView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SessionMonitorView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SessionMonitorView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SessionMonitorView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Professor/SessionResultsView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SessionResultsView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SessionResultsView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SessionResultsView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Professor/TeamManagementView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/TeamManagementView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/TeamManagementView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/TeamManagementView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Shared/AboutView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AboutView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AboutView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AboutView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Shared/LoginView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LoginView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LoginView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/LoginView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Shared/SettingsView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SettingsView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SettingsView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SettingsView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Shared/SyncBannerView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SyncBannerView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SyncBannerView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/SyncBannerView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Student/AICoachView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AICoachView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AICoachView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/AICoachView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Student/JoinSessionView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/JoinSessionView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/JoinSessionView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/JoinSessionView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Student/PerformanceHistoryView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/PerformanceHistoryView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/PerformanceHistoryView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/PerformanceHistoryView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Student/RoundResultsView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/RoundResultsView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/RoundResultsView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/RoundResultsView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Student/StudentAnnouncementsView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/StudentAnnouncementsView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/StudentAnnouncementsView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/StudentAnnouncementsView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Student/StudentLeaderboardView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/StudentLeaderboardView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/StudentLeaderboardView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/StudentLeaderboardView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Student/TeamDashboardView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/TeamDashboardView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/TeamDashboardView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/TeamDashboardView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/BizSimAI/Views/Student/WaitingRoomView.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/WaitingRoomView.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/WaitingRoomView.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/WaitingRoomView.o"
+  },
+  "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "index-unit-output-path" : "/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/build/BizSimAI.build/Release-iphoneos/BizSimAI.build/Objects-normal/arm64/GeneratedAssetSymbols.o"
+  }
+}

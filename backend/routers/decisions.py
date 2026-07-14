@@ -6,6 +6,7 @@ from database import db
 from models import (
     PlayerDecision,
     ProcessRoundResponse,
+    SessionState,
     SubmitDecisionRequest,
     SubmitDecisionResponse,
 )
@@ -94,7 +95,7 @@ async def process_round_endpoint(code: str):
 
     # If all rounds completed, mark session as finished
     if current_round >= session.config.totalRounds:
-        db.update_session(code, {"state": "finished", "currentRound": current_round})
+        db.update_session(code, {"state": SessionState.FINISHED, "currentRound": current_round})
     else:
         # Advance to next round
         db.update_session(code, {"currentRound": current_round + 1})

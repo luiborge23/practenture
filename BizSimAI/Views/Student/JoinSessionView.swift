@@ -196,8 +196,10 @@ struct JoinSessionView: View {
         let session = SimulationSession(config: config)
         appState.setActiveSession(session)
 
-        // Auto-run all rounds
+        // Run Quick Demo immediately — no delay
+        NSLog("[BizSimAI] startQuickDemo: calling runQuickDemo now")
         appState.gameController?.runQuickDemo()
+        NSLog("[BizSimAI] startQuickDemo: runQuickDemo returned")
     }
 
     // MARK: - Helper Functions
@@ -205,16 +207,39 @@ struct JoinSessionView: View {
     private func onTeamJoined(teamId: UUID?) {
         guard let teamId else { return }
         guard let team = viewModel.joinedTeam, teamId == team.id else { return }
-        let config = SessionConfiguration(
-            name: "Joined Session",
-            totalRounds: 10,
-            startingCash: 100_000,
-            marketType: .moderate,
-            aiDifficulty: .medium,
-            numberOfAICompetitors: 3,
-            plantCapacity: 500
-        )
+        
+        // Use backend session config if available, otherwise fall back to defaults
+        let config: SessionConfiguration
+        if let backendSession = viewModel.loadedSession {
+            let backendConfig = backendSession.config
+            config = SessionConfiguration(
+                name: backendSession.code.isEmpty ? "Joined Session" : "Session \(backendSession.code)",
+                totalRounds: backendConfig.totalRounds,
+                startingCash: backendConfig.startingCash,
+                marketType: .moderate,
+                aiDifficulty: .medium,
+                numberOfAICompetitors: backendConfig.numberOfAICompetitors,
+                plantCapacity: backendConfig.plantCapacity
+            )
+        } else {
+            config = SessionConfiguration(
+                name: "Joined Session",
+                totalRounds: 10,
+                startingCash: 100_000,
+                marketType: .moderate,
+                aiDifficulty: .medium,
+                numberOfAICompetitors: 3,
+                plantCapacity: 500
+            )
+        }
+        
         let session = SimulationSession(config: config)
+        
+        // Load backend announcements into the session
+        if !viewModel.loadedAnnouncements.isEmpty {
+            session.loadAnnouncements(from: viewModel.loadedAnnouncements)
+        }
+        
         appState.setActiveSession(session, joinedTeam: team)
     }
 }

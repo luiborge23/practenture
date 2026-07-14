@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- ── Google Sign-In (REQUIRED) ────────────────────────────────── -->
+	<!-- Get your client ID from: https://console.cloud.google.com/apis/credentials -->
+	<!-- It looks like: 1234567890-abc.apps.googleusercontent.com -->
+	<key>GIDClientID</key>
+	<string>741219112789-tjgo4468alu6aujghk96p1ihst5c7uk7.apps.googleusercontent.com</string>
+
+	<!-- Reversed client ID for URL scheme (same ID, reversed dot order) -->
+	<!-- e.g. if GIDClientID = 1234567890-abc.apps.googleusercontent.com -->
+	<!-- then this = com.googleusercontent.apps.1234567890-abc -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.741219112789-tjgo4468alu6aujghk96p1ihst5c7uk7</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- ── App Transport Security ───────────────────────────────────── -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>18.215.180.58</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
+			<key>localhost</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
+
+	<!-- ── Backend URL (configurable per scheme via xcconfig) ──────── -->
+	<key>BIZSIMAI_BACKEND_URL</key>
+	<string>http://18.215.180.58:80</string>
+</dict>
+</plist>

@@ -96,8 +96,8 @@ final class BackendState {
     func checkConnection() async {
         let health = await NetworkService.shared.healthCheck()
         isOnline = health
-        if health, let code = sessionCode {
-            try? await pollStatus()
+        if health, let _ = sessionCode {
+            await pollStatus()
         }
     }
 
@@ -107,15 +107,16 @@ final class BackendState {
         guard let code = sessionCode else {
             throw NetworkError.invalidURL
         }
-        try await NetworkService.shared.processRound(code: code)
+        _ = try await NetworkService.shared.processRound(code: code)
     }
 
-    func submitDecision(code: String, round: Int, teamId: UUID, decision: PlayerDecision) async throws {
+    func submitDecision(code: String, round: Int, teamId: UUID, decision: PlayerDecision, backendTeamId: String? = nil) async throws {
         try await NetworkService.shared.submitDecision(
             code: code,
             round: round,
             teamId: teamId,
-            decision: decision
+            decision: decision,
+            backendTeamId: backendTeamId
         )
     }
 

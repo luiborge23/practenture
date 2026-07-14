@@ -418,7 +418,7 @@ struct CreateSessionView: View {
             return
         }
 
-        if let code = viewModel.backendSessionCode {
+        if viewModel.backendSessionCode != nil {
             // Cloud backend was used — show session code alert
             showingSessionCreated = true
         } else {

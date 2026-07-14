@@ -46,8 +46,13 @@ struct RoundResultsView: View {
                let teamId = session.playerTeam?.id {
                 // Resolve round number from session if not explicitly provided
                 if roundNumber == 0 {
-                    // Show the most recent completed round (currentRound - 1, since currentRound is the next round)
-                    roundNumber = max(1, session.currentRound - 1)
+                    // When session is completed, show the final round
+                    // Otherwise show the most recent completed round (currentRound - 1)
+                    if session.state == .completed {
+                        roundNumber = session.totalRounds
+                    } else {
+                        roundNumber = max(1, session.currentRound - 1)
+                    }
                 }
                 totalRounds = session.totalRounds
                 viewModel.loadResults(from: session, for: teamId, round: roundNumber)
@@ -81,9 +86,15 @@ struct RoundResultsView: View {
                 .font(.largeTitle)
                 .fontWeight(.bold)
 
-            Text("\(totalRounds - roundNumber) rounds remaining")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            if roundNumber >= totalRounds {
+                Text("Simulation Complete")
+                    .font(.subheadline)
+                    .foregroundStyle(.green)
+            } else {
+                Text("\(totalRounds - roundNumber) rounds remaining")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)

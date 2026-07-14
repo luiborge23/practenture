@@ -1,25 +1,318 @@
 // SimulationSession.swift
 // BizSimAI
 //
-// Observable session object that holds all state for an active simulation.
+// SwiftData-persisted session model that holds all state for an active simulation.
 // Enhanced with investor scorecard, S/Q tracking, and financial state.
 
 import Foundation
+import SwiftData
 import Observation
+import os
 
-@Observable
+@Model
 class SimulationSession: Identifiable {
-    let id: UUID
-    let config: SessionConfiguration
+
+    // MARK: - Shared JSON Coders
+    // Centralised coders with consistent date strategy so backend ISO-8601
+    // dates decode correctly and nested containers never silently mis-interpret.
+    private static let decoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .iso8601
+        return d
+    }()
+
+    private static let encoder: JSONEncoder = {
+        let e = JSONEncoder()
+        e.dateEncodingStrategy = .iso8601
+        return e
+    }()
+
+    private static let logger = Logger(subsystem: "com.bizsimai", category: "SimulationSession")
+    /// Unique identifier for the session.
+    var id: UUID
+
+    /// Short alphanumeric code for multiplayer/sharing (unique constraint).
+    @Attribute(.unique)
+    var code: String
 
     /// Current round number (1-based). Starts at 0 meaning "not yet started."
-    var currentRound: Int = 0
+    var currentRound: Int
+
+    /// Session lifecycle state (stored as raw String for SwiftData compatibility).
+    var stateRaw: String
+
+    /// Backend's team identifier (team name string, not UUID). Set on join.
+    /// Used when submitting decisions so the backend can match the team.
+    var backendTeamId: String?
+
+    /// All teams in the session — stored as JSON Data.
+    var teamsData: Data?
+
+    /// Round results indexed by team ID, then by round number — stored as JSON Data.
+    var roundResultsData: Data?
+
+    /// Decisions submitted for the current round — stored as JSON Data.
+    var currentRoundDecisionsData: Data?
+
+    /// Previous round's decisions — stored as JSON Data.
+    var previousRoundDecisionsData: Data?
+
+    /// Session configuration — stored as JSON Data.
+    var configData: Data?
+
+    /// Coaching messages — stored as JSON Data.
+    var coachMessagesData: Data?
+
+    /// Round summaries — stored as JSON Data.
+    var playerRoundSummariesData: Data?
+
+    /// Professor announcements — stored as JSON Data.
+    var announcementsData: Data?
+
+    /// Enrolled students — stored as JSON Data.
+    var enrolledStudentsData: Data?
+
+    /// Grade mappings — stored as JSON Data.
+    var gradeMappingsData: Data?
+
+    /// Round deadlines (key = round number, value = deadline date) — stored as JSON Data.
+    var roundDeadlinesData: Data?
+
+    /// Whether the session is paused.
+    var isPaused: Bool
+
+    /// Timestamp when this session was created.
+    var createdAt: Date
+
+    /// Timestamp of last sync with backend (nil if never synced).
+    var lastSyncedAt: Date?
+
+    // MARK: - Computed Property Wrappers (backward-compatible API)
 
     /// Session lifecycle state.
-    var state: SessionState = .waitingForPlayers
+    var state: SessionState {
+        get { SessionState(rawValue: stateRaw) ?? .waitingForPlayers }
+        set { stateRaw = newValue.rawValue }
+    }
 
     /// All teams in the session (player + AI).
-    var teams: [TeamStatus] = []
+    var teams: [TeamStatus] {
+        get {
+            guard let data = teamsData else { return [] }
+            do {
+                return try Self.decoder.decode([TeamStatus].self, from: data)
+            } catch {
+                Self.logger.error("Failed to decode teams: \(error.localizedDescription)")
+                return []
+            }
+        }
+        set {
+            teamsData = try? Self.encoder.encode(newValue)
+        }
+    }
+
+    /// Session configuration.
+    var config: SessionConfiguration {
+        get {
+            guard let data = configData else {
+                return SessionConfiguration()
+            }
+            do {
+                return try Self.decoder.decode(SessionConfiguration.self, from: data)
+            } catch {
+                Self.logger.error("Failed to decode config: \(error.localizedDescription)")
+                return SessionConfiguration()
+            }
+        }
+        set {
+            configData = try? Self.encoder.encode(newValue)
+        }
+    }
+
+    /// Round results indexed by team ID, then by round number.
+    var roundResults: [UUID: [Int: RoundResult]] {
+        get {
+            guard let data = roundResultsData else { return [:] }
+            do {
+                let decoded = try Self.decoder.decode([String: [Int: RoundResult]].self, from: data)
+                var result: [UUID: [Int: RoundResult]] = [:]
+                for (key, value) in decoded {
+                    if let uuid = UUID(uuidString: key) {
+                        result[uuid] = value
+                    }
+                }
+                return result
+            } catch {
+                Self.logger.error("Failed to decode roundResults: \(error.localizedDescription)")
+                return [:]
+            }
+        }
+        set {
+            var encoded: [String: [Int: RoundResult]] = [:]
+            for (key, value) in newValue {
+                encoded[key.uuidString] = value
+            }
+            roundResultsData = try? Self.encoder.encode(encoded)
+        }
+    }
+
+    /// Decisions submitted for the current round, indexed by team ID.
+    var currentRoundDecisions: [UUID: PlayerDecision] {
+        get {
+            guard let data = currentRoundDecisionsData else { return [:] }
+            do {
+                let decoded = try Self.decoder.decode([String: PlayerDecision].self, from: data)
+                var result: [UUID: PlayerDecision] = [:]
+                for (key, value) in decoded {
+                    if let uuid = UUID(uuidString: key) {
+                        result[uuid] = value
+                    }
+                }
+                return result
+            } catch {
+                Self.logger.error("Failed to decode currentRoundDecisions: \(error.localizedDescription)")
+                return [:]
+            }
+        }
+        set {
+            var encoded: [String: PlayerDecision] = [:]
+            for (key, value) in newValue {
+                encoded[key.uuidString] = value
+            }
+            currentRoundDecisionsData = try? Self.encoder.encode(encoded)
+        }
+    }
+
+    /// Previous round's decisions (preserved for AI context).
+    var previousRoundDecisions: [UUID: PlayerDecision] {
+        get {
+            guard let data = previousRoundDecisionsData else { return [:] }
+            do {
+                let decoded = try Self.decoder.decode([String: PlayerDecision].self, from: data)
+                var result: [UUID: PlayerDecision] = [:]
+                for (key, value) in decoded {
+                    if let uuid = UUID(uuidString: key) {
+                        result[uuid] = value
+                    }
+                }
+                return result
+            } catch {
+                Self.logger.error("Failed to decode previousRoundDecisions: \(error.localizedDescription)")
+                return [:]
+            }
+        }
+        set {
+            var encoded: [String: PlayerDecision] = [:]
+            for (key, value) in newValue {
+                encoded[key.uuidString] = value
+            }
+            previousRoundDecisionsData = try? Self.encoder.encode(encoded)
+        }
+    }
+
+    /// Coaching messages for this session.
+    var coachMessages: [CoachMessage] {
+        get {
+            guard let data = coachMessagesData else { return [] }
+            do {
+                return try Self.decoder.decode([CoachMessage].self, from: data)
+            } catch {
+                Self.logger.error("Failed to decode coachMessages: \(error.localizedDescription)")
+                return []
+            }
+        }
+        set {
+            coachMessagesData = try? Self.encoder.encode(newValue)
+        }
+    }
+
+    /// Round summaries for the player, ordered by round.
+    var playerRoundSummaries: [RoundSummary] {
+        get {
+            guard let data = playerRoundSummariesData else { return [] }
+            do {
+                return try Self.decoder.decode([RoundSummary].self, from: data)
+            } catch {
+                Self.logger.error("Failed to decode playerRoundSummaries: \(error.localizedDescription)")
+                return []
+            }
+        }
+        set {
+            playerRoundSummariesData = try? Self.encoder.encode(newValue)
+        }
+    }
+
+    /// Professor announcements for this session.
+    var announcements: [Announcement] {
+        get {
+            guard let data = announcementsData else { return [] }
+            do {
+                return try Self.decoder.decode([Announcement].self, from: data)
+            } catch {
+                Self.logger.error("Failed to decode announcements: \(error.localizedDescription)")
+                return []
+            }
+        }
+        set {
+            announcementsData = try? Self.encoder.encode(newValue)
+        }
+    }
+
+    /// Enrolled students roster.
+    var enrolledStudents: [EnrolledStudent] {
+        get {
+            guard let data = enrolledStudentsData else { return [] }
+            do {
+                return try Self.decoder.decode([EnrolledStudent].self, from: data)
+            } catch {
+                Self.logger.error("Failed to decode enrolledStudents: \(error.localizedDescription)")
+                return []
+            }
+        }
+        set {
+            enrolledStudentsData = try? Self.encoder.encode(newValue)
+        }
+    }
+
+    /// Grade mapping configuration.
+    var gradeMappings: [GradeMapping] {
+        get {
+            guard let data = gradeMappingsData else { return GradeMapping.defaultScale }
+            do {
+                return try Self.decoder.decode([GradeMapping].self, from: data)
+            } catch {
+                Self.logger.error("Failed to decode gradeMappings: \(error.localizedDescription)")
+                return GradeMapping.defaultScale
+            }
+        }
+        set {
+            gradeMappingsData = try? Self.encoder.encode(newValue)
+        }
+    }
+
+    /// Round deadlines (for timed mode). Key = round number, value = deadline date.
+    var roundDeadlines: [Int: Date] {
+        get {
+            guard let data = roundDeadlinesData else { return [:] }
+            do {
+                return try Self.decoder.decode([Int: Date].self, from: data)
+            } catch {
+                Self.logger.error("Failed to decode roundDeadlines: \(error.localizedDescription)")
+                return [:]
+            }
+        }
+        set {
+            roundDeadlinesData = try? Self.encoder.encode(newValue)
+        }
+    }
+
+    /// Backward-compatible alias: `sessionCode` maps to `code`.
+    var sessionCode: String {
+        get { code }
+        set { code = newValue }
+    }
+
+    // MARK: - Derived Computed Properties (unchanged)
 
     /// The human player's team (convenience reference).
     var playerTeam: TeamStatus? {
@@ -36,47 +329,51 @@ class SimulationSession: Identifiable {
         teams.filter { $0.isAI }
     }
 
-    /// Round results indexed by team ID, then by round number.
-    var roundResults: [UUID: [Int: RoundResult]] = [:]
+    /// Unassigned active students.
+    var unassignedStudents: [EnrolledStudent] {
+        enrolledStudents.filter { $0.teamId == nil && $0.isActive }
+    }
 
-    /// Decisions submitted for the current round, indexed by team ID.
-    var currentRoundDecisions: [UUID: PlayerDecision] = [:]
+    /// Time remaining for current round's deadline, nil if no deadline.
+    var currentRoundTimeRemaining: TimeInterval? {
+        guard let deadline = roundDeadlines[currentRound] else { return nil }
+        return deadline.timeIntervalSinceNow
+    }
 
-    /// Previous round's decisions (preserved for AI context).
-    var previousRoundDecisions: [UUID: PlayerDecision] = [:]
+    /// Whether the current round deadline has passed.
+    var isCurrentRoundOverdue: Bool {
+        guard let remaining = currentRoundTimeRemaining else { return false }
+        return remaining <= 0
+    }
 
-    /// Short alphanumeric code for multiplayer/sharing.
-    let sessionCode: String
+    /// Whether the session has expired.
+    var isExpired: Bool {
+        guard let expiry = config.sessionExpiryDate else { return false }
+        return Date() > expiry
+    }
 
-    /// Coaching messages for this session.
-    var coachMessages: [CoachMessage] = []
+    // MARK: - Convenience Accessors (unchanged)
 
-    /// Round summaries for the player, ordered by round.
-    var playerRoundSummaries: [RoundSummary] = []
-
-    /// Professor announcements for this session.
-    var announcements: [Announcement] = []
-
-    /// Enrolled students roster.
-    var enrolledStudents: [EnrolledStudent] = []
-
-    /// Grade mapping configuration.
-    var gradeMappings: [GradeMapping] = GradeMapping.defaultScale
-
-    /// Round deadlines (for timed mode). Key = round number, value = deadline date.
-    var roundDeadlines: [Int: Date] = [:]
-
-    /// Whether the session is paused (prevents decision submissions).
-    var isPaused: Bool = false
+    var totalRounds: Int { config.totalRounds }
+    var startingCash: Double { config.startingCash }
+    var scoringMetric: ScoringMetric { config.scoringMetric }
 
     // MARK: - Initialization
 
     init(config: SessionConfiguration) {
         self.id = UUID()
-        self.config = config
-        self.sessionCode = SimulationSession.generateSessionCode()
+        self.code = SimulationSession.generateSessionCode()
+        self.currentRound = 0
+        self.stateRaw = SessionState.waitingForPlayers.rawValue
+        self.isPaused = false
+        self.createdAt = Date()
+        self.lastSyncedAt = nil
+
+        // Encode config
+        self.configData = try? Self.encoder.encode(config)
 
         // Create human teams based on maxHumanTeams config.
+        var teamList: [TeamStatus] = []
         let humanTeamNames = Self.humanTeamNames.prefix(config.maxHumanTeams)
         for (_, teamName) in humanTeamNames.enumerated() {
             let player = TeamStatus(
@@ -86,7 +383,7 @@ class SimulationSession: Identifiable {
                 equity: config.initialEquity,
                 sharesOutstanding: config.sharesOutstanding
             )
-            teams.append(player)
+            teamList.append(player)
         }
 
         // Create AI competitor teams (use deterministic shuffle based on session seed)
@@ -101,8 +398,75 @@ class SimulationSession: Identifiable {
                 equity: config.initialEquity,
                 sharesOutstanding: config.sharesOutstanding
             )
-            teams.append(aiTeam)
+            teamList.append(aiTeam)
         }
+
+        self.teamsData = try? Self.encoder.encode(teamList)
+        self.gradeMappingsData = try? Self.encoder.encode(GradeMapping.defaultScale)
+
+        // Initialize remaining data properties as empty
+        self.roundResultsData = nil
+        self.currentRoundDecisionsData = nil
+        self.previousRoundDecisionsData = nil
+        self.coachMessagesData = nil
+        self.playerRoundSummariesData = nil
+        self.announcementsData = nil
+        self.enrolledStudentsData = nil
+        self.roundDeadlinesData = nil
+    }
+
+    /// Create a SimulationSession with a specific backend-provided code (fixes backend sync wrong-code bug).
+    init(code: String, config: SessionConfiguration) {
+        self.id = UUID()
+        self.code = code
+        self.currentRound = 0
+        self.stateRaw = SessionState.waitingForPlayers.rawValue
+        self.isPaused = false
+        self.createdAt = Date()
+        self.lastSyncedAt = nil
+        self.configData = try? Self.encoder.encode(config)
+        var teamList: [TeamStatus] = []
+        let humanTeamNames = Self.humanTeamNames.prefix(config.maxHumanTeams)
+        for (_, teamName) in humanTeamNames.enumerated() {
+            let player = TeamStatus(
+                name: config.maxHumanTeams == 1 ? config.name : teamName,
+                cash: config.startingCash,
+                isAI: false
+            )
+            teamList.append(player)
+        }
+        for i in 0..<config.numberOfAICompetitors {
+            let ai = TeamStatus(
+                name: "Competitor \(i+1)",
+                cash: config.startingCash,
+                isAI: true
+            )
+            teamList.append(ai)
+        }
+        self.teamsData = try? Self.encoder.encode(teamList)
+    }
+
+
+    /// SwiftData required init for fetching from store.
+    required init() {
+        self.id = UUID()
+        self.code = ""
+        self.currentRound = 0
+        self.stateRaw = SessionState.waitingForPlayers.rawValue
+        self.isPaused = false
+        self.createdAt = Date()
+        self.lastSyncedAt = nil
+        self.teamsData = nil
+        self.roundResultsData = nil
+        self.currentRoundDecisionsData = nil
+        self.previousRoundDecisionsData = nil
+        self.configData = nil
+        self.coachMessagesData = nil
+        self.playerRoundSummariesData = nil
+        self.announcementsData = nil
+        self.enrolledStudentsData = nil
+        self.gradeMappingsData = nil
+        self.roundDeadlinesData = nil
     }
 
     // MARK: - Session Code Generation
@@ -256,6 +620,13 @@ class SimulationSession: Identifiable {
         announcements.append(Announcement(message: message, roundNumber: round))
     }
 
+    /// Load announcements from backend and convert to local model.
+    func loadAnnouncements(from backendAnnouncements: [AnnouncementBackend]) {
+        announcements = backendAnnouncements.map { ba in
+            Announcement(message: ba.message, roundNumber: ba.roundNumber)
+        }
+    }
+
     // MARK: - Student Enrollment
 
     @discardableResult
@@ -298,11 +669,6 @@ class SimulationSession: Identifiable {
         enrolledStudents.filter { $0.teamId == teamId && $0.isActive }
     }
 
-    /// Unassigned active students.
-    var unassignedStudents: [EnrolledStudent] {
-        enrolledStudents.filter { $0.teamId == nil && $0.isActive }
-    }
-
     // MARK: - Deadline Management
 
     /// Set deadline for a specific round based on hours from now.
@@ -317,24 +683,6 @@ class SimulationSession: Identifiable {
             let hoursOffset = config.roundDeadlineHours * round
             roundDeadlines[round] = Date().addingTimeInterval(Double(hoursOffset) * 3600)
         }
-    }
-
-    /// Time remaining for current round's deadline, nil if no deadline.
-    var currentRoundTimeRemaining: TimeInterval? {
-        guard let deadline = roundDeadlines[currentRound] else { return nil }
-        return deadline.timeIntervalSinceNow
-    }
-
-    /// Whether the current round deadline has passed.
-    var isCurrentRoundOverdue: Bool {
-        guard let remaining = currentRoundTimeRemaining else { return false }
-        return remaining <= 0
-    }
-
-    /// Whether the session has expired.
-    var isExpired: Bool {
-        guard let expiry = config.sessionExpiryDate else { return false }
-        return Date() > expiry
     }
 
     /// Grade for a given team based on their cumulative investor score.
@@ -374,11 +722,7 @@ class SimulationSession: Identifiable {
         "Beacon Innovations"
     ]
 
-    // MARK: - Convenience Accessors
-
-    var totalRounds: Int { config.totalRounds }
-    var startingCash: Double { config.startingCash }
-    var scoringMetric: ScoringMetric { config.scoringMetric }
+    // MARK: - Result Lookup (unchanged)
 
     func roundResult(for teamId: UUID, round: Int) -> RoundResult? {
         roundResults[teamId]?[round]
@@ -393,5 +737,74 @@ class SimulationSession: Identifiable {
 
     func rank(for teamId: UUID) -> Int? {
         teams.first(where: { $0.id == teamId })?.rank
+    }
+
+    // MARK: - Snapshot / Apply (for background-thread simulation)
+
+    /// Bulk-copy all data the engine needs into a plain Sendable struct.
+    /// Call this ONCE on the main thread before dispatching to background.
+    /// This avoids 30+ individual JSON decode cycles during computation.
+    func takeSnapshot() -> SimulationSnapshot {
+        NSLog("[BizSimAI] takeSnapshot: reading config...")
+        let snapConfig = config
+        NSLog("[BizSimAI] takeSnapshot: reading currentRound...")
+        let snapRound = currentRound
+        NSLog("[BizSimAI] takeSnapshot: reading teams...")
+        let snapTeams = teams
+        NSLog("[BizSimAI] takeSnapshot: reading decisions...")
+        let snapDecisions = currentRoundDecisions
+        NSLog("[BizSimAI] takeSnapshot: reading prevDecisions...")
+        let snapPrevDecisions = previousRoundDecisions
+        NSLog("[BizSimAI] takeSnapshot: reading roundResults...")
+        let snapRoundResults = roundResults
+        NSLog("[BizSimAI] takeSnapshot: building struct...")
+        let snapshot = SimulationSnapshot(
+            config: snapConfig,
+            currentRound: snapRound,
+            teams: snapTeams,
+            decisions: snapDecisions,
+            previousRoundDecisions: snapPrevDecisions,
+            roundResults: snapRoundResults
+        )
+        NSLog("[BizSimAI] takeSnapshot: DONE")
+        return snapshot
+    }
+
+    /// Apply simulation results back to the @Model session.
+    /// Call this ONCE on the main thread after background computation.
+    /// Performs a single bulk encode per property (not 30+ decode/encode cycles).
+    func applyRoundOutput(_ output: RoundOutput) {
+        // Record results (updates team financial state)
+        for result in output.results {
+            recordResult(result)
+        }
+
+        // Apply team updates (single decode-modify-encode of teams array)
+        var updatedTeams = teams
+        for update in output.teamUpdates {
+            if let index = updatedTeams.firstIndex(where: { $0.id == update.teamId }) {
+                updatedTeams[index].cash = update.cash
+                updatedTeams[index].inventory = update.inventory
+                updatedTeams[index].sqRating = update.sqRating
+                updatedTeams[index].imageRating = update.imageRating
+                updatedTeams[index].creditRating = update.creditRating
+                updatedTeams[index].reputation = update.reputation
+                updatedTeams[index].equity = update.equity
+                updatedTeams[index].totalDebt = update.totalDebt
+                updatedTeams[index].sharesOutstanding = update.sharesOutstanding
+                updatedTeams[index].cumulativeRD = update.cumulativeRD
+                updatedTeams[index].cumulativeMarketing = update.cumulativeMarketing
+                updatedTeams[index].cumulativeCSR = update.cumulativeCSR
+                updatedTeams[index].cumulativeTQM = update.cumulativeTQM
+                updatedTeams[index].cumulativeProfit = update.cumulativeProfit
+                updatedTeams[index].cumulativeInvestorScore = update.cumulativeInvestorScore
+                updatedTeams[index].roundsScored = update.roundsScored
+                updatedTeams[index].rank = update.rank
+            }
+        }
+        teams = updatedTeams  // single encode
+
+        // Update rankings
+        updateRankings()
     }
 }

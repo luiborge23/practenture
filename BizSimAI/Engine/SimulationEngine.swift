@@ -538,6 +538,414 @@ final class SimulationEngine: SimulationEngineProtocol {
         return (results, explanations)
     }
 
+    // MARK: - Pure Computation (background-thread safe)
+
+    /// Process a round WITHOUT touching SimulationSession.
+    /// Takes a snapshot + decisions, returns all results + team updates.
+    /// Safe to call on a background thread.
+    func processRoundPure(
+        snapshot: SimulationSnapshot,
+        decisions: [UUID: PlayerDecision]
+    ) -> RoundOutput {
+        let config = snapshot.config
+        let round = snapshot.currentRound
+        var rng = SeededRandomGenerator(seed: config.randomSeed &+ UInt64(round))
+
+        // 1. Build team contexts and compute S/Q ratings
+        var teamSQRatings: [UUID: Double] = [:]
+        var teamRejectionRates: [UUID: Double] = [:]
+        var teamContexts: [(team: TeamStatus, decision: PlayerDecision)] = []
+
+        for team in snapshot.teams {
+            guard let decision = decisions[team.id] else { continue }
+
+            let updatedCumulativeTQM = team.cumulativeTQM + decision.tqmInvestment
+
+            let sqRating = computeSQRating(
+                materialsQuality: decision.materialsQuality,
+                stylingBudget: decision.stylingBudget,
+                modelsOffered: decision.modelsOffered,
+                cumulativeTQM: updatedCumulativeTQM,
+                bestPractices: decision.bestPracticesInvestment,
+                trainingHours: decision.trainingHours,
+                previousSQ: team.sqRating
+            )
+            teamSQRatings[team.id] = sqRating
+
+            let rejectionRate = computeRejectionRate(
+                cumulativeTQM: updatedCumulativeTQM,
+                trainingHours: decision.trainingHours,
+                incentivePay: decision.incentivePay,
+                bestPractices: decision.bestPracticesInvestment
+            )
+            teamRejectionRates[team.id] = rejectionRate
+
+            teamContexts.append((team, decision))
+        }
+
+        // 2. Compute total market demand
+        let demandGrowth = min(2.0, 1.0 + 0.05 * Double(round))
+        let totalDemand = Double(config.baseMarketDemand)
+            * config.marketType.demandMultiplier
+            * demandGrowth
+            * rng.noiseFactor(amplitude: config.marketType.volatility)
+
+        let wholesaleDemand = totalDemand * wholesaleShare
+        let internetDemand = totalDemand * internetShare
+        let privateLabelDemand = totalDemand * privateLabelShare
+        let amazonDemand = totalDemand * amazonShare
+
+        // 3. Compute competitive indices
+        let avgWholesalePrice = teamContexts.map { $0.decision.wholesalePrice }.reduce(0, +) / Double(max(1, teamContexts.count))
+        let avgInternetPrice = teamContexts.map { $0.decision.internetPrice }.reduce(0, +) / Double(max(1, teamContexts.count))
+        let avgSQ = teamSQRatings.values.reduce(0, +) / Double(max(1, teamSQRatings.count))
+        let avgAdvertising = teamContexts.map { $0.decision.advertisingBudget }.reduce(0, +) / Double(max(1, teamContexts.count))
+        let avgRebate = teamContexts.map { $0.decision.mailInRebate }.reduce(0, +) / Double(max(1, teamContexts.count))
+
+        var wholesaleAttractivities: [UUID: Double] = [:]
+        var internetAttractivities: [UUID: Double] = [:]
+        var amazonAttractivities: [UUID: Double] = [:]
+
+        for (team, decision) in teamContexts {
+            let sq = teamSQRatings[team.id] ?? 5.0
+
+            let tiktokFactor = 1.0 + min(0.08, decision.tiktokBudget / 15_000 * 0.08)
+            let instagramFactor = 1.0 + min(0.06, decision.instagramBudget / 15_000 * 0.06)
+            let youtubeFactor = 1.0 + min(0.05, decision.youtubeBudget / 15_000 * 0.05)
+            let estInfluencerCount: Double
+            if decision.socialMediaBudget <= 0 {
+                estInfluencerCount = 0
+            } else {
+                switch decision.influencerTier {
+                case .none: estInfluencerCount = 0
+                case .nano: estInfluencerCount = Double(max(1, Int(decision.socialMediaBudget / 1000)))
+                case .micro: estInfluencerCount = Double(max(1, Int(decision.socialMediaBudget / 5000)))
+                case .macro: estInfluencerCount = Double(max(1, Int(decision.socialMediaBudget / 20000)))
+                case .mega: estInfluencerCount = Double(max(1, Int(decision.socialMediaBudget / 60000)))
+                }
+            }
+            let influencerCountFactor = max(1, sqrt(estInfluencerCount))
+            let influencerFactor = 1.0 + decision.influencerTier.engagementRate * decision.influencerTier.reachMultiplier * 0.1 * influencerCountFactor
+            let socialMediaDemandBoost = tiktokFactor * instagramFactor * youtubeFactor * influencerFactor
+
+            let effectivePrice = decision.wholesalePrice - decision.mailInRebate * 0.6
+            let avgEffectivePrice = avgWholesalePrice - avgRebate * 0.6
+            let priceAttract = pow(max(avgEffectivePrice, 1) / max(effectivePrice, 1), priceElasticity)
+            let sqAttract = pow(sq / max(avgSQ, 1), sqWeight)
+            let adAttract = pow(max(decision.advertisingBudget, 100) / max(avgAdvertising, 100), advertisingWeight)
+            let outletFactor = 1.0 + Double(decision.retailOutlets) / 100.0 * outletsWeight
+            let endorseFactor = decision.celebrityEndorsement.demandBoost
+            let reputationFactor = 0.7 + 0.6 * team.reputation
+            let deliveryFactor = decision.deliveryTime.demandBoost
+
+            wholesaleAttractivities[team.id] = priceAttract * sqAttract * adAttract
+                * outletFactor * endorseFactor * reputationFactor * deliveryFactor
+                * socialMediaDemandBoost
+                * rng.noiseFactor(amplitude: noiseAmplitude)
+
+            let iPriceAttract = pow(max(avgInternetPrice, 1) / max(decision.internetPrice, 1), priceElasticity * 0.9)
+            let iSQAttract = pow(sq / max(avgSQ, 1), sqWeight * 1.1)
+            let freeShipBoost = 1.0 + max(0, (100 - decision.freeShippingThreshold) / 200.0)
+
+            internetAttractivities[team.id] = iPriceAttract * iSQAttract * adAttract
+                * endorseFactor * reputationFactor * freeShipBoost
+                * socialMediaDemandBoost
+                * rng.noiseFactor(amplitude: noiseAmplitude)
+
+            let amazonReferralRate = 0.15
+            let amazonEffectivePrice = decision.amazonPrice * (1.0 - amazonReferralRate)
+            let avgAmazonPrice = teamContexts.map { $0.decision.amazonPrice }.reduce(0, +) / Double(max(1, teamContexts.count))
+            let avgAmazonEffective = avgAmazonPrice * (1.0 - amazonReferralRate)
+            let aPriceAttract = pow(max(avgAmazonEffective, 1) / max(amazonEffectivePrice, 1), priceElasticity * 0.8)
+            let aReviewProxy = pow(sq / max(avgSQ, 1), sqWeight * 1.2)
+            let aAdBoost = 1.0 + min(0.15, decision.amazonAdBudget / 10_000 * 0.15)
+            let aBuyBox = decision.fulfillmentMethod.buyBoxMultiplier
+            let aTrust = decision.fulfillmentMethod.trustMultiplier
+
+            amazonAttractivities[team.id] = aPriceAttract * aReviewProxy * aAdBoost
+                * aBuyBox * aTrust * socialMediaDemandBoost
+                * rng.noiseFactor(amplitude: noiseAmplitude)
+        }
+
+        let totalWholesaleAttract = wholesaleAttractivities.values.reduce(0, +)
+        let totalInternetAttract = internetAttractivities.values.reduce(0, +)
+        let totalAmazonAttract = amazonAttractivities.values.reduce(0, +)
+
+        // 4. Private-label allocation (lowest bid wins)
+        let privateLabelBids = teamContexts.sorted { $0.decision.privateLabelBidPrice < $1.decision.privateLabelBidPrice }
+        var privateLabelAllocations: [UUID: Int] = [:]
+        var remainingPL = Int(privateLabelDemand)
+        for (team, decision) in privateLabelBids {
+            if remainingPL <= 0 { break }
+            let allocation = min(decision.privateLabelMaxUnits, remainingPL)
+            privateLabelAllocations[team.id] = allocation
+            remainingPL -= allocation
+        }
+
+        // 5. Compute results for each team
+        var results: [RoundResult] = []
+        var explanations: [ResultExplanation] = []
+        var teamUpdates: [TeamUpdate] = []
+        var updatedRoundResults = snapshot.roundResults
+
+        for (team, decision) in teamContexts {
+            let sq = teamSQRatings[team.id] ?? 5.0
+            let rejectionRate = teamRejectionRates[team.id] ?? 0.08
+
+            let wShare = (wholesaleAttractivities[team.id] ?? 0) / max(totalWholesaleAttract, 0.001)
+            let iShare = (internetAttractivities[team.id] ?? 0) / max(totalInternetAttract, 0.001)
+            let wholesaleAllocated = Int(wholesaleDemand * wShare)
+            let internetAllocated = Int(internetDemand * iShare)
+            let plAllocated = privateLabelAllocations[team.id] ?? 0
+            let aShare = (amazonAttractivities[team.id] ?? 0) / max(totalAmazonAttract, 0.001)
+            let amazonAllocated = Int(amazonDemand * aShare)
+
+            let baseCapacity = config.plantCapacity
+            let overtimeCapacity = Int(Double(baseCapacity) * decision.overtimePercent / 100.0)
+            let totalCapacity = baseCapacity + overtimeCapacity
+            let grossProduction = min(decision.productionQuantity, totalCapacity)
+            let rejectedUnits = Int(Double(grossProduction) * rejectionRate)
+            let netProduction = grossProduction - rejectedUnits
+            let totalAvailable = netProduction + team.inventory
+            let totalDemandForTeam = wholesaleAllocated + internetAllocated + amazonAllocated + plAllocated
+            let capForSale = min(totalDemandForTeam, totalAvailable)
+
+            let wSold: Int, iSold: Int, aSold: Int, plSold: Int
+            if totalDemandForTeam > 0 {
+                let capDouble = Double(capForSale)
+                let demandDouble = Double(totalDemandForTeam)
+                wSold = min(wholesaleAllocated, Int(capDouble * Double(wholesaleAllocated) / demandDouble))
+                let afterW = capForSale - wSold
+                let remainDemand3 = Double(amazonAllocated + internetAllocated + plAllocated)
+                aSold = min(amazonAllocated, remainDemand3 > 0 ? Int(Double(afterW) * Double(amazonAllocated) / remainDemand3) : 0)
+                let afterWA = afterW - aSold
+                let remainDemand2 = Double(internetAllocated + plAllocated)
+                iSold = min(internetAllocated, remainDemand2 > 0 ? Int(Double(afterWA) * Double(internetAllocated) / remainDemand2) : 0)
+                plSold = min(plAllocated, capForSale - wSold - aSold - iSold)
+            } else {
+                wSold = 0; iSold = 0; aSold = 0; plSold = 0
+            }
+            let totalSold = wSold + iSold + aSold + plSold
+
+            let wholesaleRev = Double(wSold) * decision.wholesalePrice
+            let internetRev = Double(iSold) * decision.internetPrice
+            let privateLabelRev = Double(plSold) * decision.privateLabelBidPrice
+            let amazonRev = Double(aSold) * decision.amazonPrice
+
+            let materialsCost = config.baseCostPerUnit * decision.materialsQuality.costMultiplier
+            let regularUnits = min(grossProduction, baseCapacity)
+            let overtimeUnits = max(0, grossProduction - baseCapacity)
+            let regularProdCost = materialsCost * Double(regularUnits)
+            let overtimeProdCost = materialsCost * overtimeCostPremium * Double(overtimeUnits)
+
+            if grossProduction == 0 {
+                let previousStock = updatedRoundResults[team.id]?[round - 1]?.scorecard.stockPrice ?? baseStockTarget
+                let zeroScorecard = InvestorScorecard(
+                    round: round, eps: 0, roe: 0, stockPrice: previousStock,
+                    imageRating: team.imageRating, creditRating: team.creditRating,
+                    epsScore: 0, roeScore: 0, stockPriceScore: 0,
+                    imageScore: 0, creditScore: Double(team.creditRating.investorScore))
+                let zeroResult = RoundResult(
+                    teamId: team.id, round: round,
+                    wholesaleRevenue: 0, internetRevenue: 0, amazonRevenue: 0, privateLabelRevenue: 0,
+                    productionCosts: config.fixedCostsPerRound, marketingCosts: 0, csrCosts: 0,
+                    endorsementCosts: 0, interestExpense: 0, dividendsPaid: 0,
+                    workforceCosts: 0, storageCosts: 0, rebateCosts: 0, deliveryCosts: 0,
+                    socialMediaCosts: 0, amazonFees: 0,
+                    wholesaleUnitsSold: 0, internetUnitsSold: 0, amazonUnitsSold: 0, privateLabelUnitsSold: 0,
+                    marketShare: 0, customerSatisfaction: 0, inventory: team.inventory,
+                    rejectionRate: 0, cash: team.cash - config.fixedCostsPerRound, sqRating: sq,
+                    awarenessScore: 0, scorecard: zeroScorecard)
+                results.append(zeroResult)
+                if updatedRoundResults[team.id] == nil { updatedRoundResults[team.id] = [:] }
+                updatedRoundResults[team.id]?[round] = zeroResult
+                teamUpdates.append(TeamUpdate(
+                    teamId: team.id, cash: team.cash - config.fixedCostsPerRound,
+                    inventory: team.inventory, sqRating: sq,
+                    imageRating: team.imageRating, creditRating: team.creditRating,
+                    reputation: team.reputation, equity: team.equity, totalDebt: team.totalDebt,
+                    sharesOutstanding: team.sharesOutstanding, cumulativeRD: team.cumulativeRD,
+                    cumulativeMarketing: team.cumulativeMarketing, cumulativeCSR: team.cumulativeCSR,
+                    cumulativeTQM: team.cumulativeTQM, cumulativeProfit: team.cumulativeProfit,
+                    cumulativeInvestorScore: team.cumulativeInvestorScore, roundsScored: team.roundsScored,
+                    hasSubmittedDecisions: false, rank: team.rank))
+                continue
+            }
+
+            let totalProdCost = regularProdCost + overtimeProdCost
+                + config.fixedCostsPerRound + decision.stylingBudget
+                + decision.tqmInvestment + decision.bestPracticesInvestment
+
+            let workersNeeded = max(1, grossProduction / 10)
+            let wageCost = decision.baseWage * Double(workersNeeded) / 1000.0
+            let incentiveCost = decision.incentivePay * Double(grossProduction)
+            let trainingCost = decision.trainingHours * 50.0 * Double(workersNeeded) / 1000.0
+            let workforceCosts = wageCost + incentiveCost + trainingCost
+
+            let marketingCost = decision.advertisingBudget + Double(decision.retailOutlets) * 50
+            let csrCost = decision.csrInvestment
+            let endorseCost = decision.celebrityEndorsement.annualCost
+
+            let influencerCount: Int
+            if decision.socialMediaBudget <= 0 {
+                influencerCount = 0
+            } else {
+                switch decision.influencerTier {
+                case .none: influencerCount = 0
+                case .nano: influencerCount = max(1, Int(decision.socialMediaBudget / 1000))
+                case .micro: influencerCount = max(1, Int(decision.socialMediaBudget / 5000))
+                case .macro: influencerCount = max(1, Int(decision.socialMediaBudget / 20000))
+                case .mega: influencerCount = max(1, Int(decision.socialMediaBudget / 60000))
+                }
+            }
+            let influencerCost = Double(influencerCount) * decision.influencerTier.costPerInfluencer
+            let socialMediaTotalCost = decision.socialMediaBudget + influencerCost
+
+            let amazonReferralFee = amazonRev * 0.15
+            let amazonFulfillmentFee = decision.fulfillmentMethod.feePerUnit * Double(aSold)
+            let amazonAdCost = decision.amazonAdBudget
+            let totalAmazonFees = amazonReferralFee + amazonFulfillmentFee + amazonAdCost
+
+            let rebateRedemptionRate = 0.6
+            let rebateCosts = decision.mailInRebate * rebateRedemptionRate * Double(wSold)
+            let deliveryCosts = decision.deliveryTime.costPerUnit * Double(wSold)
+            let freeShipRate = max(0, min(1.0, (100 - decision.freeShippingThreshold) / 100.0))
+            let internetShippingCost = Double(iSold) * 5.0 * freeShipRate
+            let newInventory = max(0, totalAvailable - totalSold)
+            let storageCosts = storageCostPerUnit * Double(newInventory)
+
+            let interestRate = baseInterestRate * team.creditRating.interestRateMultiplier
+            let interestExpense = team.totalDebt * interestRate
+            let safeBuyback = min(decision.sharesBuyback, team.sharesOutstanding - 1)
+            let newShares = max(1, team.sharesOutstanding - safeBuyback + decision.sharesIssued)
+            let dividendsPaid = decision.dividendsPerShare * Double(newShares)
+            let issuancePrice = max(5, team.cumulativeInvestorScore > 0 ? team.cumulativeInvestorScore / 2 : 15)
+            let issuanceProceeds = Double(decision.sharesIssued) * issuancePrice
+
+            let totalRevenue = wholesaleRev + internetRev + amazonRev + privateLabelRev
+            let totalCosts = totalProdCost + workforceCosts + marketingCost + csrCost
+                + endorseCost + rebateCosts + deliveryCosts + internetShippingCost + storageCosts
+                + interestExpense + dividendsPaid + socialMediaTotalCost + totalAmazonFees
+            let profit = totalRevenue - totalCosts
+
+            let prevStockForBuyback = updatedRoundResults[team.id]?[round - 1]?.scorecard.stockPrice ?? 25.0
+            let buybackCost = Double(safeBuyback) * max(5, prevStockForBuyback)
+            let cashChange = profit - buybackCost + decision.newLoanAmount + issuanceProceeds
+            let newCash = team.cash + cashChange
+            let newDebt = max(0, team.totalDebt + decision.newLoanAmount)
+            let newEquity = max(1, team.equity + profit)
+            let marketShare = Double(totalSold) / max(totalDemand, 1)
+
+            let priceFairness = min(1.0, avgWholesalePrice / max(decision.wholesalePrice, 1))
+            let supplyAdequacy = totalDemandForTeam > 0 ? min(1.0, Double(totalSold) / Double(totalDemandForTeam)) : 0.5
+            let satisfaction = min(1.0, max(0.0,
+                0.35 * (sq / 10.0) + 0.3 * priceFairness + 0.2 * supplyAdequacy + 0.15 * team.reputation))
+            let newReputation = 0.7 * team.reputation + 0.3 * satisfaction
+
+            let eps = profit / Double(newShares)
+            let roe = profit / newEquity
+            let debtToEquity = newEquity > 0 ? newDebt / newEquity : 10
+            let interestCoverage = interestExpense > 0 ? max(0, profit + interestExpense) / interestExpense : 20
+            let cashRatio = newDebt > 0 ? newCash / newDebt : 5
+            let creditRating = CreditRating.fromFinancials(
+                debtToEquity: debtToEquity, interestCoverage: interestCoverage, cashRatio: cashRatio)
+
+            let sqImageContrib = sq * 5.0
+            let adImageContrib = min(15, decision.advertisingBudget / 2000.0 * 5)
+            let csrImageContrib = min(15, decision.csrInvestment / 2000.0 * 5)
+            let endorseImageContrib = decision.celebrityEndorsement.imageBoost
+            let modelsImageContrib = min(10, Double(decision.modelsOffered) * 2)
+            let workforceImageContrib = min(5, decision.trainingHours / 40.0 * 5)
+            let instagramImageContrib = min(8, decision.instagramBudget / 10_000 * 8)
+            let tiktokImageContrib = min(4, decision.tiktokBudget / 10_000 * 4)
+            let youtubeImageContrib = min(5, decision.youtubeBudget / 10_000 * 5)
+            let influencerImageContrib = decision.influencerTier.imageBoost
+            let imageRating = min(100, sqImageContrib + adImageContrib + csrImageContrib
+                + endorseImageContrib + modelsImageContrib + workforceImageContrib
+                + instagramImageContrib + tiktokImageContrib + youtubeImageContrib + influencerImageContrib)
+
+            let epsGrowthFactor = max(0.5, 1.0 + eps / max(abs(baseEPSTarget), 0.01))
+            let roeFactor = max(0.5, 1.0 + roe)
+            let previousStockPrice = updatedRoundResults[team.id]?[round - 1]?.scorecard.stockPrice ?? baseStockTarget
+            let dividendYield = decision.dividendsPerShare / max(1, previousStockPrice)
+            let creditFactor = creditRating.investorScore / 20.0
+            let dilutionPenalty = decision.sharesIssued > 0 ? max(0.85, 1.0 - Double(decision.sharesIssued) / Double(max(1, team.sharesOutstanding)) * 0.5) : 1.0
+            let rawStockPrice = max(1, baseStockTarget * epsGrowthFactor * roeFactor
+                * (1 + dividendYield) * creditFactor * dilutionPenalty
+                * rng.noiseFactor(amplitude: 0.03))
+            let stockPrice = round > 1 ? 0.4 * previousStockPrice + 0.6 * rawStockPrice : rawStockPrice
+
+            let ratchetMultiplier = pow(1.0 + targetRatchetRate, Double(round))
+            let epsTarget = baseEPSTarget * ratchetMultiplier
+            let roeTarget = baseROETarget * ratchetMultiplier
+            let stockTarget = baseStockTarget * ratchetMultiplier
+            let imageTarget = min(90, baseImageTarget * (1.0 + 0.03 * Double(round)))
+
+            let epsScore = min(20, max(0, 20 * eps / max(epsTarget, 0.01)))
+            let roeScore = min(20, max(0, 20 * roe / max(roeTarget, 0.001)))
+            let stockPriceScore = min(20, max(0, 20 * stockPrice / max(stockTarget, 1)))
+            let imageScore = min(20, max(0, 20 * imageRating / max(imageTarget, 1)))
+            let creditScore = creditRating.investorScore
+
+            let scorecard = InvestorScorecard(
+                round: round, eps: eps, roe: roe, stockPrice: stockPrice,
+                imageRating: imageRating, creditRating: creditRating,
+                epsScore: epsScore, roeScore: roeScore, stockPriceScore: stockPriceScore,
+                imageScore: imageScore, creditScore: creditScore)
+
+            let result = RoundResult(
+                teamId: team.id, round: round,
+                wholesaleRevenue: wholesaleRev, internetRevenue: internetRev,
+                amazonRevenue: amazonRev, privateLabelRevenue: privateLabelRev,
+                productionCosts: totalProdCost, marketingCosts: marketingCost,
+                csrCosts: csrCost, endorsementCosts: endorseCost,
+                interestExpense: interestExpense, dividendsPaid: dividendsPaid,
+                workforceCosts: workforceCosts, storageCosts: storageCosts,
+                rebateCosts: rebateCosts, deliveryCosts: deliveryCosts + internetShippingCost,
+                socialMediaCosts: socialMediaTotalCost, amazonFees: totalAmazonFees,
+                wholesaleUnitsSold: wSold, internetUnitsSold: iSold,
+                amazonUnitsSold: aSold, privateLabelUnitsSold: plSold,
+                marketShare: marketShare, customerSatisfaction: satisfaction,
+                inventory: newInventory, rejectionRate: rejectionRate,
+                cash: newCash, sqRating: sq,
+                awarenessScore: min(1, (decision.advertisingBudget + decision.socialMediaBudget) / 25000),
+                scorecard: scorecard)
+
+            results.append(result)
+            if updatedRoundResults[team.id] == nil { updatedRoundResults[team.id] = [:] }
+            updatedRoundResults[team.id]?[round] = result
+
+            let prevTotal = team.cumulativeInvestorScore * Double(team.roundsScored)
+            let newRoundsScored = team.roundsScored + 1
+            let newCumInvestorScore = (prevTotal + scorecard.totalScore) / Double(newRoundsScored)
+
+            teamUpdates.append(TeamUpdate(
+                teamId: team.id, cash: newCash, inventory: newInventory,
+                sqRating: sq, imageRating: imageRating, creditRating: creditRating,
+                reputation: newReputation, equity: newEquity, totalDebt: newDebt,
+                sharesOutstanding: newShares,
+                cumulativeRD: team.cumulativeRD + decision.stylingBudget,
+                cumulativeMarketing: team.cumulativeMarketing + decision.advertisingBudget,
+                cumulativeCSR: team.cumulativeCSR + decision.csrInvestment,
+                cumulativeTQM: team.cumulativeTQM + decision.tqmInvestment,
+                cumulativeProfit: team.cumulativeProfit + profit,
+                cumulativeInvestorScore: newCumInvestorScore,
+                roundsScored: newRoundsScored,
+                hasSubmittedDecisions: false, rank: team.rank))
+
+            if !team.isAI {
+                explanations = generateExplanations(
+                    decision: decision, result: result, sq: sq,
+                    avgPrice: avgWholesalePrice, marketShare: marketShare,
+                    rejectionRate: rejectionRate)
+            }
+        }
+
+        return RoundOutput(
+            round: round, results: results, explanations: explanations,
+            teamUpdates: teamUpdates, updatedRoundResults: updatedRoundResults)
+    }
+
     // MARK: - S/Q Rating (Enhanced with workforce factors)
 
     private func computeSQRating(

@@ -4,7 +4,7 @@ import json
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 
-from auth import verify_student_or_professor
+from auth import _verify_token, verify_student_or_professor
 from database import db
 from ws_manager import manager
 

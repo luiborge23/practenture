@@ -22,7 +22,7 @@ def test_login_professor():
     assert resp.status_code == 200
     data = resp.json()
     assert data["role"] == "professor"
-    assert "access_token" in data
+    assert "accessToken" in data
 
 
 def test_login_student_not_registered():
@@ -50,7 +50,7 @@ def test_register_student():
     resp = client.post("/api/auth/register", json={
         "student_id": "S12345",
         "name": "Test Student",
-        "password": "testpass123",
+        "password": "TestPass123!",
     })
     assert resp.status_code == 201
     data = resp.json()
@@ -64,13 +64,13 @@ def test_register_duplicate():
     client.post("/api/auth/register", json={
         "student_id": "S67890",
         "name": "Duplicate Student",
-        "password": "testpass456",
+        "password": "TestPass456!",
     })
     # Try again
     resp = client.post("/api/auth/register", json={
         "student_id": "S67890",
         "name": "Duplicate Student",
-        "password": "testpass456",
+        "password": "TestPass456!",
     })
     assert resp.status_code == 409
 
@@ -81,13 +81,13 @@ def test_login_registered_student():
     client.post("/api/auth/register", json={
         "student_id": "S99999",
         "name": "Login Test Student",
-        "password": "loginpass",
+        "password": "LoginPass123!",
     })
-    # Login
+    # Login (use student_id as username)
     resp = client.post("/api/auth/login", json={
         "provider": "password",
-        "username": "Login Test Student",
-        "password": "loginpass",
+        "username": "S99999",
+        "password": "LoginPass123!",
     })
     assert resp.status_code == 200
     assert resp.json()["role"] == "student"
@@ -101,7 +101,7 @@ def test_verify_token():
         "username": "professor",
         "password": "bizsimai2026",
     })
-    token = resp.json()["access_token"]
+    token = resp.json()["accessToken"]
 
     # Verify
     resp = client.post("/api/auth/verify", headers={"Authorization": f"Bearer {token}"})
@@ -123,7 +123,7 @@ def test_professor_only_endpoint():
         "username": "professor",
         "password": "bizsimai2026",
     })
-    token = resp.json()["access_token"]
+    token = resp.json()["accessToken"]
 
     resp = client.post("/api/auth/professor-only", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
@@ -164,7 +164,7 @@ def test_websocket_student_login_provider():
     })
     assert resp.status_code == 200
     assert resp.json()["role"] == "student"
-    assert "access_token" in resp.json()
+    assert "accessToken" in resp.json()
 
 
 # ── Grade Export Test ────────────────────────────────────────────────────
@@ -172,6 +172,12 @@ def test_websocket_student_login_provider():
 
 def test_end_session_returns_results():
     """Ending a session returns final results for grade export."""
+    # Login as professor
+    resp = client.post("/api/auth/login", json={
+        "provider": "password", "username": "professor", "password": "bizsimai2026",
+    })
+    token = resp.json()["accessToken"]
+
     # Create session
     resp = client.post("/api/sessions", json={
         "config": {"totalRounds": 3, "numberOfAICompetitors": 1},
@@ -180,7 +186,7 @@ def test_end_session_returns_results():
             {"teamName": "Beta", "studentId": "S002"},
         ],
         "created_by": "professor",
-    })
+    }, headers={"Authorization": f"Bearer {token}"})
     code = resp.json()["code"]
 
     # Start session

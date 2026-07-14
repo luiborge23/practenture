@@ -1,0 +1,5 @@
+// Debug.xcconfig
+// BizSimAI — Development environment configuration
+
+BIZSIMAI_BACKEND_URL = http://18.215.180.58:80
+BIZSIMAI_ENVIRONMENT = Debug

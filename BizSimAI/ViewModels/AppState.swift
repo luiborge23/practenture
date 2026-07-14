@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - AppState
 /// Root application state managing mode selection and the active session.
 
+@MainActor
 @Observable
 final class AppState {
 
@@ -41,6 +42,22 @@ final class AppState {
 
     /// Which professor tab is selected.
     var professorSelectedTab: String = "sessions"
+
+    // MARK: - Init
+
+    init() {
+        // Wire auth change -> reset when logout happens externally
+        AuthManager.shared.onAuthChange = { [weak self] in
+            Task { @MainActor in
+                // Do not auto-switch mode on login; LoginView drives selectMode explicitly.
+                // Only reset to launch on explicit logout (accessToken nil and not authenticated)
+                let auth = AuthManager.shared
+                if !auth.isAuthenticated && auth.accessToken == nil {
+                    self?.resetToLaunch()
+                }
+            }
+        }
+    }
 
     // MARK: - Computed
 
@@ -84,7 +101,7 @@ final class AppState {
     func setActiveSession(_ session: SimulationSession, joinedTeam: TeamConfig) {
         // Ensure the session has the joined team
         let trimmedName = joinedTeam.name
-        var updatedSession = session
+        let updatedSession = session
 
         // Replace or add the non-AI team
         if let index = updatedSession.teams.firstIndex(where: { !$0.isAI }) {
@@ -122,6 +139,9 @@ final class AppState {
         }
 
         activeSession = updatedSession
+        // Store the backend's team identifier (team name string) so
+        // submit_decision can send the correct teamId to the API.
+        updatedSession.backendTeamId = joinedTeam.backendTeamId
         gameController = GameController(session: updatedSession)
 
         // Integrate with backend if this session has a backend code

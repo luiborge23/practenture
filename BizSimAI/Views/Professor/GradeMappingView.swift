@@ -157,15 +157,51 @@ struct GradeMappingView: View {
             Text("Export Grades")
                 .font(.headline)
 
+            // Local CSV (always available, uses in-app data)
             Button {
                 exportGradesCSV(session)
             } label: {
-                Label("Export as CSV", systemImage: "square.and.arrow.up")
+                Label("Export Local Data (CSV)", systemImage: "square.and.arrow.up")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
             .controlSize(.large)
             .disabled(session.currentRound <= 1)
+
+            // Backend CSV (full server-side data with all rounds)
+            Button {
+                Task {
+                    await exportGradesFromBackend(session)
+                }
+            } label: {
+                Label("Export Server Data (CSV)", systemImage: "cloud.download")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            .disabled(session.currentRound <= 1)
+        }
+    }
+
+    // MARK: - Backend Export
+
+    private func exportGradesFromBackend(_ session: SimulationSession) async {
+        do {
+            let csv = try await NetworkService.shared.exportGrades(code: session.sessionCode)
+            #if os(macOS)
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = [.commaSeparatedText]
+            panel.nameFieldStringValue = "\(session.config.name)_grades_server.csv"
+            if panel.runModal() == .OK, let url = panel.url {
+                try? csv.write(to: url, atomically: true, encoding: .utf8)
+            }
+            #else
+            csvText = csv
+            showShareSheet = true
+            #endif
+        } catch {
+            // Fallback to local export if backend is unavailable
+            exportGradesCSV(session)
         }
     }
 

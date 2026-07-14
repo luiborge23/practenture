@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  bizsim-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bizsim-backend
+    restart: unless-stopped
+    ports:
+      - "8005:8005"
+    volumes:
+      - db-data:/data
+    environment:
+      - BIZSIMAI_DB_PATH=/data/bizsim.db
+      - BIZSIMAI_JWT_SECRET=${BIZSIMAI_JWT_SECRET:-your-secret-key-change-in-production}
+      - BIZSIMAI_OWNER_USERNAME=${BIZSIMAI_OWNER_USERNAME:-owner}
+      - BIZSIMAI_OWNER_PASSWORD=${BIZSIMAI_OWNER_PASSWORD:-}
+      - BIZSIMAI_PROFESSOR_USERNAME=${BIZSIMAI_PROFESSOR_USERNAME:-professor}
+      - BIZSIMAI_PROFESSOR_PASSWORD=${BIZSIMAI_PROFESSOR_PASSWORD:-bizsimai2026}
+      - BIZSIMAI_JWT_EXPIRY_HOURS=${BIZSIMAI_JWT_EXPIRY_HOURS:-24}
+      - BIZSIMAI_APPLE_AUDIENCE=${BIZSIMAI_APPLE_AUDIENCE:-}
+      - BIZSIMAI_GOOGLE_AUDIENCE=${BIZSIMAI_GOOGLE_AUDIENCE:-}
+      - BIZSIMAI_CORS_ORIGINS=${BIZSIMAI_CORS_ORIGINS:-*}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8005/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  nginx:
+    image: nginx:alpine
+    container_name: bizsim-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx-bizsim.conf:/etc/nginx/conf.d/bizsim.conf:ro
+    depends_on:
+      bizsim-backend:
+        condition: service_healthy
+
+volumes:
+  db-data:
+    driver: local

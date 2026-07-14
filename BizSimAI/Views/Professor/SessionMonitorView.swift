@@ -327,7 +327,7 @@ struct SessionMonitorView: View {
                     .foregroundStyle(vm.allDecisionsSubmitted ? .green : .orange)
             }
 
-            ProgressView(value: Double(vm.submittedCount), total: Double(vm.teams.count))
+            ProgressView(value: Double(vm.submittedCount), total: Double(max(vm.teams.count, 1)))
                 .tint(vm.allDecisionsSubmitted ? .green : .blue)
                 .animation(.spring, value: vm.submittedCount)
 

@@ -1,9 +1,11 @@
 import SwiftUI
+import os
+import Combine
+import os
 
 // MARK: - SessionMonitorViewModel
 /// ViewModel for the professor's session monitoring screens.
 /// Orchestrates AI decisions, engine processing, and round advancement.
-
 @Observable
 final class SessionMonitorViewModel {
 
@@ -40,9 +42,13 @@ final class SessionMonitorViewModel {
     var backendSubmittedCount: Int = 0
     var backendTeamCount: Int = 0
     var backendTeamStatus: String = ""
+    var lastPollTime: Date = .now
+    var isPollingActive: Bool = false
 
     private let engine = SimulationEngine()
     private var aiCompetitors: [AICompetitor] = []
+    private var pollingTimer: Timer?
+    private let pollingInterval: TimeInterval = 10 // Poll every 10 seconds
 
     // MARK: - Init
 
@@ -183,21 +189,52 @@ final class SessionMonitorViewModel {
         teamStatus.hasSubmittedDecision ? .green : .orange
     }
 
-    // MARK: - Backend Sync
+    // MARK: - Backend Sync & Polling
+
+    /// Start polling the backend for session status updates.
+    func startPolling() {
+        guard !isPollingActive else { return }
+        isPollingActive = true
+        lastPollTime = .now
+        
+        // Initial poll
+        Task {
+            await pollBackendStatus()
+        }
+        
+        // Set up periodic polling
+        pollingTimer = Timer.scheduledTimer(withTimeInterval: pollingInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                await self?.pollBackendStatus()
+            }
+        }
+    }
+
+    /// Stop polling the backend.
+    func stopPolling() {
+        isPollingActive = false
+        pollingTimer?.invalidate()
+        pollingTimer = nil
+    }
 
     /// Poll the backend for the current team submission status.
     func pollBackendStatus() async {
+        guard isPollingActive, !session.sessionCode.isEmpty else { return }
+
         let sessionCode = session.sessionCode
         do {
             let status = try await NetworkService.shared.getSessionStatus(code: sessionCode)
             backendSubmittedCount = status.teamsSubmitted
             backendTeamCount = status.totalTeams
             backendTeamStatus = status.state
+            
+            // Update last poll time
+            await MainActor.run {
+                self.lastPollTime = .now
+            }
         } catch {
             // Backend unavailable — keep local state
-            backendSubmittedCount = submittedCount
-            backendTeamCount = teams.count
-            backendTeamStatus = session.state.rawValue
+            Logger.sync.error("PollBackendStatus error: \(error.localizedDescription)")
         }
     }
 
@@ -295,5 +332,11 @@ final class SessionMonitorViewModel {
             // Silently ignore — session ends locally regardless
         }
         session.state = .completed
+    }
+
+    // MARK: - Cleanup
+
+    deinit {
+        stopPolling()
     }
 }
