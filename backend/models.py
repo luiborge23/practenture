@@ -190,6 +190,7 @@ class LeaderboardEntry(BaseModel):
     imageRating: float = 0.0
     creditRating: float = 0.0
     cumulativeProfit: float = 0.0
+    marketShare: float = 0.0
     rank: int = 0
 
 

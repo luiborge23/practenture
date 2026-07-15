@@ -334,13 +334,20 @@ def compute_investor_scorecard(
         target_eps = abs(prev_eps) * (1 + TARGET_GROWTH_RATE)
     if target_eps <= 0:
         target_eps = 1.0
-    eps_ratio = eps / target_eps if target_eps > 0 else 0
+    # For negative EPS, score based on how close to zero (less negative = better)
+    if eps < 0:
+        eps_ratio = max(0, 1.0 + eps / max(abs(target_eps), 1.0))  # 0 to 1 for negative EPS
+    else:
+        eps_ratio = eps / target_eps if target_eps > 0 else 0
     eps_score = min(eps_ratio * 20.0, 20.0)
 
     # ROE score
     prev_roe = max(abs(prev_roe), 0.01)
     target_roe = prev_roe * (1 + TARGET_GROWTH_RATE)
-    roe_ratio = max(abs(roe), 0) / target_roe if target_roe > 0 else 0
+    if roe < 0:
+        roe_ratio = max(0, 1.0 + roe / max(abs(target_roe), 0.01))
+    else:
+        roe_ratio = max(abs(roe), 0) / target_roe if target_roe > 0 else 0
     roe_score = min(roe_ratio * 20.0, 20.0)
 
     # Stock price score
@@ -389,6 +396,7 @@ def generate_ai_decision(
         production_qty = 12000 + int(rng.uniform(0, 3000))
         tqm = rng.uniform(50000, 150000)
         rd = rng.uniform(80000, 150000)
+        base_wage = 22000 + rng.uniform(0, 3000)
     elif strategy == "quality":
         wholesale_price = 32.0 + rng.uniform(0, 5)
         internet_price = 35.0 + rng.uniform(0, 5)
@@ -401,6 +409,7 @@ def generate_ai_decision(
         rd = rng.uniform(150000, 200000)
         styling_budget = 300000 + rng.uniform(0, 200000)
         num_models = 8 + int(rng.uniform(0, 5))
+        base_wage = 28000 + rng.uniform(0, 3000)
     elif strategy == "lowcost":
         wholesale_price = 18.0 + rng.uniform(0, 3)
         internet_price = 20.0 + rng.uniform(0, 3)
@@ -412,6 +421,17 @@ def generate_ai_decision(
         tqm = rng.uniform(20000, 80000)
         rd = rng.uniform(30000, 80000)
         base_wage = 18000 + rng.uniform(0, 3000)
+    elif strategy == "premium":
+        wholesale_price = 45.0 + rng.uniform(0, 5)
+        internet_price = 50.0 + rng.uniform(0, 5)
+        amazon_price = 55.0 + rng.uniform(0, 5)
+        materials_quality = 0.9 + rng.uniform(0, 0.1)
+        marketing_investment = 200000 + rng.uniform(0, 50000)
+        advertising_budget = 120000 + rng.uniform(0, 50000)
+        production_qty = 6000 + int(rng.uniform(0, 2000))
+        tqm = rng.uniform(100000, 200000)
+        rd = rng.uniform(120000, 180000)
+        base_wage = 30000 + rng.uniform(0, 4000)
     else:  # balanced
         wholesale_price = 28.0 + rng.uniform(0, 4)
         internet_price = 30.0 + rng.uniform(0, 4)
@@ -736,14 +756,15 @@ def process_round(
         # ROE
         roe = profit / new_equity if new_equity > 0 else 0.0
 
-        # Stock price calculation
+        # Stock price calculation — weighted average of EPS and ROE trends
         prev_sp = prev_state.get("stockPrice", INITIAL_STOCK_PRICE)
         prev_eps_val = prev_state.get("eps", 0.0)
         prev_roe_val = prev_state.get("roe", 0.0)
 
         eps_change = eps - prev_eps_val
         roe_change = roe - prev_roe_val
-        stock_price = prev_sp * (1 + eps_change * 0.5 + roe_change * 0.3)
+        # Blend: 50% EPS change + 30% ROE change + 20% mean reversion to $50
+        stock_price = prev_sp * (1 + eps_change * 0.5 + roe_change * 0.3) * 0.8 + 50.0 * 0.2
         stock_price = max(stock_price, 1.0)
 
         # Credit rating

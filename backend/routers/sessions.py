@@ -46,10 +46,26 @@ async def create_session(req: CreateSessionRequest, user=Depends(verify_professo
     """Create a new simulation session. Ties to professor_user_id from JWT.
 
     Optional classId in the request body ties the session to a specific class.
+    Creates AI competitor teams based on numberOfAICompetitors in config.
     """
+    # Build teams list: start with any provided teams, then add AI competitors
+    teams = list(req.teams) if req.teams else []
+    
+    # Create AI competitor teams if configured
+    ai_count = getattr(req.config, 'numberOfAICompetitors', 0) or 0
+    strategies = ["aggressive", "quality", "lowcost", "balanced", "premium"]
+    for i in range(ai_count):
+        strategy = strategies[i % len(strategies)]
+        ai_team = TeamConfig(
+            teamName=f"AI-{strategy.capitalize()}-{i+1}",
+            isAI=True,
+            aiStrategy=strategy,
+        )
+        teams.append(ai_team)
+    
     code = db.create_session(
         config=req.config,
-        teams=req.teams,
+        teams=teams,
         created_by=req.created_by,
         max_human_teams=req.maxHumanTeams,
         professor_user_id=user["sub"],

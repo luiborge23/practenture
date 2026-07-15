@@ -53,6 +53,7 @@ async def get_leaderboard(code: str):
                     "imageRating": 0.0,
                     "creditRating": 0.0,
                     "cumulativeProfit": 0.0,
+                    "marketShare": 0.0,
                 }
             team_scores[r.teamId]["totalScore"] = r.totalScore
             team_scores[r.teamId]["EPS"] = r.eps
@@ -61,6 +62,7 @@ async def get_leaderboard(code: str):
             team_scores[r.teamId]["imageRating"] = r.reputation
             team_scores[r.teamId]["creditRating"] = r.creditScore
             team_scores[r.teamId]["cumulativeProfit"] = r.cumulativeProfit
+            team_scores[r.teamId]["marketShare"] = r.marketShare
 
     # Build entries
     entries = []
@@ -70,12 +72,13 @@ async def get_leaderboard(code: str):
             teamName=team.teamName,
             studentName=team.studentId,
             totalScore=score.get("totalScore", 0.0),
-            EPS=score.get("EPS", 0.0),
-            ROE=score.get("ROE", 0.0),
+            eps=score.get("EPS", 0.0),
+            roe=score.get("ROE", 0.0),
             stockPrice=score.get("stockPrice", 0.0),
             imageRating=score.get("imageRating", 0.0),
             creditRating=score.get("creditRating", 0.0),
             cumulativeProfit=score.get("cumulativeProfit", 0.0),
+            marketShare=score.get("marketShare", 0.0),
             rank=0,  # Will be set below
         ))
 
