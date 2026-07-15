@@ -64,7 +64,7 @@ final class SessionListViewModel {
                 }
             }
         } catch {
-            errorMessage = "Failed to load sessions: \(error.localizedDescription)"
+            errorMessage = "Failed to load sessions: \(UserFriendlyError.message(for: error))"
             Logger.sync.error("SessionListViewModel.loadSessions() error: \(error)")
         }
         

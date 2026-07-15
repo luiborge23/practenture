@@ -57,7 +57,9 @@ final class AuthManager {
         guard exp - now < 120 else { return false } // still valid > 2 min
         do {
             let newToken = try await network.refreshToken()
-            persistTokens(access: newToken, refresh: keychain.string(forKey: "refresh_token"))
+            // ATOMIC SWAP: prepare new tokens, then swap — never leave Keychain in half-state
+            let oldRefresh = keychain.string(forKey: "refresh_token")
+            persistTokens(access: newToken, refresh: oldRefresh)
             // Update currentUser from new token payload — extract name properly
             if let payload = decodePayload(newToken) {
                 let sub = payload["sub"] as? String ?? ""
@@ -80,6 +82,61 @@ final class AuthManager {
         }
     }
 
+    /// Start the background token refresh scheduler.
+    /// Runs every 5 minutes to proactively refresh before JWT expiry (15-min TTL).
+    /// This is the PRIMARY defense against mid-session logout.
+    @MainActor
+    func startTokenRefreshScheduler() {
+        // Cancel any existing scheduler
+        refreshSchedulerTask?.cancel()
+        
+        refreshSchedulerTask = Task { [weak self] in
+            guard let self = self else { return }
+            while !Task.isCancelled {
+                // Wait 5 minutes between refresh cycles
+                do {
+                    try await Task.sleep(nanoseconds: 5 * 60 * 1_000_000_000)
+                } catch {
+                    break // cancelled
+                }
+                
+                // Check if token needs refresh (within 2 minutes of expiry)
+                let refreshed = await self.proactiveTokenRefresh()
+                
+                // If refresh succeeded, continue. If it failed (logged out), stop scheduling.
+                if !self.isAuthenticated {
+                    break
+                }
+            }
+        }
+    }
+
+    /// Stop the background token refresh scheduler.
+    @MainActor
+    func stopTokenRefreshScheduler() {
+        refreshSchedulerTask?.cancel()
+        refreshSchedulerTask = nil
+    }
+
+    /// Check if token is about to expire (within 2 minutes) and refresh immediately.
+    /// Call this BEFORE critical operations (submit decision, join class, etc.)
+    @MainActor
+    func ensureTokenValid() async -> Bool {
+        guard let token = accessToken, !token.isEmpty else { return false }
+        let exp = expirationDate(for: token)
+        let now = Date().timeIntervalSince1970
+        
+        // If token expires within 2 minutes, refresh NOW (synchronous, awaited)
+        if exp - now < 120 {
+            return await proactiveTokenRefresh()
+        }
+        
+        // Token still valid
+        return true
+    }
+
+    private var refreshSchedulerTask: Task<Void, Never>?
+
     // MARK: - JWT helpers
     private func decodePayload(_ token: String) -> [String: Any]? {
         let parts = token.split(separator: ".")
@@ -99,6 +156,11 @@ final class AuthManager {
         guard let data = Data(base64Encoded: b64),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         return json
+    }
+    
+    /// Public debug version of decodePayload for UI debugging
+    func decodePayloadDebug(_ token: String) -> [String: Any]? {
+        return decodePayload(token)
     }
 
     func expirationDate(for token: String) -> TimeInterval {
@@ -190,6 +252,8 @@ final class AuthManager {
             name: username
         )
         onAuthChange?()
+        // Start background token refresh scheduler to prevent mid-session logout
+        startTokenRefreshScheduler()
         return response
     }
 
@@ -219,6 +283,8 @@ final class AuthManager {
             name: displayName
         )
         onAuthChange?()
+        // Start background token refresh scheduler to prevent mid-session logout
+        startTokenRefreshScheduler()
         return response
     }
 
@@ -237,6 +303,8 @@ final class AuthManager {
                 name: name
             )
             onAuthChange?()
+            // Start background token refresh scheduler to prevent mid-session logout
+            startTokenRefreshScheduler()
         }
         return response
     }
@@ -278,6 +346,8 @@ final class AuthManager {
         // ONLY NOW set authenticated — role is professor
         isAuthenticated = true
         onAuthChange?()
+        // Start background token refresh scheduler to prevent mid-session logout
+        startTokenRefreshScheduler()
         // Return the login response so caller can check mfaRequired if needed
         return AuthLoginResponse(accessToken: redeemResponse.accessToken, tokenType: redeemResponse.tokenType, role: "professor", userId: currentUser?.userId ?? "", refreshToken: loginResponse.refreshToken)
     }
@@ -306,6 +376,8 @@ final class AuthManager {
             name: response.userId
         )
         onAuthChange?()
+        // Start background token refresh scheduler to prevent mid-session logout
+        startTokenRefreshScheduler()
         return response
     }
 
@@ -325,6 +397,8 @@ final class AuthManager {
             name: response.userId
         )
         onAuthChange?()
+        // Start background token refresh scheduler to prevent mid-session logout
+        startTokenRefreshScheduler()
         return response
     }
 
@@ -345,6 +419,8 @@ final class AuthManager {
             name: response.userId
         )
         onAuthChange?()
+        // Start background token refresh scheduler to prevent mid-session logout
+        startTokenRefreshScheduler()
         return response
     }
 
@@ -418,6 +494,7 @@ final class AuthManager {
 
     @MainActor
     func logout() {
+        stopTokenRefreshScheduler()
         clearPersistedTokens()
         clearAuthState()
         onAuthChange?()
@@ -481,6 +558,8 @@ final class AuthManager {
                 name: name ?? sub
             )
             isAuthenticated = true
+            // Start background token refresh scheduler for restored session
+            startTokenRefreshScheduler()
             return
         }
 
@@ -518,6 +597,10 @@ final class AuthManager {
 
                 isAuthenticated = true
                 onAuthChange?()
+                // Start background token refresh scheduler for restored session
+                await MainActor.run {
+                    startTokenRefreshScheduler()
+                }
             } catch {
                 // Refresh failed — clear everything
                 await MainActor.run {

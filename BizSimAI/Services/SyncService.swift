@@ -139,7 +139,7 @@ final class SyncService {
             do {
                 try await executeSyncAction(action)
             } catch {
-                syncError = "Failed to sync: \(error.localizedDescription)"
+                syncError = "Failed to sync: \(UserFriendlyError.message(for: error))"
                 // Put it back for later retry
                 syncQueueQueue.sync {
                     syncQueue.append(action)

@@ -70,7 +70,7 @@ final class AnalyticsDashboardViewModel {
                 StrategyDistribution(strategy: "Adaptive", percentage: 25.0)
             ]
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = UserFriendlyError.message(for: error)
         }
         
         isLoading = false

@@ -102,7 +102,7 @@ class SimulationSession: Identifiable {
             do {
                 return try Self.decoder.decode([TeamStatus].self, from: data)
             } catch {
-                Self.logger.error("Failed to decode teams: \(error.localizedDescription)")
+                Self.logger.error("Failed to decode teams: \(UserFriendlyError.message(for: error))")
                 return []
             }
         }
@@ -120,7 +120,7 @@ class SimulationSession: Identifiable {
             do {
                 return try Self.decoder.decode(SessionConfiguration.self, from: data)
             } catch {
-                Self.logger.error("Failed to decode config: \(error.localizedDescription)")
+                Self.logger.error("Failed to decode config: \(UserFriendlyError.message(for: error))")
                 return SessionConfiguration()
             }
         }
@@ -143,7 +143,7 @@ class SimulationSession: Identifiable {
                 }
                 return result
             } catch {
-                Self.logger.error("Failed to decode roundResults: \(error.localizedDescription)")
+                Self.logger.error("Failed to decode roundResults: \(UserFriendlyError.message(for: error))")
                 return [:]
             }
         }
@@ -170,7 +170,7 @@ class SimulationSession: Identifiable {
                 }
                 return result
             } catch {
-                Self.logger.error("Failed to decode currentRoundDecisions: \(error.localizedDescription)")
+                Self.logger.error("Failed to decode currentRoundDecisions: \(UserFriendlyError.message(for: error))")
                 return [:]
             }
         }
@@ -197,7 +197,7 @@ class SimulationSession: Identifiable {
                 }
                 return result
             } catch {
-                Self.logger.error("Failed to decode previousRoundDecisions: \(error.localizedDescription)")
+                Self.logger.error("Failed to decode previousRoundDecisions: \(UserFriendlyError.message(for: error))")
                 return [:]
             }
         }
@@ -217,7 +217,7 @@ class SimulationSession: Identifiable {
             do {
                 return try Self.decoder.decode([CoachMessage].self, from: data)
             } catch {
-                Self.logger.error("Failed to decode coachMessages: \(error.localizedDescription)")
+                Self.logger.error("Failed to decode coachMessages: \(UserFriendlyError.message(for: error))")
                 return []
             }
         }
@@ -233,7 +233,7 @@ class SimulationSession: Identifiable {
             do {
                 return try Self.decoder.decode([RoundSummary].self, from: data)
             } catch {
-                Self.logger.error("Failed to decode playerRoundSummaries: \(error.localizedDescription)")
+                Self.logger.error("Failed to decode playerRoundSummaries: \(UserFriendlyError.message(for: error))")
                 return []
             }
         }
@@ -249,7 +249,7 @@ class SimulationSession: Identifiable {
             do {
                 return try Self.decoder.decode([Announcement].self, from: data)
             } catch {
-                Self.logger.error("Failed to decode announcements: \(error.localizedDescription)")
+                Self.logger.error("Failed to decode announcements: \(UserFriendlyError.message(for: error))")
                 return []
             }
         }
@@ -265,7 +265,7 @@ class SimulationSession: Identifiable {
             do {
                 return try Self.decoder.decode([EnrolledStudent].self, from: data)
             } catch {
-                Self.logger.error("Failed to decode enrolledStudents: \(error.localizedDescription)")
+                Self.logger.error("Failed to decode enrolledStudents: \(UserFriendlyError.message(for: error))")
                 return []
             }
         }
@@ -281,7 +281,7 @@ class SimulationSession: Identifiable {
             do {
                 return try Self.decoder.decode([GradeMapping].self, from: data)
             } catch {
-                Self.logger.error("Failed to decode gradeMappings: \(error.localizedDescription)")
+                Self.logger.error("Failed to decode gradeMappings: \(UserFriendlyError.message(for: error))")
                 return GradeMapping.defaultScale
             }
         }
@@ -297,7 +297,7 @@ class SimulationSession: Identifiable {
             do {
                 return try Self.decoder.decode([Int: Date].self, from: data)
             } catch {
-                Self.logger.error("Failed to decode roundDeadlines: \(error.localizedDescription)")
+                Self.logger.error("Failed to decode roundDeadlines: \(UserFriendlyError.message(for: error))")
                 return [:]
             }
         }

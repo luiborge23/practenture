@@ -525,7 +525,7 @@ final class DecisionInputViewModel {
             HapticsManager.success()
         } catch {
             // Backend failed — decision is already stored locally, keep working
-            submissionError = "Decision saved locally. Cloud sync failed: \(error.localizedDescription)"
+            submissionError = "Decision saved locally. Cloud sync failed: \(UserFriendlyError.message(for: error))"
             HapticsManager.warning()
         }
 

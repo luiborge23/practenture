@@ -77,7 +77,7 @@ final class JoinSessionViewModel {
             }
 
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = UserFriendlyError.message(for: error)
             // Local fallback: just mark as joined
             joinedTeam = TeamConfig(id: UUID(), name: teamName, isAI: false, studentId: studentId)
             availableTeams = 1

@@ -24,7 +24,24 @@ enum NetworkError: Error, LocalizedError {
         case .decodingError:
             return "Failed to decode response from the server."
         case .serverError(let code, let message):
-            return "Server error (\(code)): \(message)"
+            // Map HTTP status codes to user-friendly messages
+            switch code {
+            case 401:
+                return "Incorrect username or password. Please try again."
+            case 404:
+                return "Account not found. Please check your username or contact support."
+            case 429:
+                return "Too many login attempts. Please wait a few minutes before trying again."
+            case 409:
+                return "An account with this username already exists. Please use a different one."
+            case 500:
+                return "A server error occurred. Please try again later."
+            case 502, 503, 504:
+                return "The server is temporarily unavailable. Please try again later."
+            default:
+                // For any other status code, show a generic friendly message
+                return "An unexpected error occurred. Please try again."
+            }
         case .noData:
             return "No data received from the server."
         case .timeout:
@@ -71,6 +88,10 @@ final class NetworkService {
     private let refreshLock = NSLock()
     /// Holds any in-flight refresh Task so concurrent 401s share the same refresh.
     private var refreshTask: Task<String, Error>?
+    
+    // DEBUG: raw HTTP response for troubleshooting
+    @MainActor var lastRawHTTPCode: Int = 0
+    @MainActor var lastRawResponse: String = ""
 
     /// Refresh the access token via /api/auth/refresh.
     /// Concurrent callers coalesce — only one refresh HTTP call is made; others await the same result.
@@ -125,9 +146,10 @@ final class NetworkService {
 
     private init(timeout: TimeInterval = 15) {
         let config = URLSessionConfiguration.default
-        let cache = URLCache(memoryCapacity: 10 * 1024 * 1024, diskCapacity: 50 * 1024 * 1024, directory: nil)
-        config.urlCache = cache
-        config.requestCachePolicy = .returnCacheDataElseLoad
+        // Disable URL caching — API responses must always hit the network.
+        // Previously .returnCacheDataElseLoad caused stale empty session lists.
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         config.timeoutIntervalForRequest = timeout
         config.timeoutIntervalForResource = timeout
         config.waitsForConnectivity = true
@@ -184,23 +206,27 @@ final class NetworkService {
     ) async throws {
         var lastError: Error?
 
-        // Try up to 2 times (1 retry) for transient failures
-        for attempt in 0...1 {
+        // Try up to 3 times with exponential backoff (2s, 4s, 8s) for transient failures
+        let maxRetries = 3
+        for attempt in 0..<maxRetries {
             if attempt > 0 {
-                // 2 second delay before retry
-                try await Task.sleep(nanoseconds: 2_000_000_000)
+                // Exponential backoff: 2s, 4s, 8s...
+                let delaySeconds = pow(2.0, Double(attempt))
+                try await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
             }
 
             do {
                 return try await performVoidRequest(method: method, endpoint: endpoint, body: body)
             } catch let error as NetworkError {
-                // Don't retry on client errors (4xx except timeout/429/5xx)
-                if case .serverError(let code, _) = error,
-                   !(code == 408 || code == 429 || code >= 500) {
-                    throw error
+                // Retry on transient errors only: timeout (408), rate limit (429), server errors (5xx)
+                if case .serverError(let code, _) = error {
+                    if !(code == 408 || code == 429 || code >= 500) {
+                        throw error // Client error — don't retry
+                    }
                 }
                 lastError = error
             } catch {
+                // Network errors (noConnection, timeout, connectionFailed) — retry
                 lastError = error
             }
         }
@@ -277,23 +303,27 @@ final class NetworkService {
     ) async throws -> T {
         var lastError: Error?
 
-        // Try up to 2 times (1 retry) for transient failures
-        for attempt in 0...1 {
+        // Try up to 3 times with exponential backoff (2s, 4s, 8s) for transient failures
+        let maxRetries = 3
+        for attempt in 0..<maxRetries {
             if attempt > 0 {
-                // 2 second delay before retry
-                try await Task.sleep(nanoseconds: 2_000_000_000)
+                // Exponential backoff: 2s, 4s, 8s...
+                let delaySeconds = pow(2.0, Double(attempt))
+                try await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
             }
 
             do {
                 return try await performRequest(method: method, endpoint: endpoint, body: body)
             } catch let error as NetworkError {
-                // Don't retry on client errors (4xx except timeout/429/5xx)
-                if case .serverError(let code, _) = error,
-                   !(code == 408 || code == 429 || code >= 500) {
-                    throw error
+                // Retry on transient errors only: timeout (408), rate limit (429), server errors (5xx)
+                if case .serverError(let code, _) = error {
+                    if !(code == 408 || code == 429 || code >= 500) {
+                        throw error // Client error — don't retry
+                    }
                 }
                 lastError = error
             } catch {
+                // Network errors (noConnection, timeout, connectionFailed) — retry
                 lastError = error
             }
         }
@@ -556,7 +586,6 @@ final class NetworkService {
     /// Fetch all sessions for the professor dashboard.
     func getDashboardSessions() async throws -> [DashboardSessionResponse] {
         // Backend returns {"sessions": [...]} (wrapped object), not a bare array.
-        // Try wrapped decode first; fall back to bare array for older backends.
         do {
             let wrapper: DashboardSessionListWrapper = try await get("/api/dashboard/sessions")
             return wrapper.sessions

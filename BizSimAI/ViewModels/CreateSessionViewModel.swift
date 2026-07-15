@@ -185,7 +185,7 @@ final class CreateSessionViewModel {
 
             } catch {
                 isCreating = false
-                creationError = "Failed to create session on cloud: \(error.localizedDescription)"
+                creationError = "Failed to create session on cloud: \(UserFriendlyError.message(for: error))"
                 // Fallback to local-only mode
                 let session = SimulationSession(config: config)
                 return session

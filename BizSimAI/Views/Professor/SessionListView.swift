@@ -12,21 +12,42 @@ struct SessionListView: View {
     @State private var showingCreateSession = false
     @State private var searchText = ""
     @State private var isSyncingFromBackend = false
+    @State private var debugStatus: String = "Not loaded yet"
+    @State private var debugError: String?
 
         /// Fetch sessions from the backend and merge with local list.
     private func syncSessionsFromBackend() async {
         isSyncingFromBackend = true
         defer { isSyncingFromBackend = false }
+        
+        NSLog("🔍 SessionListView: syncSessionsFromBackend() START")
+        NSLog("🔍 SessionListView: professorSessions count before = \(appState.professorSessions.count)")
+        
+        let hasToken = AuthManager.shared.accessToken != nil
+        let tokenPreview = AuthManager.shared.accessToken?.prefix(20) ?? "nil"
+        await MainActor.run { 
+            debugStatus = "Loading... (token: \(hasToken) \(tokenPreview)..." 
+        }
+        
         do {
             let backendSessions = try await NetworkService.shared.getDashboardSessions()
+            NSLog("🔍 SessionListView: API returned \(backendSessions.count) sessions")
+            await MainActor.run { debugStatus = "Got \(backendSessions.count) sessions from API" }
+
+            for bs in backendSessions {
+                NSLog("🔍 SessionListView: Processing session code='\(bs.code)' state='\(bs.state)'")
+            }
+            
             await MainActor.run {
                 for bs in backendSessions {
                     if let existing = appState.professorSessions.first(where: { $0.code == bs.code || $0.sessionCode == bs.code }) {
                         // Update existing with backend state
+                        NSLog("🔍 SessionListView: Found existing session '\(bs.code)', updating")
                         existing.currentRound = bs.currentRound
                         existing.state = mapBackendState(bs.state)
                         existing.lastSyncedAt = Date()
                     } else {
+                        NSLog("🔍 SessionListView: Creating new session '\(bs.code)'")
                         let config = SessionConfiguration(
                             name: "Session \(bs.code)",
                             totalRounds: bs.totalRounds,
@@ -49,9 +70,15 @@ struct SessionListView: View {
                 }
                 // Force @Observable refresh
                 appState.professorSessions = appState.professorSessions
+                NSLog("🔍 SessionListView: After sync, professorSessions count = \(appState.professorSessions.count)")
             }
         } catch {
-            Logger.sync.error("Failed to sync sessions from backend: \(error.localizedDescription)")
+            NSLog("🔍 SessionListView: ERROR syncing sessions: \(error)")
+            await MainActor.run {
+                debugStatus = "ERROR"
+                debugError = "\(error)"
+            }
+            Logger.sync.error("Failed to sync sessions from backend: \(UserFriendlyError.message(for: error))")
         }
     }
 

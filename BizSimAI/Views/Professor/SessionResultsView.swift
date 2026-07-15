@@ -83,7 +83,7 @@ final class CSVExportViewModel {
         } catch {
             await MainActor.run {
                 isExporting = false
-                exportError = "Failed to export grades: \(error.localizedDescription)"
+                exportError = "Failed to export grades: \(UserFriendlyError.message(for: error))"
             }
         }
     }
@@ -121,7 +121,7 @@ final class CSVExportViewModel {
         } catch {
             await MainActor.run {
                 isExporting = false
-                exportError = "Failed to export leaderboard: \(error.localizedDescription)"
+                exportError = "Failed to export leaderboard: \(UserFriendlyError.message(for: error))"
             }
         }
     }

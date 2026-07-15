@@ -180,11 +180,20 @@ def ensure_professor() -> None:
     This creates a DEFAULT professor account for backwards compatibility.
     New professors should be pre-created by the owner via the admin API
     with a temporary password that must be changed on first login.
+    
+    SECURITY FIX: Uses BIZSIMAI_PROFESSOR_PASSWORD env var consistently.
+    If not set, generates a random password and stores it in the DB for persistence.
     """
     from security import hash_password
 
     username = os.environ.get("BIZSIMAI_PROFESSOR_USERNAME", "professor")
-    password = os.environ.get("BIZSIMAI_PROFESSOR_PASSWORD", "bizsimai2026")
+    password = os.environ.get("BIZSIMAI_PROFESSOR_PASSWORD")
+
+    if not password:
+        # Generate a stable random password on first run and store it in DB
+        # This ensures consistency across container restarts
+        import secrets
+        password = f"prof_{secrets.token_hex(12)}"
 
     h = hash_password(password)
     existing = db_module.db.get_user(username)
@@ -340,10 +349,16 @@ def login(req: LoginRequest) -> LoginResponse:
             resp_dict["mustChangePassword"] = bool(user.get("must_change_password", 0))
             return resp_dict
 
-        # Failed login
-        record_login_failure(req.username)
-        log_event(actor=req.username, action="login_failure")
-        raise HTTPException(status_code=401, detail="Wrong username or password")
+        # Failed login — check if user exists to give a distinct error message
+        user_record = db_module.db.get_user(req.username)
+        if not user_record:
+            record_login_failure(req.username)
+            log_event(actor=req.username, action="login_failure", details={"reason": "user_not_found"})
+            raise HTTPException(status_code=401, detail="User not found. Please check your credentials and contact IT if the problem persists.")
+        else:
+            record_login_failure(req.username)
+            log_event(actor=req.username, action="login_failure", details={"reason": "wrong_password"})
+            raise HTTPException(status_code=401, detail="Wrong username or password. Please try again.")
 
     elif req.provider in ("apple", "google"):
         if not req.id_token:

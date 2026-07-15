@@ -166,7 +166,7 @@ private struct PDFRenderer {
             Logger.pdf.info("PDF exported to \(fileURL.lastPathComponent)")
             return fileURL
         } catch {
-            Logger.pdf.error("PDF export failed: \(error.localizedDescription)")
+            Logger.pdf.error("PDF export failed: \(UserFriendlyError.message(for: error))")
             return nil
         }
     }

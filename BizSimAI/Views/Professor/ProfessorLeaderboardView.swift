@@ -130,7 +130,7 @@ struct ProfessorLeaderboardView: View {
                     }
                 }
             } catch {
-                Logger.network.error("Backend leaderboard fetch failed: \(error.localizedDescription)")
+                Logger.network.error("Backend leaderboard fetch failed: \(UserFriendlyError.message(for: error))")
                 // Fall back to local data on error
                 await MainActor.run { [self, session] in
                     loadFromLocalSession(session)

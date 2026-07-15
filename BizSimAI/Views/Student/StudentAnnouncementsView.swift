@@ -75,7 +75,7 @@ struct StudentAnnouncementsView: View {
             }
         } catch {
             await MainActor.run {
-                errorMessage = error.localizedDescription
+                errorMessage = UserFriendlyError.message(for: error)
                 isLoading = false
             }
         }

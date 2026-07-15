@@ -100,7 +100,7 @@ final class WebSocketManager: NSObject, ObservableObject {
         
         webSocketTask?.send(.string(message)) { error in
             if let error = error {
-                self.reportEvent(.error("Send failed: \(error.localizedDescription)"))
+                self.reportEvent(.error("Send failed: \(UserFriendlyError.message(for: error))"))
             }
         }
     }
@@ -146,7 +146,7 @@ final class WebSocketManager: NSObject, ObservableObject {
             if isConnected {
                 webSocketTask?.sendPing { error in
                     if let error = error {
-                        Logger.webSocket.error("Ping failed: \(error.localizedDescription)")
+                        Logger.webSocket.error("Ping failed: \(UserFriendlyError.message(for: error))")
                     }
                 }
             }

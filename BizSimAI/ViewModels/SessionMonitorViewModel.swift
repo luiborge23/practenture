@@ -234,7 +234,7 @@ final class SessionMonitorViewModel {
             }
         } catch {
             // Backend unavailable — keep local state
-            Logger.sync.error("PollBackendStatus error: \(error.localizedDescription)")
+            Logger.sync.error("PollBackendStatus error: \(UserFriendlyError.message(for: error))")
         }
     }
 
@@ -327,7 +327,7 @@ final class SessionMonitorViewModel {
             }
             session.advanceRound()
             refreshTeamStatuses()
-            roundProcessingError = "Backend failed, used local processing: \(error.localizedDescription)"
+            roundProcessingError = "Backend failed, used local processing: \(UserFriendlyError.message(for: error))"
         }
 
         isProcessingRound = false

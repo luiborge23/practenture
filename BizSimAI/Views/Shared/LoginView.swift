@@ -971,7 +971,7 @@ struct LoginView: View {
             }
             finishOnboarding()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = UserFriendlyError.message(for: error)
             HapticsManager.error()
         }
     }
@@ -1004,7 +1004,7 @@ struct LoginView: View {
                 // Success — proceed to onboarding
                 step = .studentJoinClass
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = UserFriendlyError.message(for: error)
             }
         } else {
             // Traditional flow: proceed to account creation
@@ -1041,7 +1041,7 @@ struct LoginView: View {
             // Success — role is now "professor", offer MFA setup
             step = .mfaSetup
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = UserFriendlyError.message(for: error)
         }
     }
 
@@ -1062,7 +1062,7 @@ struct LoginView: View {
             }
             step = .studentJoinClass
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = UserFriendlyError.message(for: error)
             HapticsManager.error()
         }
     }
@@ -1081,7 +1081,7 @@ struct LoginView: View {
             _ = try await AuthManager.shared.register(username: studentId, password: password, studentId: studentId, name: fullName)
             step = .studentJoinClass
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = UserFriendlyError.message(for: error)
             HapticsManager.error()
         }
     }
@@ -1096,7 +1096,7 @@ struct LoginView: View {
             _ = try await AuthManager.shared.joinClass(joinCode: classJoinCode)
             finishOnboarding()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = UserFriendlyError.message(for: error)
             HapticsManager.error()
         }
     }
@@ -1126,7 +1126,7 @@ struct LoginView: View {
             mfaCode = ""
             finishOnboarding()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = UserFriendlyError.message(for: error)
         }
     }
 
@@ -1137,7 +1137,7 @@ struct LoginView: View {
             mfaSetupData = setup
             showingMFASetup = true
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = UserFriendlyError.message(for: error)
         }
     }
 
@@ -1153,7 +1153,7 @@ struct LoginView: View {
             errorMessage = nil
             finishOnboarding()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = UserFriendlyError.message(for: error)
         }
     }
 
@@ -1181,12 +1181,12 @@ struct LoginView: View {
                 // Existing user — proceed normally
                 step = .studentJoinClass
             } catch {
-                errorMessage = "Apple Sign-In failed: \(error.localizedDescription)"
+                errorMessage = "Apple Sign-In failed: \(UserFriendlyError.message(for: error))"
             }
         case .failure(let error):
             let nsError = error as NSError
             if nsError.code != ASAuthorizationError.canceled.rawValue {
-                errorMessage = "Apple Sign-In: \(error.localizedDescription)"
+                errorMessage = "Apple Sign-In: \(UserFriendlyError.message(for: error))"
             }
         }
     }
@@ -1217,7 +1217,7 @@ struct LoginView: View {
                 if let error {
                     let nsError = error as NSError
                     if nsError.code != -7 {
-                        errorMessage = "Google Sign-In failed: \(error.localizedDescription)"
+                        errorMessage = "Google Sign-In failed: \(UserFriendlyError.message(for: error))"
                     }
                     return
                 }
@@ -1237,7 +1237,7 @@ struct LoginView: View {
                     // Existing user — proceed normally
                     step = .studentJoinClass
                 } catch {
-                    errorMessage = "Google Sign-In failed: \(error.localizedDescription)"
+                    errorMessage = "Google Sign-In failed: \(UserFriendlyError.message(for: error))"
                 }
             }
         }
@@ -1273,7 +1273,7 @@ struct LoginView: View {
                 step = .resetPassword
             }
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = UserFriendlyError.message(for: error)
             HapticsManager.error()
         }
         isLoading = false
@@ -1306,7 +1306,7 @@ struct LoginView: View {
             try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
             step = pendingIsProfessor ? .professorLogin : .studentLogin
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = UserFriendlyError.message(for: error)
             HapticsManager.error()
         }
     }
