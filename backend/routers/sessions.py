@@ -114,19 +114,31 @@ async def join_session(
     if session.state not in (SessionState.CREATING, SessionState.ACTIVE):
         raise HTTPException(status_code=400, detail=f"Session is {session.state.value}, cannot join")
 
-    # Check team name not already taken
-    team_names = {t.teamName for t in session.teams}
-    if req.teamName in team_names:
-        raise HTTPException(status_code=409, detail="Team name already taken")
+    # Check team name not already taken by a human team with an assigned student
+    for t in session.teams:
+        if t.teamName == req.teamName and not t.isAI and t.studentId is not None:
+            raise HTTPException(status_code=409, detail="Team name already taken")
 
-    human_team_count = sum(1 for team in session.teams if not team.isAI)
-    if human_team_count >= session.maxHumanTeams:
-        raise HTTPException(status_code=400, detail="Maximum team capacity reached")
+    # If team exists but has no student yet (professor-created slot), reuse it
+    existing = None
+    for t in session.teams:
+        if t.teamName == req.teamName and not t.isAI:
+            existing = t
+            break
 
-    # Generate team ID
-    team_id = req.teamName  # Use team name as team ID
-    team = TeamConfig(teamName=req.teamName, studentId=req.studentId)
-    session.teams.append(team)
+    if existing:
+        existing.studentId = req.studentId
+        team_id = req.teamName
+        team = existing
+    else:
+        human_team_count = sum(1 for team in session.teams if not team.isAI)
+        if human_team_count >= session.maxHumanTeams:
+            raise HTTPException(status_code=400, detail="Maximum team capacity reached")
+
+        # Generate team ID
+        team_id = req.teamName  # Use team name as team ID
+        team = TeamConfig(teamName=req.teamName, studentId=req.studentId)
+        session.teams.append(team)
 
     # Auto-transition to active when first team joins (fixes creating→active deadlock)
     new_state = session.state
