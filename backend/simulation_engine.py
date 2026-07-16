@@ -1233,6 +1233,32 @@ def process_round(
                 "privateLabel": round(pl_sold, 2),
                 "totalSold": round(total_sold, 2),
             },
+            # Per-channel revenue breakdown
+            wholesaleRevenue=round(wholesale_rev, 2),
+            internetRevenue=round(internet_rev, 2),
+            amazonRevenue=round(amazon_rev, 2),
+            privateLabelRevenue=round(private_label_rev, 2),
+            # Per-channel units sold
+            wholesaleUnitsSold=int(w_sold),
+            internetUnitsSold=int(i_sold),
+            amazonUnitsSold=int(a_sold),
+            privateLabelUnitsSold=int(pl_sold),
+            # Detailed cost breakdown
+            workforceCosts=round(workforce_costs, 2),
+            csrCosts=round(csr_cost, 2),
+            endorsementCosts=round(endorse_cost, 2),
+            rebateCosts=round(rebate_costs, 2),
+            deliveryCosts=round(delivery_costs, 2),
+            storageCosts=round(storage_costs, 2),
+            interestExpense=round(interest_expense, 2),
+            dividendsPaid=round(dividends_paid, 2),
+            socialMediaCosts=round(social_media_total_cost, 2),
+            amazonFees=round(total_amazon_fees, 2),
+            # Display metrics
+            imageRating=round(image_rating, 2),
+            creditRating=credit_rating.value,
+            customerSatisfaction=round(satisfaction, 4),
+            rejectionRate=round(rejection_rate, 4),
         )
         results.append(result)
 

@@ -733,9 +733,9 @@ class SimulationSession: Identifiable {
     // MARK: - Restore Results from Backend
 
     /// Populate roundResults, team financial state, and rankings from backend results.
-    /// Called after a student re-joins a session to restore history that was lost on logout.
+    /// Direct field mapping — no fabrication or heuristics.
     func restoreResultsFromBackend(_ backendResults: [Int: [RoundResultBackend]]) {
-        NSLog("[BizSimAI] restoreResultsFromBackend: received \\(backendResults.count) rounds")
+        NSLog("[BizSimAI] restoreResultsFromBackend: received \(backendResults.count) rounds")
 
         // Build a map from team name (backend key) to team UUID
         var nameToUUID: [String: UUID] = [:]
@@ -749,18 +749,18 @@ class SimulationSession: Identifiable {
             for backendResult in resultArray {
                 // Find team by name (backend uses team name as ID)
                 guard let teamUUID = nameToUUID[backendResult.teamId] else {
-                    NSLog("[BizSimAI] restoreResultsFromBackend: team '\\(backendResult.teamId)' not found in local teams")
+                    NSLog("[BizSimAI] restoreResultsFromBackend: team '\(backendResult.teamId)' not found in local teams")
                     continue
                 }
 
-                // Convert backend result to local RoundResult
+                // Build InvestorScorecard from backend fields
                 let scorecard = InvestorScorecard(
                     round: round,
                     eps: backendResult.eps,
                     roe: backendResult.roe,
                     stockPrice: backendResult.stockPrice,
-                    imageRating: backendResult.imageScore,
-                    creditRating: CreditRating(rawValue: "\(Int(backendResult.creditScore))") ?? .a,
+                    imageRating: backendResult.imageRating,
+                    creditRating: CreditRating.fromBackendString(backendResult.creditRating),
                     epsScore: backendResult.epsScore,
                     roeScore: backendResult.roeScore,
                     stockPriceScore: backendResult.stockPriceScore,
@@ -768,42 +768,53 @@ class SimulationSession: Identifiable {
                     creditScore: backendResult.creditScore
                 )
 
+                // Build RoundResult with direct field mapping — no fabrication
                 let result = RoundResult(
                     teamId: teamUUID,
                     round: round,
-                    wholesaleRevenue: backendResult.revenue * 0.5,
-                    internetRevenue: backendResult.revenue * 0.3,
-                    amazonRevenue: backendResult.revenue * 0.15,
-                    privateLabelRevenue: backendResult.revenue * 0.05,
+                    wholesaleRevenue: backendResult.wholesaleRevenue,
+                    internetRevenue: backendResult.internetRevenue,
+                    amazonRevenue: backendResult.amazonRevenue,
+                    privateLabelRevenue: backendResult.privateLabelRevenue,
                     productionCosts: backendResult.productionCost,
                     marketingCosts: backendResult.marketingCost,
-                    csrCosts: 0,
-                    endorsementCosts: 0,
-                    interestExpense: backendResult.equity * 0.05,
-                    dividendsPaid: 0,
-                    workforceCosts: 0,
-                    storageCosts: 0,
-                    rebateCosts: 0,
-                    deliveryCosts: 0,
-                    socialMediaCosts: 0,
-                    amazonFees: 0,
-                    wholesaleUnitsSold: max(0, Int(backendResult.revenue / 50)),
-                    internetUnitsSold: max(0, Int(backendResult.revenue / 90 * 0.3)),
-                    amazonUnitsSold: max(0, Int(backendResult.revenue / 85 * 0.15)),
-                    privateLabelUnitsSold: 0,
+                    csrCosts: backendResult.csrCosts,
+                    endorsementCosts: backendResult.endorsementCosts,
+                    interestExpense: backendResult.interestExpense,
+                    dividendsPaid: backendResult.dividendsPaid,
+                    workforceCosts: backendResult.workforceCosts,
+                    storageCosts: backendResult.storageCosts,
+                    rebateCosts: backendResult.rebateCosts,
+                    deliveryCosts: backendResult.deliveryCosts,
+                    socialMediaCosts: backendResult.socialMediaCosts,
+                    amazonFees: backendResult.amazonFees,
+                    wholesaleUnitsSold: backendResult.wholesaleUnitsSold,
+                    internetUnitsSold: backendResult.internetUnitsSold,
+                    amazonUnitsSold: backendResult.amazonUnitsSold,
+                    privateLabelUnitsSold: backendResult.privateLabelUnitsSold,
                     marketShare: backendResult.marketShare,
-                    customerSatisfaction: backendResult.reputation,
+                    customerSatisfaction: backendResult.customerSatisfaction,
                     inventory: Int(backendResult.inventory),
-                    rejectionRate: 0,
+                    rejectionRate: backendResult.rejectionRate,
                     cash: backendResult.cash,
                     sqRating: backendResult.sqRating,
-                    awarenessScore: 0,
+                    awarenessScore: backendResult.awarenessScore,
                     scorecard: scorecard,
                     overrideProfit: backendResult.profit
                 )
 
                 // Record the result (updates team financial state)
                 recordResult(result)
+
+                // Restore TeamStatus fields that recordResult doesn't touch
+                if let index = teams.firstIndex(where: { $0.id == teamUUID }) {
+                    teams[index].equity = backendResult.equity
+                    teams[index].totalDebt = backendResult.debt
+                    teams[index].sharesOutstanding = Int(backendResult.sharesOutstanding)
+                    teams[index].reputation = backendResult.reputation
+                    teams[index].imageRating = backendResult.imageRating
+                    teams[index].creditRating = CreditRating.fromBackendString(backendResult.creditRating)
+                }
             }
         }
 
@@ -819,7 +830,7 @@ class SimulationSession: Identifiable {
             teams[playerIdx].hasSubmittedDecisions = false
         }
 
-        NSLog("[BizSimAI] restoreResultsFromBackend: DONE — \\(roundResults.count) teams with results, currentRound=\\(currentRound)")
+        NSLog("[BizSimAI] restoreResultsFromBackend: DONE — \(roundResults.count) teams with results, currentRound=\(currentRound)")
     }
 
     func hasDecision(for teamId: UUID, round: Int) -> Bool {

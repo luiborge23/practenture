@@ -391,6 +391,7 @@ class PlayerDecision(BaseModel):
 class RoundResult(BaseModel):
     teamId: str
     round: int
+    # Aggregate (unchanged)
     revenue: float = 0.0
     costs: float = 0.0
     profit: float = 0.0
@@ -414,11 +415,37 @@ class RoundResult(BaseModel):
     awarenessScore: float = 0.0
     creditScore: float = 0.0
     totalScore: float = 0.0
-    # Detailed financials
+    # Detailed financials (existing)
     productionCost: float = 0.0
     marketingCost: float = 0.0
     unitCost: float = 0.0
     demand: Dict[str, float] = Field(default_factory=dict)  # channel → units
+    # Per-channel revenue breakdown
+    wholesaleRevenue: float = 0.0
+    internetRevenue: float = 0.0
+    amazonRevenue: float = 0.0
+    privateLabelRevenue: float = 0.0
+    # Per-channel units sold
+    wholesaleUnitsSold: int = 0
+    internetUnitsSold: int = 0
+    amazonUnitsSold: int = 0
+    privateLabelUnitsSold: int = 0
+    # Detailed cost breakdown
+    workforceCosts: float = 0.0
+    csrCosts: float = 0.0
+    endorsementCosts: float = 0.0
+    rebateCosts: float = 0.0
+    deliveryCosts: float = 0.0
+    storageCosts: float = 0.0
+    interestExpense: float = 0.0
+    dividendsPaid: float = 0.0
+    socialMediaCosts: float = 0.0
+    amazonFees: float = 0.0
+    # Display metrics (not previously in model)
+    imageRating: float = 0.0
+    creditRating: str = "A"
+    customerSatisfaction: float = 0.0
+    rejectionRate: float = 0.0
 
 
 class InvestorScorecard(BaseModel):

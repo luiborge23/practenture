@@ -347,6 +347,11 @@ enum CreditRating: String, Codable, CaseIterable, Comparable, Identifiable {
     var displayName: String { rawValue }
     var id: String { rawValue }
 
+    /// Construct from backend string (e.g., "A+", "B-", "C")
+    static func fromBackendString(_ s: String) -> CreditRating {
+        CreditRating(rawValue: s) ?? .a
+    }
+
     /// Score for the investor expectation (0-20 scale).
     var investorScore: Double {
         switch self {

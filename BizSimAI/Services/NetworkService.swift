@@ -774,6 +774,7 @@ struct SessionStatusBackend: Codable {
 struct RoundResultBackend: Codable {
     var teamId: String = ""
     var round: Int = 0
+    // Aggregate
     var revenue: Double = 0
     var costs: Double = 0
     var profit: Double = 0
@@ -789,15 +790,45 @@ struct RoundResultBackend: Codable {
     var eps: Double = 0
     var roe: Double = 0
     var stockPrice: Double = 0
+    // Scorecard
     var epsScore: Double = 0
     var roeScore: Double = 0
     var stockPriceScore: Double = 0
     var imageScore: Double = 0
+    var awarenessScore: Double = 0
     var creditScore: Double = 0
     var totalScore: Double = 0
+    // Detailed financials
     var productionCost: Double = 0
     var marketingCost: Double = 0
     var unitCost: Double = 0
+    var demand: [String: Double] = [:]
+    // Per-channel revenue breakdown
+    var wholesaleRevenue: Double = 0
+    var internetRevenue: Double = 0
+    var amazonRevenue: Double = 0
+    var privateLabelRevenue: Double = 0
+    // Per-channel units sold
+    var wholesaleUnitsSold: Int = 0
+    var internetUnitsSold: Int = 0
+    var amazonUnitsSold: Int = 0
+    var privateLabelUnitsSold: Int = 0
+    // Detailed cost breakdown
+    var workforceCosts: Double = 0
+    var csrCosts: Double = 0
+    var endorsementCosts: Double = 0
+    var rebateCosts: Double = 0
+    var deliveryCosts: Double = 0
+    var storageCosts: Double = 0
+    var interestExpense: Double = 0
+    var dividendsPaid: Double = 0
+    var socialMediaCosts: Double = 0
+    var amazonFees: Double = 0
+    // Display metrics
+    var imageRating: Double = 0
+    var creditRating: String = "A"
+    var customerSatisfaction: Double = 0
+    var rejectionRate: Double = 0
 }
 
 /// Backend leaderboard entry.
