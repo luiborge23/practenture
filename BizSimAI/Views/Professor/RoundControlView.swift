@@ -24,6 +24,8 @@ struct RoundControlView: View {
     @State private var backendTeamCount: Int = 0
     @State private var processingError: String?
 
+    @State private var backendHumanTeams: Int = 0
+
     private var isBackendSession: Bool {
         guard let session = appState.activeSession else { return false }
         return !session.sessionCode.isEmpty && session.sessionCode != session.id.uuidString
@@ -35,7 +37,7 @@ struct RoundControlView: View {
     }
 
     private var allSubmitted: Bool {
-        if isBackendSession { return backendTeamCount > 0 && backendSubmittedCount >= backendTeamCount }
+        if isBackendSession { return backendHumanTeams > 0 && backendSubmittedCount >= backendHumanTeams }
         return teamSubmissions.allSatisfy(\.hasSubmitted)
     }
 
@@ -107,6 +109,7 @@ struct RoundControlView: View {
             totalRounds = session.config.totalRounds
             backendSubmittedCount = status.teamsSubmitted
             backendTeamCount = status.totalTeams
+            backendHumanTeams = max(status.humanTeams, 1)
             session.currentRound = currentRound
             if status.state == "finished" || status.state == "completed" {
                 session.state = .completed
@@ -183,7 +186,7 @@ struct RoundControlView: View {
 
                 Spacer()
 
-                Text("\(submittedCount) of \(isBackendSession ? backendTeamCount : teamSubmissions.count)")
+                Text("\(submittedCount) of \(isBackendSession ? backendHumanTeams : teamSubmissions.count)")
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundStyle(allSubmitted ? .green : .orange)
@@ -205,7 +208,7 @@ struct RoundControlView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "clock.fill")
                         .foregroundStyle(.orange)
-                    Text("\(max((isBackendSession ? backendTeamCount : teamSubmissions.count) - submittedCount, 0)) team(s) still pending")
+                    Text("\(max((isBackendSession ? backendHumanTeams : teamSubmissions.count) - submittedCount, 0)) team(s) still pending")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

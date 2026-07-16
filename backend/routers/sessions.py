@@ -168,6 +168,8 @@ async def get_session_status(code: str, user=Depends(get_current_user)):
 
     current_round = session.currentRound
     submitted = db.count_submitted_decisions(code, current_round) if current_round > 0 else 0
+    human_teams = [t for t in session.teams if not t.isAI]
+    human_team_count = len(human_teams)
 
     return StatusResponse(
         sessionId=session.id,
@@ -177,6 +179,7 @@ async def get_session_status(code: str, user=Depends(get_current_user)):
         totalRounds=session.config.totalRounds,
         teamsSubmitted=submitted,
         totalTeams=len(session.teams),
+        humanTeams=human_team_count,
     )
 
 

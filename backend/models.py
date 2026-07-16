@@ -559,6 +559,7 @@ class StatusResponse(BaseModel):
     totalRounds: int
     teamsSubmitted: int
     totalTeams: int
+    humanTeams: int = 0
 
 
 class CreateAnnouncementRequest(BaseModel):

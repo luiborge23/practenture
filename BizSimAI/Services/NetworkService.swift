@@ -767,6 +767,7 @@ struct SessionStatusBackend: Codable {
     var totalRounds: Int = 0
     var teamsSubmitted: Int = 0
     var totalTeams: Int = 0
+    var humanTeams: Int = 0
 }
 
 /// Backend round result.
