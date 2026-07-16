@@ -36,6 +36,14 @@ struct PerformanceHistoryView: View {
                 viewModel.loadHistory(from: session, for: teamId)
             }
         }
+        .onReceive(Timer.publish(every: 10, on: .main, in: .common).autoconnect()) { _ in
+            // Reload history when new results arrive from backend polling
+            if let session = appState.activeSession,
+               let teamId = session.playerTeam?.id,
+               !viewModel.hasData {
+                viewModel.loadHistory(from: session, for: teamId)
+            }
+        }
     }
 
     // MARK: - Metric Picker
