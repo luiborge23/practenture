@@ -808,7 +808,17 @@ class SimulationSession: Identifiable {
 
         // Update rankings after all results are restored
         updateRankings()
-        NSLog("[BizSimAI] restoreResultsFromBackend: DONE — \\(roundResults.count) teams with results")
+
+        // Advance the local round counter to match the backend and reset
+        // the submission flag so the student can make decisions for the new round.
+        if let maxRound = backendResults.keys.max() {
+            currentRound = maxRound + 1
+        }
+        if let playerIdx = teams.firstIndex(where: { !$0.isAI }) {
+            teams[playerIdx].hasSubmittedDecisions = false
+        }
+
+        NSLog("[BizSimAI] restoreResultsFromBackend: DONE — \\(roundResults.count) teams with results, currentRound=\\(currentRound)")
     }
 
     func hasDecision(for teamId: UUID, round: Int) -> Bool {

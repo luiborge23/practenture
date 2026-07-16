@@ -90,23 +90,28 @@ struct TeamDashboardView: View {
         }
         .onAppear {
             NSLog("[BizSimAI] TeamDashboardView onAppear")
-            NSLog("[BizSimAI] session exists: \(session != nil)")
-            NSLog("[BizSimAI] gameController exists: \(gameController != nil)")
-            NSLog("[BizSimAI] isProcessing: \(gameController?.isProcessing ?? false)")
-            NSLog("[BizSimAI] totalTeams: \(totalTeams)")
-            NSLog("[BizSimAI] currentRound: \(currentRound)")
-            NSLog("[BizSimAI] totalRounds: \(totalRounds)")
-            NSLog("[BizSimAI] playerTeam exists: \(playerTeam != nil)")
-            NSLog("[BizSimAI] cash: \(cash)")
-            NSLog("[BizSimAI] isOnline: \(isOnline)")
-            NSLog("[BizSimAI] backendCurrentRound: \(backendCurrentRound)")
-            NSLog("[BizSimAI] backendTeamCount: \(backendTeamCount)")
+            NSLog("[BizSimAI] session exists: \\(session != nil)")
+            NSLog("[BizSimAI] gameController exists: \\(gameController != nil)")
+            NSLog("[BizSimAI] isProcessing: \\(gameController?.isProcessing ?? false)")
+            NSLog("[BizSimAI] totalTeams: \\(totalTeams)")
+            NSLog("[BizSimAI] currentRound: \\(currentRound)")
+            NSLog("[BizSimAI] totalRounds: \\(totalRounds)")
+            NSLog("[BizSimAI] playerTeam exists: \\(playerTeam != nil)")
+            NSLog("[BizSimAI] cash: \\(cash)")
+            NSLog("[BizSimAI] isOnline: \\(isOnline)")
+            NSLog("[BizSimAI] backendCurrentRound: \\(backendCurrentRound)")
+            NSLog("[BizSimAI] backendTeamCount: \\(backendTeamCount)")
             NSLog("[BizSimAI] TeamDashboardView onAppear DONE")
             lastProcessedRound = session?.currentRound ?? 0
             // Sync live backend status
             liveTeamCount = BackendState.shared.teamCount
             liveSubmittedCount = BackendState.shared.submittedCount
             liveSessionState = BackendState.shared.sessionState
+            // Fetch latest results from backend on appear
+            if isBackendSession { Task { await fetchBackendResults() } }
+        }
+        .onReceive(Timer.publish(every: 10, on: .main, in: .common).autoconnect()) { _ in
+            if isBackendSession { Task { await fetchBackendResults() } }
         }
         .navigationTitle(teamName)
         #if os(macOS)
@@ -415,6 +420,32 @@ struct TeamDashboardView: View {
         .contentShape(Rectangle())
     }
     
+    // MARK: - Backend Sync
+
+    /// Fetches latest results from the backend and restores them locally.
+    /// This is called on appear and via a 10-second timer so the student
+    /// sees new round results automatically after the professor advances.
+    private func fetchBackendResults() async {
+        guard let session = session else { return }
+        do {
+            let backendResults = try await NetworkService.shared.getResults(code: session.sessionCode)
+            if !backendResults.isEmpty {
+                let maxBackendRound = backendResults.keys.max() ?? 0
+                if maxBackendRound >= session.currentRound {
+                    await MainActor.run {
+                        session.restoreResultsFromBackend(backendResults)
+                        if session.currentRound > lastProcessedRound {
+                            lastProcessedRound = session.currentRound
+                            showResults = true
+                        }
+                    }
+                }
+            }
+        } catch {
+            // Silent — the timer will retry
+        }
+    }
+
     // MARK: - PDF Export
     
     private func generatePDF() {
