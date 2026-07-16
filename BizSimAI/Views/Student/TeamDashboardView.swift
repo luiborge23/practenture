@@ -5,6 +5,7 @@
 // financial health metrics, and quick actions.
 
 import SwiftUI
+import Combine
 
 struct TeamDashboardView: View {
     @Environment(AppState.self) private var appState
@@ -41,6 +42,11 @@ struct TeamDashboardView: View {
 
     private var isOnline: Bool {
         BackendState.shared.isOnline && BackendState.shared.sessionState != .disconnected
+    }
+
+    private var isBackendSession: Bool {
+        guard let session = session else { return false }
+        return !session.sessionCode.isEmpty && session.sessionCode != session.id.uuidString
     }
 
     private var backendCurrentRound: Int {
