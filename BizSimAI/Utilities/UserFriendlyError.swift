@@ -61,7 +61,7 @@ enum UserFriendlyError {
                 return "The request timed out. Please check your internet connection and try again."
                 
             case 409:
-                return "An account with this username already exists. Please use a different username or log in instead."
+                return message ?? "This team name is already taken. Please choose a different team name."
                 
             case 429:
                 return "Too many login attempts. Please wait a few minutes before trying again."
