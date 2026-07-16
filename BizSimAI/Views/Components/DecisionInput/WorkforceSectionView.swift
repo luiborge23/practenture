@@ -16,7 +16,7 @@ struct WorkforceSectionView: View {
     var body: some View {
         DecisionInputSectionView(
             title: "Workforce Compensation",
-            icon: "person.2",
+            icon: "person.2.wave.2",
             description: "Better pay and training improve productivity, quality, and reduce defects."
         ) {
             decisionSlider(

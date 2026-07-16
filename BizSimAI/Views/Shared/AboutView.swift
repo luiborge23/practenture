@@ -120,7 +120,7 @@ struct AboutView: View {
 
                 decisionCard(
                     title: "Social Media & Influencers",
-                    icon: "person.3.sequence.fill",
+                    icon: "person.3.fill",
                     color: .pink,
                     description: "Allocate budgets across TikTok (viral awareness), Instagram (brand image), and YouTube (credibility). Choose influencer tiers from Nano (6.5% engagement, $300/ea) to Mega (1% engagement, $50K/ea). Social media boosts internet demand, image rating, and overall awareness."
                 )

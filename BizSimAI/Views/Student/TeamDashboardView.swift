@@ -308,27 +308,43 @@ struct TeamDashboardView: View {
     // MARK: - Metrics Grid
 
     private var metricsGrid: some View {
-        LazyVGrid(columns: [
+        // Compute real trends from round history
+        let history = session?.playerRoundSummaries ?? []
+        let prev = history.count >= 2 ? history[history.count - 2] : nil
+        let last = history.last
+
+        let profitTrend = compareTrend(last?.profit, prev?.profit)
+        let sqTrend = compareTrend(last?.sqRating, prev?.sqRating)
+        let scoreTrend = compareTrend(last?.investorScore, prev?.investorScore)
+
+        return LazyVGrid(columns: [
             GridItem(.flexible(), spacing: 16),
             GridItem(.flexible(), spacing: 16)
         ], spacing: 16) {
             MetricCard.currency(
                 title: "Cash Balance", amount: cash,
-                icon: "dollarsign.circle.fill", trend: .up, color: .green
+                icon: "dollarsign.circle.fill", trend: profitTrend, color: .green
             )
             MetricCard(
                 title: "Inventory", value: "\(inventory) units",
-                icon: "shippingbox.fill", trend: .down, accentColor: .orange
+                icon: "shippingbox.fill", trend: .flat, accentColor: .orange
             )
             MetricCard(
                 title: "S/Q Rating", value: String(format: "%.1f", sqRating) + "★",
-                icon: "star.fill", trend: sqRating >= 5 ? .up : .down, accentColor: .yellow
+                icon: "star.fill", trend: sqTrend, accentColor: .yellow
             )
             MetricCard(
-                title: "Image Rating", value: String(format: "%.0f", imageRating) + "/100",
-                icon: "sparkles", trend: imageRating >= 50 ? .up : .down, accentColor: .purple
+                title: "Investor Score", value: String(format: "%.0f", investorScore),
+                icon: "chart.bar.doc.horizontal", trend: scoreTrend, accentColor: .purple
             )
         }
+    }
+
+    private func compareTrend(_ current: Double?, _ previous: Double?) -> TrendDirection {
+        guard let cur = current, let prev = previous else { return .flat }
+        if cur > prev { return .up }
+        if cur < prev { return .down }
+        return .flat
     }
 
     // MARK: - Action Section

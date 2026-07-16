@@ -26,8 +26,14 @@ struct PerformanceHistoryView: View {
             if let session = appState.activeSession,
                let teamId = session.playerTeam?.id {
                 viewModel.loadHistory(from: session, for: teamId)
-            } else {
-                loadSampleData()
+            }
+        }
+        .onChange(of: appState.activeSession?.currentRound ?? 0) { _, newRound in
+            // Reload history when round changes (professor advanced the round)
+            if let session = appState.activeSession,
+               let teamId = session.playerTeam?.id,
+               newRound > 1 {
+                viewModel.loadHistory(from: session, for: teamId)
             }
         }
     }
