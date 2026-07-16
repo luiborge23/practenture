@@ -1075,6 +1075,7 @@ struct RoundResult: Codable, Identifiable {
         self.awarenessScore = awarenessScore
         self.qualityScore = sqRating / 10.0
         self.scorecard = scorecard
+        self.overrideProfit = nil
     }
 }
 
