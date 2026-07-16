@@ -958,12 +958,53 @@ struct RoundResult: Codable, Identifiable {
     let deliveryCosts: Double         // Rush delivery premium
     let socialMediaCosts: Double      // TikTok + Instagram + YouTube + influencer costs
     let amazonFees: Double            // Referral fee + FBA/FBM fees
+
+    /// When non-nil, overrides the computed `profit` (used by backend results
+    /// where the full cost breakdown isn't available but the authoritative
+    /// profit value is).
+    let overrideProfit: Double?
+
+    init(teamId: UUID, round: Int, wholesaleRevenue: Double, internetRevenue: Double, amazonRevenue: Double, privateLabelRevenue: Double, productionCosts: Double, marketingCosts: Double, csrCosts: Double, endorsementCosts: Double, interestExpense: Double, dividendsPaid: Double, workforceCosts: Double, storageCosts: Double, rebateCosts: Double, deliveryCosts: Double, socialMediaCosts: Double, amazonFees: Double, wholesaleUnitsSold: Int, internetUnitsSold: Int, amazonUnitsSold: Int, privateLabelUnitsSold: Int, marketShare: Double, customerSatisfaction: Double, inventory: Int, rejectionRate: Double, cash: Double, sqRating: Double, awarenessScore: Double, scorecard: InvestorScorecard, overrideProfit: Double? = nil) {
+        self.id = UUID()
+        self.teamId = teamId
+        self.round = round
+        self.wholesaleRevenue = wholesaleRevenue
+        self.internetRevenue = internetRevenue
+        self.amazonRevenue = amazonRevenue
+        self.privateLabelRevenue = privateLabelRevenue
+        self.productionCosts = productionCosts
+        self.marketingCosts = marketingCosts
+        self.csrCosts = csrCosts
+        self.endorsementCosts = endorsementCosts
+        self.interestExpense = interestExpense
+        self.dividendsPaid = dividendsPaid
+        self.workforceCosts = workforceCosts
+        self.storageCosts = storageCosts
+        self.rebateCosts = rebateCosts
+        self.deliveryCosts = deliveryCosts
+        self.socialMediaCosts = socialMediaCosts
+        self.amazonFees = amazonFees
+        self.overrideProfit = overrideProfit
+        self.wholesaleUnitsSold = wholesaleUnitsSold
+        self.internetUnitsSold = internetUnitsSold
+        self.amazonUnitsSold = amazonUnitsSold
+        self.privateLabelUnitsSold = privateLabelUnitsSold
+        self.marketShare = marketShare
+        self.customerSatisfaction = customerSatisfaction
+        self.inventory = inventory
+        self.rejectionRate = rejectionRate
+        self.cash = cash
+        self.sqRating = sqRating
+        self.awarenessScore = awarenessScore
+        self.qualityScore = sqRating / 10
+        self.scorecard = scorecard
+    }
     var costs: Double {
         productionCosts + marketingCosts + csrCosts + endorsementCosts
             + interestExpense + dividendsPaid + workforceCosts + storageCosts
             + rebateCosts + deliveryCosts + socialMediaCosts + amazonFees
     }
-    var profit: Double { revenue - costs }
+    var profit: Double { overrideProfit ?? (revenue - costs) }
 
     // Operations
     let wholesaleUnitsSold: Int

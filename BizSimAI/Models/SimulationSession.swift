@@ -787,9 +787,9 @@ class SimulationSession: Identifiable {
                     deliveryCosts: 0,
                     socialMediaCosts: 0,
                     amazonFees: 0,
-                    wholesaleUnitsSold: 0,
-                    internetUnitsSold: 0,
-                    amazonUnitsSold: 0,
+                    wholesaleUnitsSold: max(0, Int(backendResult.revenue / 50)),
+                    internetUnitsSold: max(0, Int(backendResult.revenue / 90 * 0.3)),
+                    amazonUnitsSold: max(0, Int(backendResult.revenue / 85 * 0.15)),
                     privateLabelUnitsSold: 0,
                     marketShare: backendResult.marketShare,
                     customerSatisfaction: backendResult.reputation,
@@ -798,7 +798,8 @@ class SimulationSession: Identifiable {
                     cash: backendResult.cash,
                     sqRating: backendResult.sqRating,
                     awarenessScore: 0,
-                    scorecard: scorecard
+                    scorecard: scorecard,
+                    overrideProfit: backendResult.profit
                 )
 
                 // Record the result (updates team financial state)
