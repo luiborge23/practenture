@@ -82,7 +82,7 @@ def _verify_token(token: str) -> Optional[dict]:
             SECRET_KEY.encode(), signing_input.encode(), hashlib.sha256
         ).digest()
         expected_sig_b = _b64url_encode(expected_sig)
-        if signature_b != expected_sig_b:
+        if not _hmac.compare_digest(signature_b, expected_sig_b):
             return None
         payload = _json.loads(_b64url_decode(payload_b))
         exp = payload.get("exp", 0)
@@ -208,8 +208,19 @@ def ensure_professor() -> None:
 
 # ── Auth dependencies ──────────────────────────────────────────────────────
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer())) -> Dict[str, Any]:
-    """Dependency: extract and verify JWT token."""
+_bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def get_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
+) -> Dict[str, Any]:
+    """Dependency: extract and verify JWT token using standard 401 semantics."""
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     token = credentials.credentials
     payload = _verify_token(token)
     if not payload:

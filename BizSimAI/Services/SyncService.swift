@@ -17,7 +17,7 @@ enum SyncAction: Sendable, Identifiable {
     var id: String {
         switch self {
         case .joinSession(let sessionId, _, _): return "join_\(sessionId)"
-        case .submitDecision(let sessionId, let round, let teamId, _, let backendTeamId): return "decision_\(sessionId)_\(round)_\(teamId)"
+        case .submitDecision(let sessionId, let round, let teamId, _, _): return "decision_\(sessionId)_\(round)_\(teamId)"
         case .syncResults(let sessionId): return "results_\(sessionId)"
         case .sendAnnouncement(let sessionId, _, _, _): return "announce_\(sessionId)"
         }
@@ -37,8 +37,11 @@ final class SyncService {
 
     private var syncQueue: [SyncAction] = []
     private var syncQueueQueue = DispatchQueue(label: "syncQueue")
+    private let networkService: NetworkService
 
-    private init() {}
+    init(networkService: NetworkService = .shared) {
+        self.networkService = networkService
+    }
 
     // MARK: - Session Operations
 
@@ -50,7 +53,7 @@ final class SyncService {
                 isAI: team.isAI
             )
         }
-        let result = try await NetworkService.shared.createSession(
+        let result = try await networkService.createSession(
             config: localSession.config,
             teams: teams
         )
@@ -60,7 +63,7 @@ final class SyncService {
     }
 
     func syncSessionJoin(sessionCode: String, teamName: String, studentId: String) async throws -> JoinSessionBackend {
-        let result = try await NetworkService.shared.joinSession(
+        let result = try await networkService.joinSession(
             code: sessionCode,
             teamName: teamName,
             studentId: studentId
@@ -79,40 +82,46 @@ final class SyncService {
         decision: PlayerDecision,
         backendTeamId: String? = nil
     ) async throws {
-        try await NetworkService.shared.submitDecision(
+        let joinedTeamName = backendTeamId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let joinedTeamName, !joinedTeamName.isEmpty else {
+            throw NetworkError.serverError(
+                400,
+                "Backend team identity is missing. Leave and join the session again."
+            )
+        }
+        try await networkService.submitDecision(
             code: sessionCode,
             round: round,
-            teamId: teamId,
             decision: decision,
-            backendTeamId: backendTeamId
+            backendTeamId: joinedTeamName
         )
         isSynced = true
         lastSyncTime = Date()
     }
 
     func syncRoundResults(sessionCode: String) async throws -> [RoundResultBackend] {
-        let results = try await NetworkService.shared.getResults(code: sessionCode)
+        let results = try await networkService.getResults(code: sessionCode)
         isSynced = true
         lastSyncTime = Date()
         return results.values.flatMap { $0 }
     }
 
     func syncLeaderboard(sessionCode: String) async throws -> [LeaderboardEntryBackend] {
-        let entries = try await NetworkService.shared.getLeaderboard(code: sessionCode)
+        let entries = try await networkService.getLeaderboard(code: sessionCode)
         isSynced = true
         lastSyncTime = Date()
         return entries
     }
 
     func syncAnnouncements(sessionCode: String) async throws -> [AnnouncementBackend] {
-        let announcements = try await NetworkService.shared.getAnnouncements(code: sessionCode)
+        let announcements = try await networkService.getAnnouncements(code: sessionCode)
         isSynced = true
         lastSyncTime = Date()
         return announcements
     }
 
     func syncTeamStatus(sessionCode: String) async throws -> SessionStatusBackend {
-        let status = try await NetworkService.shared.getSessionStatus(code: sessionCode)
+        let status = try await networkService.getSessionStatus(code: sessionCode)
         isSynced = true
         lastSyncTime = Date()
         return status
@@ -157,19 +166,25 @@ final class SyncService {
         switch action {
         case .joinSession(let sessionId, let teamName, let studentId):
             _ = try await syncSessionJoin(sessionCode: sessionId, teamName: teamName, studentId: studentId)
-        case .submitDecision(let sessionId, let round, let teamId, let decision, let backendTeamId):
-            // teamId is UUID for local SwiftData; backendTeamId is the backend's team name string.
-            try await NetworkService.shared.submitDecision(
+        case .submitDecision(let sessionId, let round, _, let decision, let backendTeamId):
+            // The local UUID is queue metadata only; backend identity is the join-returned team name.
+            let joinedTeamName = backendTeamId?.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let joinedTeamName, !joinedTeamName.isEmpty else {
+                throw NetworkError.serverError(
+                    400,
+                    "Backend team identity is missing. Leave and join the session again."
+                )
+            }
+            try await networkService.submitDecision(
                 code: sessionId,
                 round: round,
-                teamId: teamId,
                 decision: decision,
-                backendTeamId: backendTeamId
+                backendTeamId: joinedTeamName
             )
         case .syncResults(let sessionId):
             _ = try await syncRoundResults(sessionCode: sessionId)
         case .sendAnnouncement(let sessionId, let message, let authorId, let authorName):
-            try await NetworkService.shared.sendAnnouncement(
+            try await networkService.sendAnnouncement(
                 code: sessionId,
                 message: message,
                 authorId: authorId,
@@ -181,7 +196,7 @@ final class SyncService {
     // MARK: - Connection Check
 
     func checkConnection() async -> Bool {
-        let health = await NetworkService.shared.healthCheck()
+        let health = await networkService.healthCheck()
         isConnected = health
         return health
     }

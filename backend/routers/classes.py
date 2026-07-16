@@ -39,6 +39,13 @@ async def list_classes(user=Depends(verify_professor)):
     return ClassListResponse(classes=[ClassResponse(**c) for c in classes])
 
 
+@router.get("/my/classes", response_model=StudentClassListResponse)
+async def my_classes(user=Depends(verify_student_or_professor)):
+    """Student lists all classes they're enrolled in."""
+    classes = db.get_student_classes(user["sub"])
+    return StudentClassListResponse(classes=[ClassResponse(**c) for c in classes])
+
+
 @router.get("/{class_id}", response_model=ClassResponse)
 async def get_class(class_id: str, user=Depends(verify_professor)):
     """Get details of a specific class."""
@@ -80,13 +87,6 @@ async def join_class(req: JoinClassRequest, user=Depends(verify_student_or_profe
         class_id=cls["id"],
         class_name=cls["name"],
     )
-
-
-@router.get("/my/classes", response_model=StudentClassListResponse)
-async def my_classes(user=Depends(verify_student_or_professor)):
-    """Student lists all classes they're enrolled in."""
-    classes = db.get_student_classes(user["sub"])
-    return StudentClassListResponse(classes=[ClassResponse(**c) for c in classes])
 
 
 @router.get("/{class_id}/students", response_model=ClassStudentsResponse)

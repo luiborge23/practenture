@@ -1,14 +1,14 @@
-version: '3.8'
-
 services:
   bizsim-backend:
     build:
       context: .
       dockerfile: Dockerfile
+    image: bizsimai-backend:${BIZSIMAI_IMAGE_TAG:-stable}
     container_name: bizsim-backend
     restart: unless-stopped
     ports:
-      - "8005:8005"
+      # nginx is the only public entry point; retain loopback access for host diagnostics.
+      - "127.0.0.1:8005:8005"
     volumes:
       - db-data:/data
     environment:

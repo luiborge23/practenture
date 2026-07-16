@@ -537,6 +537,8 @@ class SimulationSession: Identifiable {
         }
 
         if currentRound > config.totalRounds {
+            // Cap currentRound to totalRounds so UI never shows "Round 9 of 8"
+            currentRound = config.totalRounds
             state = .completed
         } else {
             state = .inProgress
@@ -726,6 +728,87 @@ class SimulationSession: Identifiable {
 
     func roundResult(for teamId: UUID, round: Int) -> RoundResult? {
         roundResults[teamId]?[round]
+    }
+
+    // MARK: - Restore Results from Backend
+
+    /// Populate roundResults, team financial state, and rankings from backend results.
+    /// Called after a student re-joins a session to restore history that was lost on logout.
+    func restoreResultsFromBackend(_ backendResults: [Int: [RoundResultBackend]]) {
+        NSLog("[BizSimAI] restoreResultsFromBackend: received \\(backendResults.count) rounds")
+
+        // Build a map from team name (backend key) to team UUID
+        var nameToUUID: [String: UUID] = [:]
+        for team in teams {
+            nameToUUID[team.name] = team.id
+        }
+
+        // Process each round's results
+        for (round, resultArray) in backendResults.sorted(by: { $0.key < $1.key }) {
+
+            for backendResult in resultArray {
+                // Find team by name (backend uses team name as ID)
+                guard let teamUUID = nameToUUID[backendResult.teamId] else {
+                    NSLog("[BizSimAI] restoreResultsFromBackend: team '\\(backendResult.teamId)' not found in local teams")
+                    continue
+                }
+
+                // Convert backend result to local RoundResult
+                let scorecard = InvestorScorecard(
+                    round: round,
+                    eps: backendResult.eps,
+                    roe: backendResult.roe,
+                    stockPrice: backendResult.stockPrice,
+                    imageRating: backendResult.imageScore,
+                    creditRating: CreditRating(rawValue: "\(Int(backendResult.creditScore))") ?? .a,
+                    epsScore: backendResult.epsScore,
+                    roeScore: backendResult.roeScore,
+                    stockPriceScore: backendResult.stockPriceScore,
+                    imageScore: backendResult.imageScore,
+                    creditScore: backendResult.creditScore
+                )
+
+                let result = RoundResult(
+                    teamId: teamUUID,
+                    round: round,
+                    wholesaleRevenue: backendResult.revenue * 0.5,
+                    internetRevenue: backendResult.revenue * 0.3,
+                    amazonRevenue: backendResult.revenue * 0.15,
+                    privateLabelRevenue: backendResult.revenue * 0.05,
+                    productionCosts: backendResult.productionCost,
+                    marketingCosts: backendResult.marketingCost,
+                    csrCosts: 0,
+                    endorsementCosts: 0,
+                    interestExpense: backendResult.equity * 0.05,
+                    dividendsPaid: 0,
+                    workforceCosts: 0,
+                    storageCosts: 0,
+                    rebateCosts: 0,
+                    deliveryCosts: 0,
+                    socialMediaCosts: 0,
+                    amazonFees: 0,
+                    wholesaleUnitsSold: 0,
+                    internetUnitsSold: 0,
+                    amazonUnitsSold: 0,
+                    privateLabelUnitsSold: 0,
+                    marketShare: backendResult.marketShare,
+                    customerSatisfaction: backendResult.reputation,
+                    inventory: Int(backendResult.inventory),
+                    rejectionRate: 0,
+                    cash: backendResult.cash,
+                    sqRating: backendResult.sqRating,
+                    awarenessScore: 0,
+                    scorecard: scorecard
+                )
+
+                // Record the result (updates team financial state)
+                recordResult(result)
+            }
+        }
+
+        // Update rankings after all results are restored
+        updateRankings()
+        NSLog("[BizSimAI] restoreResultsFromBackend: DONE — \\(roundResults.count) teams with results")
     }
 
     func hasDecision(for teamId: UUID, round: Int) -> Bool {

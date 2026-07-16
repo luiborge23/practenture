@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+ENV/
+
+# Python venvs (specific)
+.venv-contract/
+backend/.venv/
+
+# Node/Android
+node_modules/
+android/app/build/
+android/.gradle/
+android/gradle/wrapper/gradle-wrapper.jar
+
+# Xcode
+build/
+DerivedData/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+# xcuserdata/ (except scheme management)
+xcuserdata/!*.xcuserdatad/xcschemes/xcschememanagement.plist
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# CocoaPods/SourcePackages (managed)
+SourcePackages/checkouts/
+
+# Test results (build artifacts)
+TestResults/
+
+# Database files
+*.db
+data.db
+backend/data.db
+
+# Environment variables
+.env
+.ec2-state.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Backup files
+*.bak
+*.backup

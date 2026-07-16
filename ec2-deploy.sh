@@ -8,7 +8,7 @@
 #   - SSH key pair named "bizsimai" in us-east-1 (or change REGION)
 #   - jq installed (brew install jq)
 # ──────────────────────────────────────────────────────────────────
-set -uo pipefail
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -118,7 +118,7 @@ print('OK')
         --key-name "$KEY_NAME" \
         --security-group-ids "$SG_ID" \
         --image-id "ami-0c101f26f147fa7fd" \
-        --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":20,"VolumeType":"gp3"}}]' \
+        --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":20,"VolumeType":"gp3","Encrypted":true}}]' \
         --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$INSTANCE_NAME}]" \
         --query "Instances[0].InstanceId" --output text)
 
@@ -276,11 +276,24 @@ EOF
 
     ok "Files uploaded"
 
-    # Deploy via docker-compose
-    info "Starting containers on EC2..."
+    # Create a transactionally consistent SQLite backup and retain the current image.
+    # Backups live outside the rsync --delete target and are preserved across deployments.
+    info "Creating pre-deploy database backup and rollback image..."
     ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP <<REMOTE_DEPLOY
+set -euo pipefail
 cd ~/bizsimai
-docker-compose down --remove-orphans 2>/dev/null || true
+DEPLOY_ID=\$(date -u +%Y%m%dT%H%M%SZ)
+mkdir -p ~/bizsimai-backups
+if docker inspect bizsim-backend >/dev/null 2>&1; then
+    PREVIOUS_IMAGE=\$(docker inspect bizsim-backend --format '{{.Image}}')
+    printf '%s\n' "\$PREVIOUS_IMAGE" > .rollback-image
+    docker tag "\$PREVIOUS_IMAGE" "bizsimai-backend:rollback-\$DEPLOY_ID"
+    docker exec bizsim-backend python -c "import os,sqlite3; src=os.environ.get('BIZSIMAI_DB_PATH','/data/bizsim.db'); a=sqlite3.connect(src); b=sqlite3.connect('/data/predeploy-\$DEPLOY_ID.db'); a.backup(b); b.close(); a.close()"
+    docker cp "bizsim-backend:/data/predeploy-\$DEPLOY_ID.db" "\$HOME/bizsimai-backups/predeploy-\$DEPLOY_ID.db"
+    docker exec bizsim-backend rm -f "/data/predeploy-\$DEPLOY_ID.db"
+    python3 -c "import sqlite3; c=sqlite3.connect('\$HOME/bizsimai-backups/predeploy-\$DEPLOY_ID.db'); assert c.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'; print('BACKUP_OK')"
+fi
+find ~/bizsimai-backups -type f -name 'predeploy-*.db' -mtime +30 -delete
 docker-compose up -d --build
 echo "DEPLOY_DONE"
 REMOTE_DEPLOY
@@ -304,8 +317,22 @@ REMOTE_DEPLOY
         sleep 3
     done
 
-    warn "Health check timed out. Check logs:"
-    info "ssh -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP 'cd ~/bizsimai && docker-compose logs'"
+    warn "Health check timed out; rolling back to the retained application image..."
+    ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP <<'REMOTE_ROLLBACK'
+set -euo pipefail
+cd ~/bizsimai
+PREVIOUS_IMAGE=$(cat .rollback-image)
+docker-compose stop bizsim-backend
+docker rm -f bizsim-backend 2>/dev/null || true
+docker tag "$PREVIOUS_IMAGE" bizsimai-backend:stable
+docker-compose up -d --no-build bizsim-backend nginx
+REMOTE_ROLLBACK
+    if curl -sf "http://$PUBLIC_IP/api/health" >/dev/null; then
+        warn "Previous application image restored. Database backup retained in ~/bizsimai-backups."
+    else
+        error "Deployment and automatic application rollback both failed. Inspect remote Docker logs immediately."
+    fi
+    return 1
 }
 
 # ── Destroy EC2 Instance ─────────────────────────────────────────

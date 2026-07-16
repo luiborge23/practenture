@@ -1,10 +1,13 @@
 """Tests for BizSimAI backend."""
 
+import time
+
 import pytest
 from fastapi.testclient import TestClient
 
 from main import app
 from database import db
+from auth import _create_token
 
 client = TestClient(app)
 
@@ -12,14 +15,34 @@ client = TestClient(app)
 # ── Auth helper ─────────────────────────────────────────────────────────────
 
 def get_professor_token():
-    """Login as the default professor and return Bearer token."""
-    response = client.post("/api/auth/login", json={
-        "provider": "password",
-        "username": "professor",
-        "password": "bizsimai2026",
+    """Issue a professor token for the fixture session owner."""
+    return _create_token({
+        "sub": "professor",
+        "role": "professor",
+        "tenantId": "",
+        "exp": time.time() + 3600,
     })
-    assert response.status_code == 200, f"Professor login failed: {response.text}"
-    return response.json()["accessToken"]
+
+
+def auth_headers(token):
+    """Build an Authorization header for an access token."""
+    return {"Authorization": f"Bearer {token}"}
+
+
+def register_student_token(student_id):
+    """Issue a student token whose subject is the fixture student ID."""
+    return _create_token({
+        "sub": student_id,
+        "role": "student",
+        "name": f"Test {student_id}",
+        "tenantId": "",
+        "exp": time.time() + 3600,
+    })
+
+
+def get_student_token(student_id):
+    """Issue a token for a student already bound to a fixture team."""
+    return register_student_token(student_id)
 
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
@@ -53,7 +76,16 @@ def professor_token():
 
 
 @pytest.fixture
-def created_session(professor_token):
+def student_tokens():
+    """Tokens bound to the human students preconfigured in created_session."""
+    return {
+        student_id: register_student_token(student_id)
+        for student_id in ("student-1", "student-2", "student-3", "student-4")
+    }
+
+
+@pytest.fixture
+def created_session(professor_token, student_tokens):
     """Create a session and return its code."""
     response = client.post("/api/sessions", json={
         "config": {
@@ -75,7 +107,7 @@ def created_session(professor_token):
             {"teamName": "Team Gamma", "isAI": True, "aiStrategy": "balanced"},
         ],
         "created_by": "professor-1",
-    }, headers={"Authorization": f"Bearer {professor_token}"})
+    }, headers=auth_headers(professor_token))
     assert response.status_code == 201
     data = response.json()
     assert "sessionId" in data
@@ -105,7 +137,9 @@ def test_create_session_returns_valid_code(created_session):
     session = response.json()
     assert session["code"] == created_session
     assert session["state"] == "creating"
-    assert len(session["teams"]) == 3
+    # Three configured teams plus two auto-created AI competitors.
+    assert len(session["teams"]) == 5
+    assert sum(team["isAI"] for team in session["teams"]) == 3
 
 
 # ── Session get ────────────────────────────────────────────────────────────
@@ -117,12 +151,18 @@ def test_get_nonexistent_session():
 
 # ── Session join ───────────────────────────────────────────────────────────
 
-def test_join_session(created_session):
+def test_join_session(created_session, student_tokens):
     """Test that a student can join a session."""
     # Start the session first
-    client.post(f"/api/sessions/{created_session}/start")
+    client.post(
+        f"/api/sessions/{created_session}/start",
+        headers=auth_headers(get_professor_token()),
+    )
 
-    response = client.put(f"/api/sessions/{created_session}/join", json={
+    response = client.put(
+        f"/api/sessions/{created_session}/join",
+        headers=auth_headers(student_tokens["student-3"]),
+        json={
         "teamName": "Team Delta",
         "studentId": "student-3",
     })
@@ -133,32 +173,45 @@ def test_join_session(created_session):
     assert data["state"] == "active"
 
 
-def test_join_duplicate_team_name(created_session):
+def test_join_duplicate_team_name(created_session, student_tokens):
     """Test that joining with a duplicate team name fails."""
-    client.post(f"/api/sessions/{created_session}/start")
+    client.post(
+        f"/api/sessions/{created_session}/start",
+        headers=auth_headers(get_professor_token()),
+    )
 
     # Join first time — should succeed
-    client.put(f"/api/sessions/{created_session}/join", json={
+    client.put(
+        f"/api/sessions/{created_session}/join",
+        headers=auth_headers(student_tokens["student-3"]),
+        json={
         "teamName": "Team Delta",
         "studentId": "student-3",
     })
 
     # Join again with same name — should fail
-    response = client.put(f"/api/sessions/{created_session}/join", json={
+    response = client.put(
+        f"/api/sessions/{created_session}/join",
+        headers=auth_headers(student_tokens["student-4"]),
+        json={
         "teamName": "Team Delta",
         "studentId": "student-4",
     })
-    assert response.status_code == 400
+    assert response.status_code == 409
 
 
 # ── Teams listing ──────────────────────────────────────────────────────────
 
 def test_get_teams(created_session):
     """Test listing teams in a session."""
-    response = client.get(f"/api/sessions/{created_session}/teams")
+    response = client.get(
+        f"/api/sessions/{created_session}/teams",
+        headers=auth_headers(get_professor_token()),
+    )
     assert response.status_code == 200
     data = response.json()
-    assert len(data["teams"]) == 3
+    assert len(data["teams"]) == 5
+    assert sum(team["isAI"] for team in data["teams"]) == 3
     team_names = [t["teamName"] for t in data["teams"]]
     assert "Team Alpha" in team_names
     assert "Team Beta" in team_names
@@ -169,7 +222,10 @@ def test_get_teams(created_session):
 
 def test_submit_decision(created_session):
     """Test submitting a round decision."""
-    client.post(f"/api/sessions/{created_session}/start")
+    client.post(
+        f"/api/sessions/{created_session}/start",
+        headers=auth_headers(get_professor_token()),
+    )
 
     decision = {
         "wholesalePrice": 30.0,
@@ -200,7 +256,10 @@ def test_submit_decision(created_session):
     }
 
     # Submit decision for round 1
-    response = client.post(f"/api/sessions/{created_session}/submit_decision", json={
+    response = client.post(
+        f"/api/sessions/{created_session}/submit_decision",
+        headers=auth_headers(get_student_token("student-1")),
+        json={
         "round": 1,
         "teamId": "Team Alpha",
         "decision": decision,
@@ -211,7 +270,10 @@ def test_submit_decision(created_session):
     assert data["round"] == 1
 
     # Double submission should fail
-    response = client.post(f"/api/sessions/{created_session}/submit_decision", json={
+    response = client.post(
+        f"/api/sessions/{created_session}/submit_decision",
+        headers=auth_headers(get_student_token("student-1")),
+        json={
         "round": 1,
         "teamId": "Team Alpha",
         "decision": decision,
@@ -221,9 +283,15 @@ def test_submit_decision(created_session):
 
 def test_submit_wrong_round(created_session):
     """Test submitting a decision for the wrong round."""
-    client.post(f"/api/sessions/{created_session}/start")
+    client.post(
+        f"/api/sessions/{created_session}/start",
+        headers=auth_headers(get_professor_token()),
+    )
 
-    response = client.post(f"/api/sessions/{created_session}/submit_decision", json={
+    response = client.post(
+        f"/api/sessions/{created_session}/submit_decision",
+        headers=auth_headers(get_student_token("student-1")),
+        json={
         "round": 2,  # Current round is 1
         "teamId": "Team Alpha",
         "decision": {
@@ -261,7 +329,10 @@ def test_submit_wrong_round(created_session):
 
 def test_get_decisions(created_session):
     """Test retrieving decisions for a round."""
-    client.post(f"/api/sessions/{created_session}/start")
+    client.post(
+        f"/api/sessions/{created_session}/start",
+        headers=auth_headers(get_professor_token()),
+    )
 
     decision = {
         "wholesalePrice": 30.0,
@@ -291,13 +362,19 @@ def test_get_decisions(created_session):
         "internetPromotion": 0.0,
     }
 
-    client.post(f"/api/sessions/{created_session}/submit_decision", json={
+    client.post(
+        f"/api/sessions/{created_session}/submit_decision",
+        headers=auth_headers(get_student_token("student-1")),
+        json={
         "round": 1,
         "teamId": "Team Alpha",
         "decision": decision,
     })
 
-    response = client.get(f"/api/sessions/{created_session}/decisions/1")
+    response = client.get(
+        f"/api/sessions/{created_session}/decisions/1",
+        headers=auth_headers(get_professor_token()),
+    )
     assert response.status_code == 200
     data = response.json()
     assert "Team Alpha" in data["decisions"]
@@ -308,7 +385,10 @@ def test_get_decisions(created_session):
 
 def test_process_round_returns_results(created_session):
     """Test that processing a round returns valid results."""
-    client.post(f"/api/sessions/{created_session}/start")
+    client.post(
+        f"/api/sessions/{created_session}/start",
+        headers=auth_headers(get_professor_token()),
+    )
 
     decision = {
         "wholesalePrice": 30.0,
@@ -339,17 +419,28 @@ def test_process_round_returns_results(created_session):
     }
 
     # Team Alpha submits
-    client.post(f"/api/sessions/{created_session}/submit_decision", json={
+    client.post(
+        f"/api/sessions/{created_session}/submit_decision",
+        headers=auth_headers(get_student_token("student-1")),
+        json={
         "round": 1, "teamId": "Team Alpha", "decision": decision,
     })
+    client.post(
+        f"/api/sessions/{created_session}/submit_decision",
+        headers=auth_headers(get_student_token("student-2")),
+        json={
+        "round": 1, "teamId": "Team Beta", "decision": decision,
+    })
 
-    # Process round (Team Beta and Gamma are AI, will auto-generate)
-    response = client.post(f"/api/sessions/{created_session}/process_round")
+    # Process after both human teams submit; AI teams auto-generate.
+    response = client.post(
+        f"/api/sessions/{created_session}/process_round",
+        headers=auth_headers(get_professor_token()),
+    )
     assert response.status_code == 200
     data = response.json()
     assert data["round"] == 1
-    # Team Alpha (human) + Team Gamma (AI auto-generated) = 2 results
-    assert len(data["results"]) == 2
+    assert len(data["results"]) == 5
 
     # Verify result structure
     for result in data["results"]:
@@ -368,7 +459,10 @@ def test_process_round_returns_results(created_session):
 
 def test_process_round_advances_round(created_session):
     """Test that processing advances to the next round."""
-    client.post(f"/api/sessions/{created_session}/start")
+    client.post(
+        f"/api/sessions/{created_session}/start",
+        headers=auth_headers(get_professor_token()),
+    )
 
     decision = {
         "wholesalePrice": 30.0,
@@ -398,14 +492,32 @@ def test_process_round_advances_round(created_session):
         "internetPromotion": 0.0,
     }
 
-    client.post(f"/api/sessions/{created_session}/submit_decision", json={
+    client.post(
+        f"/api/sessions/{created_session}/submit_decision",
+        headers=auth_headers(get_student_token("student-1")),
+        json={
         "round": 1, "teamId": "Team Alpha", "decision": decision,
     })
 
-    client.post(f"/api/sessions/{created_session}/process_round")
+    client.post(
+        f"/api/sessions/{created_session}/submit_decision",
+        headers=auth_headers(get_student_token("student-2")),
+        json={
+        "round": 1, "teamId": "Team Beta", "decision": decision,
+    })
+
+    client.post(
+        f"/api/sessions/{created_session}/process_round",
+        headers=auth_headers(get_professor_token()),
+    )
 
     # Now we should be in round 2
-    response = client.get(f"/api/sessions/{created_session}/status")
+    token = get_professor_token()
+    response = client.get(
+        f"/api/sessions/{created_session}/status",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
     data = response.json()
     assert data["currentRound"] == 2
 
@@ -414,7 +526,10 @@ def test_process_round_advances_round(created_session):
 
 def test_get_results(created_session):
     """Test retrieving round results."""
-    client.post(f"/api/sessions/{created_session}/start")
+    client.post(
+        f"/api/sessions/{created_session}/start",
+        headers=auth_headers(get_professor_token()),
+    )
 
     decision = {
         "wholesalePrice": 30.0,
@@ -444,24 +559,41 @@ def test_get_results(created_session):
         "internetPromotion": 0.0,
     }
 
-    client.post(f"/api/sessions/{created_session}/submit_decision", json={
+    client.post(
+        f"/api/sessions/{created_session}/submit_decision",
+        headers=auth_headers(get_student_token("student-1")),
+        json={
         "round": 1, "teamId": "Team Alpha", "decision": decision,
     })
-    client.post(f"/api/sessions/{created_session}/process_round")
+    client.post(
+        f"/api/sessions/{created_session}/submit_decision",
+        headers=auth_headers(get_student_token("student-2")),
+        json={
+        "round": 1, "teamId": "Team Beta", "decision": decision,
+    })
+    client.post(
+        f"/api/sessions/{created_session}/process_round",
+        headers=auth_headers(get_professor_token()),
+    )
 
-    response = client.get(f"/api/sessions/{created_session}/results")
+    response = client.get(
+        f"/api/sessions/{created_session}/results",
+        headers=auth_headers(get_professor_token()),
+    )
     assert response.status_code == 200
     data = response.json()
     assert "1" in data["results"]  # Round 1 results
-    # Team Alpha (human) + Team Gamma (AI auto-generated) = 2 results
-    assert len(data["results"]["1"]) == 2
+    assert len(data["results"]["1"]) == 5
 
 
 # ── Announcements ──────────────────────────────────────────────────────────
 
 def test_create_announcement(created_session):
     """Test creating an announcement."""
-    response = client.post(f"/api/sessions/{created_session}/announcements", json={
+    response = client.post(
+        f"/api/sessions/{created_session}/announcements",
+        headers=auth_headers(get_professor_token()),
+        json={
         "message": "Round 1 is starting!",
         "authorId": "professor-1",
         "authorName": "Prof. Smith",
@@ -476,13 +608,19 @@ def test_get_announcements(created_session):
     """Test retrieving announcements."""
     # Create some announcements
     for i in range(3):
-        client.post(f"/api/sessions/{created_session}/announcements", json={
+        client.post(
+        f"/api/sessions/{created_session}/announcements",
+        headers=auth_headers(get_professor_token()),
+        json={
             "message": f"Announcement {i+1}",
             "authorId": "professor-1",
             "authorName": "Prof. Smith",
         })
 
-    response = client.get(f"/api/sessions/{created_session}/announcements")
+    response = client.get(
+        f"/api/sessions/{created_session}/announcements",
+        headers=auth_headers(get_professor_token()),
+    )
     assert response.status_code == 200
     announcements = response.json()
     assert len(announcements) == 3
@@ -493,16 +631,22 @@ def test_get_announcements(created_session):
 
 def test_leaderboard_empty(created_session):
     """Test leaderboard with no rounds played."""
-    response = client.get(f"/api/sessions/{created_session}/leaderboard")
+    response = client.get(
+        f"/api/sessions/{created_session}/leaderboard",
+        headers=auth_headers(get_professor_token()),
+    )
     assert response.status_code == 200
     data = response.json()
     assert "leaderboard" in data
-    assert len(data["leaderboard"]) == 3
+    assert len(data["leaderboard"]) == 5
 
 
 def test_leaderboard_ordering(created_session):
     """Test leaderboard is sorted by total score."""
-    client.post(f"/api/sessions/{created_session}/start")
+    client.post(
+        f"/api/sessions/{created_session}/start",
+        headers=auth_headers(get_professor_token()),
+    )
 
     decision = {
         "wholesalePrice": 30.0,
@@ -532,29 +676,44 @@ def test_leaderboard_ordering(created_session):
         "internetPromotion": 0.0,
     }
 
-    client.post(f"/api/sessions/{created_session}/submit_decision", json={
+    client.post(
+        f"/api/sessions/{created_session}/submit_decision",
+        headers=auth_headers(get_student_token("student-1")),
+        json={
         "round": 1, "teamId": "Team Alpha", "decision": decision,
     })
-    client.post(f"/api/sessions/{created_session}/process_round")
+    client.post(
+        f"/api/sessions/{created_session}/submit_decision",
+        headers=auth_headers(get_student_token("student-2")),
+        json={
+        "round": 1, "teamId": "Team Beta", "decision": decision,
+    })
+    client.post(
+        f"/api/sessions/{created_session}/process_round",
+        headers=auth_headers(get_professor_token()),
+    )
 
-    response = client.get(f"/api/sessions/{created_session}/leaderboard")
+    response = client.get(
+        f"/api/sessions/{created_session}/leaderboard",
+        headers=auth_headers(get_professor_token()),
+    )
     assert response.status_code == 200
     data = response.json()
     leaderboard = data["leaderboard"]
-    assert len(leaderboard) == 3
-    # Check ranking
-    assert leaderboard[0]["rank"] == 1
-    assert leaderboard[1]["rank"] == 2
-    assert leaderboard[2]["rank"] == 3
-    # Scores should be descending
-    assert leaderboard[0]["totalScore"] >= leaderboard[1]["totalScore"]
+    assert len(leaderboard) == 5
+    assert [entry["rank"] for entry in leaderboard] == [1, 2, 3, 4, 5]
+    scores = [entry["totalScore"] for entry in leaderboard]
+    assert scores == sorted(scores, reverse=True)
 
 
 # ── Session end ────────────────────────────────────────────────────────────
 
 def test_end_session(created_session):
     """Test ending a session."""
-    client.post(f"/api/sessions/{created_session}/start")
+    client.post(
+        f"/api/sessions/{created_session}/start",
+        headers=auth_headers(get_professor_token()),
+    )
 
     decision = {
         "wholesalePrice": 30.0,
@@ -584,12 +743,27 @@ def test_end_session(created_session):
         "internetPromotion": 0.0,
     }
 
-    client.post(f"/api/sessions/{created_session}/submit_decision", json={
+    client.post(
+        f"/api/sessions/{created_session}/submit_decision",
+        headers=auth_headers(get_student_token("student-1")),
+        json={
         "round": 1, "teamId": "Team Alpha", "decision": decision,
     })
-    client.post(f"/api/sessions/{created_session}/process_round")
+    client.post(
+        f"/api/sessions/{created_session}/submit_decision",
+        headers=auth_headers(get_student_token("student-2")),
+        json={
+        "round": 1, "teamId": "Team Beta", "decision": decision,
+    })
+    client.post(
+        f"/api/sessions/{created_session}/process_round",
+        headers=auth_headers(get_professor_token()),
+    )
 
-    response = client.post(f"/api/sessions/{created_session}/end")
+    response = client.post(
+        f"/api/sessions/{created_session}/end",
+        headers=auth_headers(get_professor_token()),
+    )
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "ended"
@@ -601,10 +775,11 @@ def test_end_session(created_session):
 
 # ── Status endpoint ────────────────────────────────────────────────────────
 
-def test_session_status(created_session):
-    """Test session status endpoint."""
+def test_session_status(created_session, professor_token):
+    """Test authenticated session status endpoint."""
+    headers = {"Authorization": f"Bearer {professor_token}"}
     # Before starting
-    response = client.get(f"/api/sessions/{created_session}/status")
+    response = client.get(f"/api/sessions/{created_session}/status", headers=headers)
     assert response.status_code == 200
     data = response.json()
     assert data["code"] == created_session
@@ -612,8 +787,136 @@ def test_session_status(created_session):
     assert data["currentRound"] == 0
 
     # After starting
-    client.post(f"/api/sessions/{created_session}/start")
-    response = client.get(f"/api/sessions/{created_session}/status")
+    client.post(
+        f"/api/sessions/{created_session}/start",
+        headers=auth_headers(get_professor_token()),
+    )
+    response = client.get(f"/api/sessions/{created_session}/status", headers=headers)
     data = response.json()
     assert data["state"] == "active"
     assert data["currentRound"] == 1
+
+
+def _cohort_decision(student_index: int, round_num: int) -> dict:
+    """Full modern PlayerDecision payload with deterministic strategy variation."""
+    strategy = student_index % 5
+    return {
+        "wholesalePrice": 22.0 + strategy * 4 + round_num * 0.15,
+        "internetPrice": 24.0 + strategy * 4 + round_num * 0.15,
+        "amazonPrice": 25.0 + strategy * 4 + round_num * 0.15,
+        "materialsQuality": 0.25 + strategy * 0.15,
+        "stylingBudget": 40000.0 + strategy * 15000,
+        "numModels": 3 + strategy,
+        "tqmInvestment": 25000.0 + strategy * 10000,
+        "rdInvestment": 30000.0 + strategy * 12000,
+        "marketingInvestment": 45000.0 + strategy * 15000,
+        "advertisingBudget": 30000.0 + strategy * 10000,
+        "celebrityType": ["none", "local", "local", "national", "national"][strategy],
+        "socialMediaBudget": {
+            "tiktok": 5000.0 + strategy * 1500,
+            "instagram": 6000.0 + strategy * 1700,
+            "youtube": 4000.0 + strategy * 1200,
+        },
+        "baseWage": 18000.0 + strategy * 1500,
+        "incentivePay": 500.0 + strategy * 250,
+        "trainingBudget": 12000.0 + strategy * 4000,
+        "productionQuantity": 6500 + strategy * 600,
+        "overtimePercent": min(20, strategy * 4),
+        "csrInvestment": 5000.0 + strategy * 3000,
+        "dividendsPerShare": strategy * 0.1,
+        "newLoanAmount": 0.0,
+        "sharesBuyback": 0,
+        "sharesIssued": 0,
+        "retailOutlets": 4 + strategy,
+        "fulfillmentMethod": "fba" if strategy >= 2 else "fbm",
+        "internetPromotion": 0.10 + strategy * 0.05,
+    }
+
+
+def test_authoritative_20_students_complete_8_rounds(professor_token):
+    """API E2E: 20 unique teams submit 160 decisions; backend processes exactly once/round."""
+    headers = {"Authorization": f"Bearer {professor_token}"}
+    create = client.post("/api/sessions", json={
+        "config": {
+            "totalRounds": 8,
+            "numberOfAICompetitors": 3,
+            "randomSeed": 20260716,
+            "startingCash": 500000.0,
+            "initialEquity": 300000.0,
+            "plantCapacity": 12000,
+            "baseMarketDemand": 50000,
+        },
+        "teams": [],
+        "created_by": "qa-professor",
+        "maxHumanTeams": 30,
+    }, headers=headers)
+    assert create.status_code == 201, create.text
+    code = create.json()["code"]
+
+    team_ids = []
+    cohort_tokens = {}
+    for index in range(1, 21):
+        student_id = f"STU{index:03d}"
+        cohort_tokens[student_id] = register_student_token(student_id)
+        team_name = f"Team-STU{index:03d}"
+        joined = client.put(
+            f"/api/sessions/{code}/join",
+            headers=auth_headers(cohort_tokens[student_id]),
+            json={
+            "teamName": team_name,
+            "studentId": student_id,
+        })
+        assert joined.status_code == 200, joined.text
+        assert joined.json()["teamId"] == team_name
+        team_ids.append(team_name)
+
+    process_calls = 0
+    for round_num in range(1, 9):
+        for index, team_id in enumerate(team_ids, start=1):
+            student_id = f"STU{index:03d}"
+            submitted = client.post(
+                f"/api/sessions/{code}/submit_decision",
+                headers=auth_headers(cohort_tokens[student_id]),
+                json={
+                "round": round_num,
+                "teamId": team_id,
+                "decision": _cohort_decision(index, round_num),
+            })
+            assert submitted.status_code == 200, submitted.text
+            assert submitted.json()["teamId"] == team_id
+
+        before = client.get(f"/api/sessions/{code}/status", headers=headers)
+        assert before.status_code == 200, before.text
+        assert before.json()["currentRound"] == round_num
+        assert before.json()["teamsSubmitted"] == 20
+
+        processed = client.post(
+            f"/api/sessions/{code}/process_round",
+            headers=headers,
+        )
+        process_calls += 1
+        assert processed.status_code == 200, processed.text
+        body = processed.json()
+        assert body["round"] == round_num
+        assert len(body["results"]) == 23  # 20 humans + 3 AI
+        assert len({result["teamId"] for result in body["results"]}) == 23
+
+        after = client.get(f"/api/sessions/{code}/status", headers=headers)
+        assert after.status_code == 200, after.text
+        expected_round = round_num + 1 if round_num < 8 else 8
+        assert after.json()["currentRound"] == expected_round
+        assert after.json()["state"] == ("active" if round_num < 8 else "finished")
+
+    assert process_calls == 8
+    results = client.get(f"/api/sessions/{code}/results", headers=headers)
+    assert results.status_code == 200
+    assert set(results.json()["results"]) == {str(n) for n in range(1, 9)}
+    assert all(len(entries) == 23 for entries in results.json()["results"].values())
+
+    leaderboard = client.get(f"/api/sessions/{code}/leaderboard", headers=headers)
+    assert leaderboard.status_code == 200
+    entries = leaderboard.json()["leaderboard"]
+    assert len(entries) == 23
+    assert [entry["rank"] for entry in entries] == list(range(1, 24))
+    scores = [entry["totalScore"] for entry in entries]
+    assert scores == sorted(scores, reverse=True)

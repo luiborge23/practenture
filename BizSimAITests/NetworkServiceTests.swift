@@ -16,11 +16,15 @@ final class NetworkServiceTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        networkService = NetworkService.shared
+        DeterministicURLProtocol.handler = nil
+        networkService = NetworkService(
+            configuration: DeterministicURLProtocol.configuration(),
+            baseURLOverride: "https://unit-test.invalid"
+        )
     }
 
     override func tearDown() {
-        // Clean up any environment overrides
+        DeterministicURLProtocol.handler = nil
         super.tearDown()
     }
 
@@ -71,48 +75,36 @@ final class NetworkServiceTests: XCTestCase {
 
     // MARK: - Auth Token Attachment Tests
 
-    /// Test that auth token is attached to requests when AuthManager has a token.
+    /// Exercise the real request pipeline with an injected token. This remains
+    /// deterministic when the simulator XCTest host has no Keychain entitlement.
     func testAuthTokenAttachedToRequests() async {
-        // Arrange: set a token in AuthManager
-        AuthManager.shared.setAccessToken("test_bearer_token_123")
-
-        // Act: create a request through NetworkService and verify the header
-        let url = URL(string: networkService.baseURL + "/api/health")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        if let token = AuthManager.shared.accessToken, !token.isEmpty {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        DeterministicURLProtocol.handler = { request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"),
+                           "Bearer test_bearer_token_123")
+            return DeterministicURLProtocol.response(for: request, statusCode: 200, json: "{}")
         }
-
-        // Assert: Authorization header should be set
-        let authHeader = request.value(forHTTPHeaderField: "Authorization")
-        XCTAssertNotNil(authHeader, "Authorization header should be present when token exists")
-        XCTAssertEqual(authHeader, "Bearer test_bearer_token_123",
-                       "Authorization header should be 'Bearer <token>'")
-
-        // Cleanup
-        AuthManager.shared.setAccessToken("")
+        let service = NetworkService(
+            configuration: DeterministicURLProtocol.configuration(),
+            baseURLOverride: "https://unit.test",
+            authTokenProvider: { "test_bearer_token_123" }
+        )
+        let isHealthy = await service.healthCheck()
+        XCTAssertTrue(isHealthy)
     }
 
-    /// Test that no auth token is attached when AuthManager has no token.
-    func testNoAuthTokenWhenNotAuthenticated() {
-        // Arrange: clear the token
-        AuthManager.shared.setAccessToken("")
-
-        // Act: create a request
-        let url = URL(string: networkService.baseURL + "/api/health")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-
-        if let token = AuthManager.shared.accessToken, !token.isEmpty {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    /// Exercise the same request pipeline with no token available.
+    func testNoAuthTokenWhenNotAuthenticated() async {
+        DeterministicURLProtocol.handler = { request in
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+            return DeterministicURLProtocol.response(for: request, statusCode: 200, json: "{}")
         }
-
-        // Assert: no Authorization header
-        let authHeader = request.value(forHTTPHeaderField: "Authorization")
-        XCTAssertNil(authHeader, "No Authorization header when no token is set")
+        let service = NetworkService(
+            configuration: DeterministicURLProtocol.configuration(),
+            baseURLOverride: "https://unit.test",
+            authTokenProvider: { nil }
+        )
+        let isHealthy = await service.healthCheck()
+        XCTAssertTrue(isHealthy)
     }
 
     // MARK: - Timeout Configuration Tests
@@ -177,20 +169,75 @@ final class NetworkServiceTests: XCTestCase {
 
         let serverError = NetworkError.serverError(500, "Internal Server Error")
         XCTAssertEqual(serverError.errorDescription,
-                       "Server error (500): Internal Server Error")
+                       "A server error occurred. Please try again later.")
     }
 
     // MARK: - Health Check Tests
 
-    /// Test that healthCheck returns false when server is unreachable.
-    func testHealthCheckReturnsFalseWhenUnreachable() async {
-        // In a test environment without a running server,
-        // healthCheck should return false.
+    /// A deterministic client error is handled as an unhealthy backend. The
+    /// custom URL protocol guarantees this test never touches production.
+    func testHealthCheckReturnsFalseForStubbedFailure() async {
+        DeterministicURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/health")
+            return DeterministicURLProtocol.response(
+                for: request,
+                statusCode: 400,
+                json: #"{"detail":"fixture failure"}"#
+            )
+        }
+
         let result = await networkService.healthCheck()
-        // In test env, no server is running, so result should be false
-        // (unless the test device has a local server on port 8005)
-        // We test the return type and behavior pattern.
-        XCTAssertFalse(result, "Health check should return false when no server is running")
+        XCTAssertFalse(result)
+    }
+
+    func testHealthCheckReturnsTrueForStubbedSuccess() async {
+        DeterministicURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/health")
+            return DeterministicURLProtocol.response(for: request, statusCode: 200, json: "{}")
+        }
+
+        let result = await networkService.healthCheck()
+        XCTAssertTrue(result)
+    }
+
+    func testMFAVerifyResponseDecodesTypedSnakeCaseContract() async throws {
+        DeterministicURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/auth/mfa/verify")
+            XCTAssertEqual(request.httpMethod, "POST")
+            return DeterministicURLProtocol.response(
+                for: request,
+                statusCode: 200,
+                json: #"{"status":"enabled","backup_codes":["alpha","beta"]}"#
+            )
+        }
+
+        let response: MFAVerifyResponse = try await networkService.post(
+            "/api/auth/mfa/verify",
+            body: MFAVerifyRequest(code: "123456")
+        )
+        XCTAssertEqual(response.status, "enabled")
+        XCTAssertEqual(response.backupCodes, ["alpha", "beta"])
+    }
+
+    func testMFADisableSendsRequiredEmptyJSONObject() async throws {
+        DeterministicURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/auth/mfa/disable")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(
+                try DeterministicURLProtocol.bodyData(for: request),
+                Data("{}".utf8)
+            )
+            return DeterministicURLProtocol.response(
+                for: request,
+                statusCode: 200,
+                json: #"{"status":"disabled"}"#
+            )
+        }
+
+        try await networkService.postVoid(
+            "/api/auth/mfa/disable",
+            body: EmptyBody()
+        )
     }
 
     // MARK: - Request Construction Tests

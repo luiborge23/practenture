@@ -257,6 +257,19 @@ class MFADisableRequest(BaseModel):
     password: Optional[str] = None
 
 
+class MFAVerifyResponse(BaseModel):
+    status: str
+    backup_codes: list[str]
+
+
+class MFAStatusResponse(BaseModel):
+    enabled: bool
+
+
+class MFAStatusMutationResponse(BaseModel):
+    status: str
+
+
 @router.post("/mfa/setup", response_model=MFASetupResponse)
 async def setup_mfa(user=Depends(get_current_user)):
     """Generate a new TOTP secret for the current user (not yet enabled)."""
@@ -272,7 +285,7 @@ async def setup_mfa(user=Depends(get_current_user)):
     return MFASetupResponse(secret=secret, qr_code_url=qr_url, backup_codes=backup)
 
 
-@router.post("/mfa/verify")
+@router.post("/mfa/verify", response_model=MFAVerifyResponse)
 async def verify_mfa(req: MFAVerifyRequest, user=Depends(get_current_user)):
     """Verify a TOTP code and enable MFA for the user."""
     from mfa import verify_totp, generate_backup_codes
@@ -293,19 +306,23 @@ async def verify_mfa(req: MFAVerifyRequest, user=Depends(get_current_user)):
     return {"status": "enabled", "backup_codes": backup}
 
 
-@router.post("/mfa/disable")
+@router.post("/mfa/disable", response_model=MFAStatusMutationResponse)
 async def disable_mfa(req: MFADisableRequest, user=Depends(get_current_user)):
-    """Disable MFA for the current user."""
+    """Disable MFA for the current user. Requires password re-authentication."""
     from database import db
     from audit import log_event
+    from security import verify_password
 
     user_id = user["sub"]
+    user_row = db.get_user(user["username"])
+    if not user_row or not verify_password(req.password or "", str(user_row.get("password_hash") or "")):
+        raise HTTPException(status_code=403, detail="Password verification failed")
     db.disable_mfa(user_id)
     log_event(actor=user_id, action="mfa_disabled")
     return {"status": "disabled"}
 
 
-@router.get("/mfa/status")
+@router.get("/mfa/status", response_model=MFAStatusResponse)
 async def mfa_status(user=Depends(get_current_user)):
     """Check if MFA is enabled for the current user."""
     from database import db
@@ -342,11 +359,8 @@ async def forgot_password(req: ForgotPasswordRequest):
         # Store the reset token (invalidates any previous ones for this user)
         db.create_reset_token(row["username"], token_hash, expires_in_hours=1)
 
-    # Return the raw token so the client can display it to the user.
-    # Without an email service, we show the token directly — this is fine for dev/demo.
-    if raw_token:
-        return ForgotPasswordResponse(status="email_sent", token=raw_token)
-    # Always return success to prevent email enumeration when no user found
+    # Always return success to prevent email enumeration when no user found.
+    # Token is NOT returned in the response — it must be delivered out-of-band (email).
     return ForgotPasswordResponse(status="email_sent", token=None)
 
 

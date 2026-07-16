@@ -124,6 +124,12 @@ struct MFAVerifyRequest: Encodable {
     let code: String
 }
 
+/// MFA verification response from /api/auth/mfa/verify.
+struct MFAVerifyResponse: Decodable {
+    let status: String
+    let backupCodes: [String]
+}
+
 /// MFA disable request (requires password confirmation)
 struct MFADisableRequest: Encodable {
     let password: String

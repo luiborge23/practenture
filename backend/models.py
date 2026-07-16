@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ── Enums ──────────────────────────────────────────────────────────────────
@@ -18,22 +18,211 @@ class SessionState(str, Enum):
     FINISHED = "finished"
 
 
-class CelebrityType(str, Enum):
-    NONE = "none"
-    ATHLETE = "athlete"
-    MUSICIAN = "musician"
-    ACTOR = "actor"
-    SOCIAL_INFLUENCER = "social_influencer"
-    CEO = "ceo"
+# ── Configuration Enums ───────────────────────────────────────────────────
 
+class MarketType(str, Enum):
+    conservative = "conservative"
+    moderate = "moderate"
+    aggressive = "aggressive"
+
+    @property
+    def demand_multiplier(self) -> float:
+        return {"conservative": 0.8, "moderate": 1.0, "aggressive": 1.3}[self.value]
+
+    @property
+    def volatility(self) -> float:
+        return {"conservative": 0.05, "moderate": 0.10, "aggressive": 0.20}[self.value]
+
+
+class AIDifficulty(str, Enum):
+    easy = "easy"
+    medium = "medium"
+    hard = "hard"
+
+
+class ScoringMetric(str, Enum):
+    investorScore = "investor_score"
+    cumulativeProfit = "cumulative_profit"
+    revenue = "revenue"
+    composite = "composite"
+
+
+# ── Materials Quality ─────────────────────────────────────────────────────
+
+class MaterialsQuality(str, Enum):
+    standard = "standard"
+    superior = "superior"
+
+    @property
+    def cost_multiplier(self) -> float:
+        return {"standard": 1.0, "superior": 1.4}[self.value]
+
+    @property
+    def sq_bonus(self) -> float:
+        return {"standard": 0.0, "superior": 2.0}[self.value]
+
+
+# ── Celebrity Endorsement ────────────────────────────────────────────────
+
+class CelebrityEndorsement(str, Enum):
+    none = "none"
+    local = "local"
+    national = "national"
+    global_ = "global"  # renamed from 'global' to avoid Python keyword
+
+    @property
+    def annual_cost(self) -> float:
+        return {"none": 0, "local": 5_000, "national": 15_000, "global": 35_000}[self.value]
+
+    @property
+    def demand_boost(self) -> float:
+        return {"none": 1.0, "local": 1.08, "national": 1.18, "global": 1.30}[self.value]
+
+    @property
+    def image_boost(self) -> float:
+        return {"none": 0, "local": 3, "national": 8, "global": 15}[self.value]
+
+
+# ── Delivery Time ────────────────────────────────────────────────────────
+
+class DeliveryTime(str, Enum):
+    standard = "standard"
+    rush = "rush"
+
+    @property
+    def cost_per_unit(self) -> float:
+        return {"standard": 0, "rush": 2.0}[self.value]
+
+    @property
+    def demand_boost(self) -> float:
+        return {"standard": 1.0, "rush": 1.06}[self.value]
+
+
+# ── Influencer Tier ──────────────────────────────────────────────────────
+
+class InfluencerTier(str, Enum):
+    none = "none"
+    nano = "nano"       # 1K-10K followers, highest engagement
+    micro = "micro"     # 10K-100K followers
+    macro = "macro"     # 100K-1M followers
+    mega = "mega"       # 1M+ followers, lowest engagement but max reach
+
+    @property
+    def cost_per_influencer(self) -> float:
+        return {"none": 0, "nano": 300, "micro": 2_500, "macro": 15_000, "mega": 50_000}[self.value]
+
+    @property
+    def engagement_rate(self) -> float:
+        return {"none": 0, "nano": 0.065, "micro": 0.04, "macro": 0.02, "mega": 0.01}[self.value]
+
+    @property
+    def reach_multiplier(self) -> float:
+        return {"none": 0, "nano": 1.0, "micro": 5.0, "macro": 25.0, "mega": 100.0}[self.value]
+
+    @property
+    def image_boost(self) -> float:
+        return {"none": 0, "nano": 1, "micro": 3, "macro": 6, "mega": 10}[self.value]
+
+
+# ── Fulfillment Method ───────────────────────────────────────────────────
 
 class FulfillmentMethod(str, Enum):
-    FBM = "fbm"       # First Merchant/Business Model
-    FBA = "fba"       # Amazon Fulfillment
-    OWN_STORE = "own_store"
+    fba = "fba"       # Fulfilled by Amazon — higher fees, higher Buy Box win rate
+    fbm = "fbm"       # Fulfilled by Merchant — lower fees, lower visibility
+
+    @property
+    def fee_per_unit(self) -> float:
+        return {"fba": 4.50, "fbm": 1.50}[self.value]
+
+    @property
+    def buy_box_multiplier(self) -> float:
+        return {"fba": 1.25, "fbm": 0.85}[self.value]
+
+    @property
+    def trust_multiplier(self) -> float:
+        return {"fba": 1.15, "fbm": 1.0}[self.value]
 
 
-# ── Session Configuration ──────────────────────────────────────────────────
+# ── Credit Rating ────────────────────────────────────────────────────────
+
+class CreditRating(str, Enum):
+    a_plus = "A+"
+    a = "A"
+    a_minus = "A-"
+    b_plus = "B+"
+    b = "B"
+    b_minus = "B-"
+    c_plus = "C+"
+    c = "C"
+    c_minus = "C-"
+
+    @property
+    def investor_score(self) -> float:
+        return {
+            "A+": 20, "A": 18, "A-": 16,
+            "B+": 13, "B": 10, "B-": 7,
+            "C+": 4, "C": 2, "C-": 0,
+        }[self.value]
+
+    @property
+    def interest_rate_multiplier(self) -> float:
+        return {
+            "A+": 0.8, "A": 0.9, "A-": 1.0,
+            "B+": 1.15, "B": 1.3, "B-": 1.5,
+            "C+": 1.8, "C": 2.2, "C-": 3.0,
+        }[self.value]
+
+    @classmethod
+    def from_financials(cls, debt_to_equity: float, interest_coverage: float, cash_ratio: float) -> "CreditRating":
+        """Compute credit rating from financial ratios (iOS lines 427-431)."""
+        # Exact Swift additive 100-point financial-health table.
+        if debt_to_equity < 0.3:
+            score = 40.0
+        elif debt_to_equity < 0.5:
+            score = 35.0
+        elif debt_to_equity < 0.8:
+            score = 25.0
+        elif debt_to_equity < 1.2:
+            score = 15.0
+        else:
+            score = 5.0
+
+        if interest_coverage > 8:
+            score += 35.0
+        elif interest_coverage > 5:
+            score += 30.0
+        elif interest_coverage > 3:
+            score += 20.0
+        elif interest_coverage > 1.5:
+            score += 10.0
+
+        if cash_ratio > 0.5:
+            score += 25.0
+        elif cash_ratio > 0.3:
+            score += 20.0
+        elif cash_ratio > 0.15:
+            score += 10.0
+
+        if score >= 90:
+            return cls.a_plus
+        if score >= 80:
+            return cls.a
+        if score >= 70:
+            return cls.a_minus
+        if score >= 60:
+            return cls.b_plus
+        if score >= 50:
+            return cls.b
+        if score >= 40:
+            return cls.b_minus
+        if score >= 30:
+            return cls.c_plus
+        if score >= 15:
+            return cls.c
+        return cls.c_minus
+
+
+# ── Session Configuration ─────────────────────────────────────────────────
 
 class SessionConfiguration(BaseModel):
     totalRounds: int = Field(default=20, ge=1, le=50)
@@ -48,6 +237,18 @@ class SessionConfiguration(BaseModel):
     minDividend: float = Field(default=0.0, ge=0)
     maxDividend: float = Field(default=5.0, ge=0)
 
+    # iOS-mapped fields
+    marketType: MarketType = Field(default=MarketType.moderate)
+    aiDifficulty: AIDifficulty = Field(default=AIDifficulty.medium)
+    scoringMetric: ScoringMetric = Field(default=ScoringMetric.investorScore)
+    fixedCostsPerRound: float = Field(default=5000.0, gt=0)
+    baseCostPerUnit: float = Field(default=30.0, gt=0)
+    baseMarketDemand: int = Field(default=10000, ge=100)
+    sharesOutstanding: int = Field(default=10000, ge=1)
+    baseInterestRate: float = Field(default=0.06, gt=0)
+
+
+# ── Team Config ───────────────────────────────────────────────────────────
 
 class TeamConfig(BaseModel):
     teamName: str
@@ -56,57 +257,133 @@ class TeamConfig(BaseModel):
     studentId: Optional[str] = None
 
 
-# ── Player Decisions ───────────────────────────────────────────────────────
+# ── Player Decisions ─────────────────────────────────────────────────────
 
 class SocialMediaBudget(BaseModel):
     tiktok: float = Field(default=0.0, ge=0)
     instagram: float = Field(default=0.0, ge=0)
     youtube: float = Field(default=0.0, ge=0)
 
+    @property
+    def total(self) -> float:
+        return self.tiktok + self.instagram + self.youtube
+
 
 class PlayerDecision(BaseModel):
-    # Pricing
-    wholesalePrice: float = Field(default=28.0, gt=0)
-    internetPrice: float = Field(default=30.0, gt=0)
-    amazonPrice: float = Field(default=32.0, gt=0)
+    @model_validator(mode="before")
+    @classmethod
+    def translate_legacy_payload(cls, value: Any) -> Any:
+        """Translate the production iOS decision contract to modern fields."""
+        if not isinstance(value, dict):
+            return value
 
-    # Product decisions
-    materialsQuality: float = Field(default=0.5, ge=0, le=1)
-    stylingBudget: float = Field(default=100000.0, ge=0)
-    numModels: int = Field(default=2, ge=0, le=20)
+        data = dict(value)
 
-    # Quality & R&D
-    tqmInvestment: float = Field(default=0.0, ge=0)
-    rdInvestment: float = Field(default=0.0, ge=0)
+        # The legacy client encoded quality on a 0...1 scale.  Its Swift
+        # decoder used > 0.75 for superior and standard otherwise.
+        quality = data.get("materialsQuality")
+        if isinstance(quality, (int, float)) and not isinstance(quality, bool):
+            data["materialsQuality"] = (
+                MaterialsQuality.superior.value
+                if quality > 0.75
+                else MaterialsQuality.standard.value
+            )
 
-    # Marketing & Advertising
-    marketingInvestment: float = Field(default=150000.0, ge=0)
-    advertisingBudget: float = Field(default=80000.0, ge=0)
-    celebrityType: str = "none"
-    socialMediaBudget: SocialMediaBudget = Field(default_factory=SocialMediaBudget)
+        # Modern values always win when a transition payload contains both.
+        if "modelsOffered" not in data and "numModels" in data:
+            # The legacy Swift decoder clamped the old count to at least one.
+            data["modelsOffered"] = max(1, data["numModels"])
 
-    # HR decisions
-    baseWage: float = Field(default=25000.0, gt=0)
-    incentivePay: float = Field(default=0.0, ge=0)
-    trainingBudget: float = Field(default=0.0, ge=0)
+        if "celebrityEndorsement" not in data and "celebrityType" in data:
+            # These are the exact mappings used by NetworkService.swift.
+            celebrity_map = {
+                "none": CelebrityEndorsement.none.value,
+                "athlete": CelebrityEndorsement.local.value,
+                "musician": CelebrityEndorsement.national.value,
+                "actor": CelebrityEndorsement.global_.value,
+            }
+            legacy_celebrity = data["celebrityType"]
+            if legacy_celebrity in celebrity_map:
+                data["celebrityEndorsement"] = celebrity_map[legacy_celebrity]
 
-    # Production decisions
-    productionQuantity: int = Field(default=8000, ge=0)
-    overtimePercent: int = Field(default=0, ge=0, le=50)
+        if "trainingHours" not in data and "trainingBudget" in data:
+            # Legacy conversion used $50 per training hour.
+            data["trainingHours"] = max(0.0, data["trainingBudget"] / 50.0)
 
-    # CSR
-    csrInvestment: float = Field(default=0.0, ge=0)
+        social = data.get("socialMediaBudget")
+        if isinstance(social, SocialMediaBudget):
+            social = social.model_dump()
+        if isinstance(social, dict):
+            for legacy_key, modern_key in (
+                ("tiktok", "tiktokBudget"),
+                ("instagram", "instagramBudget"),
+                ("youtube", "youtubeBudget"),
+            ):
+                if modern_key not in data and legacy_key in social:
+                    data[modern_key] = social[legacy_key]
+        elif "socialMediaBudget" not in data:
+            # Keep the compatibility object useful when modern flat budgets
+            # are provided and the model is serialized back to JSON.
+            data["socialMediaBudget"] = {
+                "tiktok": data.get("tiktokBudget", 0.0),
+                "instagram": data.get("instagramBudget", 0.0),
+                "youtube": data.get("youtubeBudget", 0.0),
+            }
 
-    # Financial decisions
-    dividendsPerShare: float = Field(default=0.0, ge=0)
+        return data
+
+    # ── Pricing (PricingDecision) ───────────────────────────────────────
+    wholesalePrice: float = Field(default=80.0, gt=0)
+    internetPrice: float = Field(default=90.0, gt=0)
+    amazonPrice: float = Field(default=85.0, gt=0)
+    privateLabelBidPrice: float = Field(default=45.0, ge=0)
+    privateLabelMaxUnits: int = Field(default=50, ge=0)
+    amazonAdBudget: float = Field(default=0.0, ge=0)
+
+    # ── Product (ProductDecision) ───────────────────────────────────────
+    materialsQuality: MaterialsQuality = Field(default=MaterialsQuality.standard)
+    stylingBudget: float = Field(default=3000.0, ge=0)
+    modelsOffered: int = Field(default=3, ge=1)  # renamed from numModels
+    tqmInvestment: float = Field(default=2000.0, ge=0)
+
+    # ── Marketing (MarketingDecision) ───────────────────────────────────
+    advertisingBudget: float = Field(default=8000.0, ge=0)
+    celebrityEndorsement: CelebrityEndorsement = Field(default=CelebrityEndorsement.none)
+    retailOutlets: int = Field(default=20, ge=0)
+    mailInRebate: float = Field(default=0.0, ge=0)
+    deliveryTime: DeliveryTime = Field(default=DeliveryTime.standard)
+    freeShippingThreshold: float = Field(default=100.0, ge=0)
+    tiktokBudget: float = Field(default=0.0, ge=0)
+    instagramBudget: float = Field(default=0.0, ge=0)
+    youtubeBudget: float = Field(default=0.0, ge=0)
+    influencerTier: InfluencerTier = Field(default=InfluencerTier.none)
+
+    # ── Workforce (WorkforceDecision) ───────────────────────────────────
+    baseWage: float = Field(default=25000.0, ge=0)
+    incentivePay: float = Field(default=0.50, ge=0)  # per-unit incentive
+    trainingHours: float = Field(default=20.0, ge=0)  # hours per worker
+    bestPracticesInvestment: float = Field(default=1000.0, ge=0)
+
+    # ── Production (ProductionDecision) ─────────────────────────────────
+    productionQuantity: int = Field(default=200, ge=0)
+    overtimePercent: float = Field(default=0.0, ge=0, le=20)
+
+    # ── Finance (FinanceDecision) ───────────────────────────────────────
+    csrInvestment: float = Field(default=2000.0, ge=0)
+    dividendsPerShare: float = Field(default=0.50, ge=0)
     newLoanAmount: float = Field(default=0.0, ge=0)
     sharesBuyback: int = Field(default=0, ge=0)
     sharesIssued: int = Field(default=0, ge=0)
 
-    # Channel-specific
-    retailOutlets: int = Field(default=0, ge=0, le=50)
-    fulfillmentMethod: str = "fbm"
-    internetPromotion: float = Field(default=0.0, ge=0, le=1)
+    # ── Legacy compatibility (keep for old iOS clients) ─────────────────
+    numModels: int = Field(default=3, ge=0, le=20)  # deprecated → modelsOffered
+    rdInvestment: float = Field(default=0.0, ge=0)  # not used in iOS engine
+    marketingInvestment: float = Field(default=150000.0, ge=0)  # not used in iOS engine
+    socialMediaBudget: SocialMediaBudget = Field(default_factory=SocialMediaBudget)  # legacy
+    fulfillmentMethod: FulfillmentMethod = Field(default=FulfillmentMethod.fbm)  # Amazon channel
+    internetPromotion: float = Field(default=0.0, ge=0, le=1)  # not used in iOS engine
+
+    model_config = {"populate_by_name": True}
 
 
 # ── Simulation Results ─────────────────────────────────────────────────────
@@ -134,6 +411,7 @@ class RoundResult(BaseModel):
     roeScore: float = 0.0
     stockPriceScore: float = 0.0
     imageScore: float = 0.0
+    awarenessScore: float = 0.0
     creditScore: float = 0.0
     totalScore: float = 0.0
     # Detailed financials
@@ -196,6 +474,16 @@ class LeaderboardEntry(BaseModel):
 
 # ── Request / Response schemas ─────────────────────────────────────────────
 
+class TeamsResponse(BaseModel):
+    sessionId: str
+    teams: List[TeamConfig]
+
+
+class SessionResultsResponse(BaseModel):
+    sessionId: str
+    results: Dict[str, List[RoundResult]]
+
+
 class CreateSessionRequest(BaseModel):
     config: SessionConfiguration = Field(default_factory=SessionConfiguration)
     teams: List[TeamConfig] = []
@@ -242,6 +530,20 @@ class AdvanceResponse(BaseModel):
     round: int
     status: str
     results: Optional[List[RoundResult]] = None
+
+
+class HealthConfigResponse(BaseModel):
+    host: str
+    port: int
+    cors_origins: List[str]
+    jwt_secret_configured: bool
+    jwt_expiry_hours: str
+
+
+class HealthResponse(BaseModel):
+    status: str
+    service: str
+    config: HealthConfigResponse
 
 
 class EndSessionResponse(BaseModel):

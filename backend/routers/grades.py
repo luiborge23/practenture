@@ -3,16 +3,29 @@
 import csv
 import io
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 
+from auth import verify_professor
 from database import db
 from models import LeaderboardEntry
 
 router = APIRouter(tags=["grades"])
 
 
-@router.get("/api/sessions/{code}/export/grades")
-async def export_grades(code: str):
+def _verify_export_access(code: str, user: dict) -> None:
+    """Restrict grade exports to the owning professor or platform owner."""
+    if user.get("role") == "owner":
+        return
+    if db.get_session_professor_user_id(code) != user.get("sub"):
+        raise HTTPException(status_code=403, detail="Not your session")
+
+
+@router.get(
+    "/api/sessions/{code}/export/grades",
+    response_class=Response,
+    responses={200: {"content": {"text/csv": {"schema": {"type": "string"}}}}},
+)
+async def export_grades(code: str, user=Depends(verify_professor)):
     """Export all round results as CSV for a session.
     
     Returns a CSV file with columns:
@@ -23,6 +36,7 @@ async def export_grades(code: str):
     session = db.get_session(code)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    _verify_export_access(code, user)
 
     all_results = db.get_all_results(code)
     if not all_results:
@@ -92,12 +106,17 @@ async def export_grades(code: str):
     )
 
 
-@router.get("/api/sessions/{code}/export/leaderboard")
-async def export_leaderboard(code: str):
+@router.get(
+    "/api/sessions/{code}/export/leaderboard",
+    response_class=Response,
+    responses={200: {"content": {"text/csv": {"schema": {"type": "string"}}}}},
+)
+async def export_leaderboard(code: str, user=Depends(verify_professor)):
     """Export final leaderboard as CSV."""
     session = db.get_session(code)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    _verify_export_access(code, user)
 
     all_results = db.get_all_results(code)
     if not all_results:
@@ -116,6 +135,9 @@ async def export_leaderboard(code: str):
                     "totalScore": 0, "sqRating": 0, "reputation": 0,
                     "marketShare": 0,
                 }
+            team_data[r.teamId]["revenue"] = r.revenue
+            team_data[r.teamId]["costs"] = r.costs
+            team_data[r.teamId]["profit"] = r.profit
             team_data[r.teamId]["cumulativeProfit"] = r.cumulativeProfit
             team_data[r.teamId]["cash"] = r.cash
             team_data[r.teamId]["equity"] = r.equity

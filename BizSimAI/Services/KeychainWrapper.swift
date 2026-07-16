@@ -9,8 +9,9 @@ class KeychainWrapper {
         self.service = service
     }
     
-    func set(_ value: String, forKey key: String) {
-        let data = value.data(using: .utf8)!
+    @discardableResult
+    func set(_ value: String, forKey key: String) -> Bool {
+        guard let data = value.data(using: .utf8) else { return false }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -20,7 +21,9 @@ class KeychainWrapper {
         
         SecItemDelete(query as CFDictionary)
         let status = SecItemAdd(query as CFDictionary, nil)
-        assert(status == errSecSuccess, "Failed to write to keychain")
+        // A missing Keychain entitlement is expected in some XCTest hosts. Return
+        // failure to the caller instead of terminating the entire test process.
+        return status == errSecSuccess
     }
     
     func string(forKey key: String) -> String? {

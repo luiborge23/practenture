@@ -1,0 +1,28 @@
+# Mobile clients and Xcode artifacts are not part of the backend image
+BizSimAI/
+BizSimAITests/
+BizSimAIUITests/
+BizSimAI.xcodeproj/
+SourcePackages/
+android/
+DerivedData/
+*.xcworkspace
+
+# Local/generated data
+.git/
+.hermes/
+.venv/
+**/.venv/
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/data.db
+backend/parity/.build/
+
+# Documentation and development artifacts
+docs/
+PRD/
+fastlane/
+*.md
+*.png
+*.log

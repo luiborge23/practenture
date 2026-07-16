@@ -4,9 +4,30 @@ import pytest
 from fastapi.testclient import TestClient
 
 from main import app
+from database import db
 from starlette.websockets import WebSocketDisconnect
 
 client = TestClient(app)
+
+
+def auth_headers(token):
+    """Build an Authorization header for an access token."""
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture(autouse=True)
+def clean_phase5_auth_state(monkeypatch):
+    """Give each auth-contract test a known professor and isolated users."""
+    monkeypatch.setenv("BIZSIMAI_PROFESSOR_PASSWORD", "bizsimai2026")
+    conn = db._get_conn()
+    conn.execute("DELETE FROM class_enrollments")
+    conn.execute("DELETE FROM classes")
+    conn.execute("DELETE FROM professor_codes")
+    conn.execute("DELETE FROM users")
+    conn.commit()
+    from auth import ensure_professor
+    ensure_professor()
+    yield
 
 
 # ── Authentication Tests ──────────────────────────────────────────────────
@@ -186,14 +207,14 @@ def test_end_session_returns_results():
             {"teamName": "Beta", "studentId": "S002"},
         ],
         "created_by": "professor",
-    }, headers={"Authorization": f"Bearer {token}"})
+    }, headers=auth_headers(token))
     code = resp.json()["code"]
 
     # Start session
-    client.post(f"/api/sessions/{code}/start")
+    client.post(f"/api/sessions/{code}/start", headers=auth_headers(token))
 
     # End session (no rounds played yet, but should work)
-    resp = client.post(f"/api/sessions/{code}/end")
+    resp = client.post(f"/api/sessions/{code}/end", headers=auth_headers(token))
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "ended"

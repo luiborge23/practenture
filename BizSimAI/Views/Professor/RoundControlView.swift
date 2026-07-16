@@ -20,13 +20,23 @@ struct RoundControlView: View {
     @State private var teamSubmissions: [TeamSubmission] = []
 
     @State private var isProcessing: Bool = false
+    @State private var backendSubmittedCount: Int = 0
+    @State private var backendTeamCount: Int = 0
+    @State private var processingError: String?
+
+    private var isBackendSession: Bool {
+        guard let session = appState.activeSession else { return false }
+        return !session.sessionCode.isEmpty && session.sessionCode != session.id.uuidString
+    }
 
     private var submittedCount: Int {
-        teamSubmissions.filter(\.hasSubmitted).count
+        if isBackendSession { return backendSubmittedCount }
+        return teamSubmissions.filter(\.hasSubmitted).count
     }
 
     private var allSubmitted: Bool {
-        teamSubmissions.allSatisfy(\.hasSubmitted)
+        if isBackendSession { return backendTeamCount > 0 && backendSubmittedCount >= backendTeamCount }
+        return teamSubmissions.allSatisfy(\.hasSubmitted)
     }
 
     private var isLastRound: Bool {
@@ -38,7 +48,14 @@ struct RoundControlView: View {
             VStack(spacing: 20) {
                 roundDisplay
                 submissionStatus
-                teamSubmissionList
+                if !isBackendSession {
+                    teamSubmissionList
+                }
+                if let processingError {
+                    Text(processingError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
                 controlButtons
             }
             .padding(24)
@@ -57,9 +74,14 @@ struct RoundControlView: View {
         }
         .onAppear {
             loadFromSession()
+            if isBackendSession { Task { await loadFromBackend() } }
         }
         .onReceive(Timer.publish(every: 5, on: .main, in: .common).autoconnect()) { _ in
-            loadFromSession()
+            if isBackendSession {
+                Task { await loadFromBackend() }
+            } else {
+                loadFromSession()
+            }
         }
     }
 
@@ -74,6 +96,23 @@ struct RoundControlView: View {
                 hasSubmitted: team.hasSubmittedDecisions || team.isAI,
                 submittedAt: team.hasSubmittedDecisions ? Date() : nil
             )
+        }
+    }
+
+    private func loadFromBackend() async {
+        guard let session = appState.activeSession else { return }
+        do {
+            let status = try await NetworkService.shared.getSessionStatus(code: session.sessionCode)
+            currentRound = min(status.currentRound, session.config.totalRounds)
+            totalRounds = session.config.totalRounds
+            backendSubmittedCount = status.teamsSubmitted
+            backendTeamCount = status.totalTeams
+            session.currentRound = currentRound
+            if status.state == "finished" || status.state == "completed" {
+                session.state = .completed
+            }
+        } catch {
+            processingError = UserFriendlyError.message(for: error)
         }
     }
 
@@ -144,7 +183,7 @@ struct RoundControlView: View {
 
                 Spacer()
 
-                Text("\(submittedCount) of \(teamSubmissions.count)")
+                Text("\(submittedCount) of \(isBackendSession ? backendTeamCount : teamSubmissions.count)")
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundStyle(allSubmitted ? .green : .orange)
@@ -166,7 +205,7 @@ struct RoundControlView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "clock.fill")
                         .foregroundStyle(.orange)
-                    Text("\(teamSubmissions.count - submittedCount) team(s) still pending")
+                    Text("\(max((isBackendSession ? backendTeamCount : teamSubmissions.count) - submittedCount, 0)) team(s) still pending")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -294,6 +333,11 @@ struct RoundControlView: View {
     // MARK: - Actions
 
     private func advanceRound() {
+        if isBackendSession {
+            Task { await processBackendRound() }
+            return
+        }
+
         guard let gameController = appState.gameController else { return }
 
         if isLastRound {
@@ -320,6 +364,22 @@ struct RoundControlView: View {
                 }
             }
         }
+    }
+
+    private func processBackendRound() async {
+        guard let session = appState.activeSession, allSubmitted, !isProcessing else { return }
+        isProcessing = true
+        processingError = nil
+        do {
+            let processedRound = session.currentRound
+            let results = try await NetworkService.shared.processRound(code: session.sessionCode)
+            session.restoreResultsFromBackend([processedRound: results])
+            await loadFromBackend()
+        } catch {
+            // Online sessions must never fall back to SimulationEngine.
+            processingError = UserFriendlyError.message(for: error)
+        }
+        isProcessing = false
     }
 
     private func endSession() {

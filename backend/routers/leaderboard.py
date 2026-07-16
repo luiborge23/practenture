@@ -1,8 +1,9 @@
 """Leaderboard endpoint."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from auth import get_current_user
 from database import db
 from models import LeaderboardEntry
 
@@ -16,11 +17,19 @@ class LeaderboardResponse(BaseModel):
 
 
 @router.get("/{code}/leaderboard", response_model=LeaderboardResponse)
-async def get_leaderboard(code: str):
+async def get_leaderboard(code: str, user=Depends(get_current_user)):
     """Get current leaderboard sorted by total investor score."""
     session = db.get_session(code)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    if user.get("role") in ("professor", "owner"):
+        if user.get("role") != "owner" and db.get_session_professor_user_id(code) != user.get("sub"):
+            raise HTTPException(status_code=403, detail="Not your session")
+    elif user.get("role") == "student":
+        if not any(not team.isAI and team.studentId == user.get("sub") for team in session.teams):
+            raise HTTPException(status_code=403, detail="Not enrolled in session")
+    else:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     all_results = db.get_all_results(code)
     if not all_results:
@@ -32,8 +41,10 @@ async def get_leaderboard(code: str):
                 studentName=team.studentId,
                 rank=len(entries) + 1,
             ))
-        # Sort by name if no results
+        # Sort by name and assign ranks in the final displayed order.
         entries.sort(key=lambda e: e.teamName)
+        for i, entry in enumerate(entries):
+            entry.rank = i + 1
         return LeaderboardResponse(
             sessionId=session.id,
             round=session.currentRound,

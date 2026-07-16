@@ -33,6 +33,9 @@ protocol SessionRepository: Sendable {
 // MARK: - Decision Repository
 
 protocol DecisionRepository: Sendable {
+    // Legacy protocol surface retained for existing repository consumers/tests.
+    // Production online submission uses the backendTeamId overload on
+    // DecisionRepositoryImpl/NetworkService and never substitutes this UUID.
     func submit(code: String, round: Int, teamId: UUID, decision: PlayerDecision) async throws
     func getDecisions(code: String, round: Int) async throws -> [String: PlayerDecision]
     func processRound(code: String) async throws -> [RoundResultBackend]

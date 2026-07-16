@@ -104,8 +104,14 @@ struct DecisionInputView: View {
         Task {
             let success = await viewModel.submitDecisions(to: session, teamId: teamId)
             if success {
-                // Trigger AI decisions and round processing
-                appState.gameController?.processRoundAfterPlayerSubmit()
+                // Online classroom sessions are backend-authoritative: students only
+                // submit, then wait for the professor/backend to process the round.
+                // Local processing is reserved for an explicit offline/demo session.
+                let isBackendSession = !session.sessionCode.isEmpty
+                    && session.sessionCode != session.id.uuidString
+                if !isBackendSession {
+                    appState.gameController?.processRoundAfterPlayerSubmit()
+                }
                 dismiss()
             }
         }

@@ -441,6 +441,22 @@ final class DecisionInputViewModel {
             return false
         }
 
+        let isBackendSession = !session.sessionCode.isEmpty
+            && session.sessionCode != session.id.uuidString
+        let backendTeamId: String?
+        if isBackendSession {
+            let joinedTeamName = session.backendTeamId?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let joinedTeamName, !joinedTeamName.isEmpty else {
+                submissionError = "Your backend team could not be identified. Please leave and join the session again."
+                HapticsManager.warning()
+                return false
+            }
+            backendTeamId = joinedTeamName
+        } else {
+            backendTeamId = nil
+        }
+
         isSubmitting = true
         submissionError = nil
         submittedViaBackend = false
@@ -506,31 +522,36 @@ final class DecisionInputViewModel {
             fulfillmentMethod: fulfillmentMethod
         )
 
-        // Try to submit to backend first (if online)
-        let sessionCode = session.sessionCode
-        
-        // Store locally first (optimistic)
-        session.submitDecision(decision)
-
-        // Try backend submission
-        do {
-            try await SyncService.shared.syncDecisionSubmission(
-                sessionCode: sessionCode,
-                round: session.currentRound,
-                teamId: teamId,
-                decision: decision,
-                backendTeamId: session.backendTeamId
-            )
-            submittedViaBackend = true
-            HapticsManager.success()
-        } catch {
-            // Backend failed — decision is already stored locally, keep working
-            submissionError = "Decision saved locally. Cloud sync failed: \(UserFriendlyError.message(for: error))"
-            HapticsManager.warning()
+        if let backendTeamId {
+            do {
+                try await SyncService.shared.syncDecisionSubmission(
+                    sessionCode: session.sessionCode,
+                    round: session.currentRound,
+                    teamId: teamId,
+                    decision: decision,
+                    backendTeamId: backendTeamId
+                )
+                // Mirror the accepted decision locally for UI state only. The backend
+                // remains authoritative for online processing and round advancement.
+                session.submitDecision(decision)
+                submittedViaBackend = true
+                isSubmitting = false
+                didSubmitSuccessfully = true
+                HapticsManager.success()
+                return true
+            } catch {
+                submissionError = "Decision was not submitted: \(UserFriendlyError.message(for: error))"
+                isSubmitting = false
+                HapticsManager.warning()
+                return false
+            }
         }
 
+        // Explicit offline/demo sessions retain local decision storage and processing.
+        session.submitDecision(decision)
         isSubmitting = false
         didSubmitSuccessfully = true
+        HapticsManager.success()
         return true
     }
 

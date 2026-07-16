@@ -1,9 +1,9 @@
 """Professor management endpoints — admin creates codes, users redeem them."""
 
 import secrets
-from typing import Optional
+from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from auth import get_current_user, verify_professor
@@ -21,6 +21,20 @@ from models import (
 )
 
 router = APIRouter(prefix="/api/professor", tags=["professor"])
+
+
+class AuditLogItem(BaseModel):
+    id: str
+    actor: str
+    action: str
+    details: dict[str, Any]
+    ip: str
+    timestamp: float
+
+
+class AuditLogResponse(BaseModel):
+    logs: list[AuditLogItem]
+    count: int
 
 
 def _generate_prof_code() -> str:
@@ -210,10 +224,10 @@ async def change_password(req: ChangePasswordRequest, user=Depends(get_current_u
 
 # ── Audit log endpoint (owner only) ──────────────────────────────────────────
 
-@router.get("/audit")
+@router.get("/audit", response_model=AuditLogResponse)
 async def get_audit_logs(
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     actor: str = "",
     user=Depends(get_current_user),
 ):

@@ -18,6 +18,7 @@ Content-Type: application/scim+json
 
 import json
 import secrets
+import hmac
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -232,7 +233,7 @@ def _verify_scim_token(token: str) -> bool:
 
     import os
     scim_token = os.environ.get("BIZSIMAI_SCIM_TOKEN")
-    if scim_token and token == scim_token:
+    if scim_token and hmac.compare_digest(token, scim_token):
         return True
 
     # Fall back to JWT verification (owner role only)

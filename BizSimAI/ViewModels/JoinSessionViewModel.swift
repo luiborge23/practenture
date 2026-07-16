@@ -34,6 +34,7 @@ final class JoinSessionViewModel {
 
         isLoading = true
         errorMessage = nil
+        joinedTeam = nil
 
         do {
             // Try backend join first
@@ -45,7 +46,12 @@ final class JoinSessionViewModel {
 
             // Backend uses team name as teamId (not a UUID). Store the raw teamId
             // string on TeamConfig so submit_decision can send it back correctly.
-            let rawTeamId = result.teamId
+            let rawTeamId = result.teamId.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !rawTeamId.isEmpty else {
+                errorMessage = "The backend did not return a valid team name. Please try joining again."
+                isLoading = false
+                return
+            }
             joinedTeam = TeamConfig(
                 id: UUID(),  // local UUID for SwiftData
                 name: result.teamName,
@@ -78,9 +84,9 @@ final class JoinSessionViewModel {
 
         } catch {
             errorMessage = UserFriendlyError.message(for: error)
-            // Local fallback: just mark as joined
-            joinedTeam = TeamConfig(id: UUID(), name: teamName, isAI: false, studentId: studentId)
-            availableTeams = 1
+            // Online classroom joins must succeed on the backend. Never create a
+            // local UUID/team fallback, which could submit under the wrong identity.
+            joinedTeam = nil
             loadedAnnouncements = []
         }
 

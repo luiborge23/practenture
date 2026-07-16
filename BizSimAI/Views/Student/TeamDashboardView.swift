@@ -215,8 +215,11 @@ struct TeamDashboardView: View {
     // MARK: - Round Header
 
     private var roundHeader: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 6) {
+            if session?.state == .completed {
+                // Hide round display when simulation is complete — actionSection shows "Simulation Complete!" instead
+                EmptyView()
+            } else {
                 HStack(spacing: 8) {
                     Text("Round \(backendCurrentRound)")
                         .font(.title)
@@ -225,39 +228,18 @@ struct TeamDashboardView: View {
                         .font(.title2)
                         .foregroundStyle(.secondary)
                 }
-                HStack(spacing: 4) {
+                HStack(spacing: 3) {
                     ForEach(1...totalRounds, id: \.self) { round in
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(round <= backendCurrentRound ? Color.blue : Color.secondary.opacity(0.2))
-                            .frame(height: 6)
-                    }
-                }
-            }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 2) {
-                HStack(spacing: 4) {
-                    Image(systemName: isOnline ? "wifi" : "wifi.slash")
-                        .font(.caption2)
-                        .foregroundStyle(isOnline ? .green : .red)
-                    Text("Session")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-                HStack(spacing: 4) {
-                    Text(session?.sessionCode ?? "DEMO")
-                        .font(.caption)
-                        .fontDesign(.monospaced)
-                        .foregroundStyle(.secondary)
-                    if isOnline {
-                        Text("\(liveTeamCount) teams")
-                            .font(.caption)
-                            .foregroundStyle(.green)
+                        Capsule()
+                            .fill(round <= backendCurrentRound ? Color.blue : Color.secondary.opacity(0.15))
+                            .frame(width: 20, height: 4)
                     }
                 }
             }
         }
         .padding(20)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.gray.opacity(0.1)))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Investor Scorecard

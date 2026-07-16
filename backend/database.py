@@ -308,6 +308,15 @@ class Database:
         self.sessions[code] = session
         return session
 
+    def get_session_professor_user_id(self, code: str) -> Optional[str]:
+        """Return the professor owner stored for a session, if any."""
+        with self._lock:
+            conn = self._get_conn()
+            row = conn.execute(
+                "SELECT professor_user_id FROM sessions WHERE code=?", (code,)
+            ).fetchone()
+        return row["professor_user_id"] if row else None
+
     def update_session(self, code: str, updates: Dict[str, Any]) -> None:
         # Map camelCase attribute names to snake_case DB column names
         _ATTR_TO_COL = {
@@ -455,7 +464,12 @@ class Database:
             ).fetchall()
         result = {}
         for row in rows:
-            d = PlayerDecision(**row["decision_json"]) if isinstance(row["decision_json"], str) else row["decision_json"]
+            raw_decision = row["decision_json"]
+            d = (
+                PlayerDecision.model_validate_json(raw_decision)
+                if isinstance(raw_decision, str)
+                else PlayerDecision.model_validate(raw_decision)
+            )
             result[row["team_id"]] = d
         if session_code not in self.decisions:
             self.decisions[session_code] = {}
@@ -497,7 +511,7 @@ class Database:
                 "SELECT team_id, result_json FROM results WHERE session_code=? AND round_num=?",
                 (session_code, round_num),
             ).fetchall()
-        result = [RoundResult(**row["result_json"]) if isinstance(row["result_json"], str) else row["result_json"] for row in rows]
+        result = [RoundResult(**(json.loads(row["result_json"]) if isinstance(row["result_json"], str) else row["result_json"])) for row in rows]
         if session_code not in self.results:
             self.results[session_code] = {}
         self.results[session_code][round_num] = result
@@ -514,7 +528,7 @@ class Database:
             ).fetchall()
         result: Dict[int, List[RoundResult]] = {}
         for row in rows:
-            r = RoundResult(**row["result_json"]) if isinstance(row["result_json"], str) else row["result_json"]
+            r = RoundResult(**(json.loads(row["result_json"]) if isinstance(row["result_json"], str) else row["result_json"]))
             result.setdefault(row["round_num"], []).append(r)
         self.results[session_code] = result
         return result

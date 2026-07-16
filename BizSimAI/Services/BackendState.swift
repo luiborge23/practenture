@@ -110,11 +110,10 @@ final class BackendState {
         _ = try await NetworkService.shared.processRound(code: code)
     }
 
-    func submitDecision(code: String, round: Int, teamId: UUID, decision: PlayerDecision, backendTeamId: String? = nil) async throws {
+    func submitDecision(code: String, round: Int, decision: PlayerDecision, backendTeamId: String) async throws {
         try await NetworkService.shared.submitDecision(
             code: code,
             round: round,
-            teamId: teamId,
             decision: decision,
             backendTeamId: backendTeamId
         )

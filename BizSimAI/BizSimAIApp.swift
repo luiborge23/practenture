@@ -26,10 +26,25 @@ struct BizSimAIApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            rootView
                 .environment(appState)
                 .preferredColorScheme(appState.themePreference.colorScheme)
         }
         .modelContainer(sharedModelContainer)
+    }
+
+    @ViewBuilder
+    private var rootView: some View {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-UITesting"),
+           let rawScenario = ProcessInfo.processInfo.environment["BIZSIMAI_UI_SCENARIO"],
+           let scenario = UITestHarnessView.Scenario(rawValue: rawScenario) {
+            UITestHarnessView(scenario: scenario)
+        } else {
+            ContentView()
+        }
+        #else
+        ContentView()
+        #endif
     }
 }

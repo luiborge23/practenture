@@ -1060,7 +1060,8 @@ struct LoginView: View {
                 step = .mfaEntry
                 return
             }
-            step = .studentJoinClass
+            // Go directly to student dashboard — JoinSessionView handles session code entry
+            finishOnboarding()
         } catch {
             errorMessage = UserFriendlyError.message(for: error)
             HapticsManager.error()
@@ -1079,7 +1080,8 @@ struct LoginView: View {
         }
         do {
             _ = try await AuthManager.shared.register(username: studentId, password: password, studentId: studentId, name: fullName)
-            step = .studentJoinClass
+            // Go directly to student dashboard — JoinSessionView handles session code entry
+            finishOnboarding()
         } catch {
             errorMessage = UserFriendlyError.message(for: error)
             HapticsManager.error()
@@ -1145,9 +1147,7 @@ struct LoginView: View {
         isLoading = true; errorMessage = nil; defer { isLoading = false }
         do {
             let result = try await AuthManager.shared.verifyMFA(code: mfaCode)
-            if let backupCodes = result["backup_codes"] as? [String] {
-                mfaBackupCodes = backupCodes
-            }
+            mfaBackupCodes = result.backupCodes
             showingMFASetup = false
             mfaCode = ""
             errorMessage = nil

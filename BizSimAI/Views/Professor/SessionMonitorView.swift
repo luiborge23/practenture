@@ -476,8 +476,8 @@ struct SessionMonitorView: View {
             .controlSize(.large)
 
             Button {
-                // Use backend if connected, otherwise local
-                if vm.backendTeamStatus != "" {
+                // Backend classroom sessions never fall back to local processing.
+                if vm.isBackendSession {
                     Task { await vm.processRoundWithBackend() }
                 } else {
                     vm.advanceRound()

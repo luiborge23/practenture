@@ -298,34 +298,10 @@ final class SimulationEngine: SimulationEngineProtocol {
             let overtimeProdCost = materialsCost * overtimeCostPremium * Double(overtimeUnits)
             // Note: rejection waste is already included in regularProdCost (gross production includes rejects)
             
-            // Guard against zero production (no revenue, no costs)
-            if grossProduction == 0 {
-                let previousStock = session.roundResult(for: team.id, round: round - 1)?.scorecard.stockPrice ?? baseStockTarget
-                let zeroScorecard = InvestorScorecard(
-                    round: round, eps: 0, roe: 0, stockPrice: previousStock,
-                    imageRating: team.imageRating, creditRating: team.creditRating,
-                    epsScore: 0, roeScore: 0, stockPriceScore: 0,
-                    imageScore: 0, creditScore: Double(team.creditRating.investorScore)
-                )
-                let zeroResult = RoundResult(
-                    teamId: team.id, round: round,
-                    wholesaleRevenue: 0, internetRevenue: 0, amazonRevenue: 0, privateLabelRevenue: 0,
-                    productionCosts: config.fixedCostsPerRound, marketingCosts: 0, csrCosts: 0,
-                    endorsementCosts: 0, interestExpense: 0, dividendsPaid: 0,
-                    workforceCosts: 0, storageCosts: 0,
-                    rebateCosts: 0, deliveryCosts: 0,
-                    socialMediaCosts: 0,
-                    amazonFees: 0,
-                    wholesaleUnitsSold: 0, internetUnitsSold: 0, amazonUnitsSold: 0, privateLabelUnitsSold: 0,
-                    marketShare: 0, customerSatisfaction: 0, inventory: team.inventory,
-                    rejectionRate: 0,
-                    cash: team.cash - config.fixedCostsPerRound, sqRating: sq,
-                    awarenessScore: 0,
-                    scorecard: zeroScorecard
-                )
-                results.append(zeroResult)
-                continue
-            }
+            // Zero production still incurs fixed/decision costs and must flow through
+            // the same safe financial ratios and scorecard formulas as every other
+            // decision.  An early return here used to leave team state stale and made
+            // the offline engine disagree with the backend-authoritative engine.
             let totalProdCost = regularProdCost + overtimeProdCost
                 + config.fixedCostsPerRound + decision.stylingBudget
                 + decision.tqmInvestment + decision.bestPracticesInvestment
@@ -738,39 +714,9 @@ final class SimulationEngine: SimulationEngineProtocol {
             let regularProdCost = materialsCost * Double(regularUnits)
             let overtimeProdCost = materialsCost * overtimeCostPremium * Double(overtimeUnits)
 
-            if grossProduction == 0 {
-                let previousStock = updatedRoundResults[team.id]?[round - 1]?.scorecard.stockPrice ?? baseStockTarget
-                let zeroScorecard = InvestorScorecard(
-                    round: round, eps: 0, roe: 0, stockPrice: previousStock,
-                    imageRating: team.imageRating, creditRating: team.creditRating,
-                    epsScore: 0, roeScore: 0, stockPriceScore: 0,
-                    imageScore: 0, creditScore: Double(team.creditRating.investorScore))
-                let zeroResult = RoundResult(
-                    teamId: team.id, round: round,
-                    wholesaleRevenue: 0, internetRevenue: 0, amazonRevenue: 0, privateLabelRevenue: 0,
-                    productionCosts: config.fixedCostsPerRound, marketingCosts: 0, csrCosts: 0,
-                    endorsementCosts: 0, interestExpense: 0, dividendsPaid: 0,
-                    workforceCosts: 0, storageCosts: 0, rebateCosts: 0, deliveryCosts: 0,
-                    socialMediaCosts: 0, amazonFees: 0,
-                    wholesaleUnitsSold: 0, internetUnitsSold: 0, amazonUnitsSold: 0, privateLabelUnitsSold: 0,
-                    marketShare: 0, customerSatisfaction: 0, inventory: team.inventory,
-                    rejectionRate: 0, cash: team.cash - config.fixedCostsPerRound, sqRating: sq,
-                    awarenessScore: 0, scorecard: zeroScorecard)
-                results.append(zeroResult)
-                if updatedRoundResults[team.id] == nil { updatedRoundResults[team.id] = [:] }
-                updatedRoundResults[team.id]?[round] = zeroResult
-                teamUpdates.append(TeamUpdate(
-                    teamId: team.id, cash: team.cash - config.fixedCostsPerRound,
-                    inventory: team.inventory, sqRating: sq,
-                    imageRating: team.imageRating, creditRating: team.creditRating,
-                    reputation: team.reputation, equity: team.equity, totalDebt: team.totalDebt,
-                    sharesOutstanding: team.sharesOutstanding, cumulativeRD: team.cumulativeRD,
-                    cumulativeMarketing: team.cumulativeMarketing, cumulativeCSR: team.cumulativeCSR,
-                    cumulativeTQM: team.cumulativeTQM, cumulativeProfit: team.cumulativeProfit,
-                    cumulativeInvestorScore: team.cumulativeInvestorScore, roundsScored: team.roundsScored,
-                    hasSubmittedDecisions: false, rank: team.rank))
-                continue
-            }
+            // Keep zero-production decisions on the normal path: fixed and chosen
+            // spending still apply, while denominator guards below make the resulting
+            // financial ratios deterministic and finite.
 
             let totalProdCost = regularProdCost + overtimeProdCost
                 + config.fixedCostsPerRound + decision.stylingBudget

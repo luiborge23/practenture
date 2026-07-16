@@ -1,0 +1,1228 @@
+{
+  "operationCount": 64,
+  "operations": [
+    {
+      "method": "POST",
+      "path": "/api/ai/feedback",
+      "operationId": "post_feedback_api_ai_feedback_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "type": "object",
+        "title": "Request"
+      },
+      "responses": {
+        "200": {
+          "type": "object",
+          "title": "Response Post Feedback Api Ai Feedback Post"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/ai/hint",
+      "operationId": "post_hint_api_ai_hint_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "type": "object",
+        "title": "Request"
+      },
+      "responses": {
+        "200": {
+          "type": "object",
+          "title": "Response Post Hint Api Ai Hint Post"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/ai/insights",
+      "operationId": "post_insights_api_ai_insights_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "type": "object",
+        "title": "Request"
+      },
+      "responses": {
+        "200": {
+          "type": "object",
+          "title": "Response Post Insights Api Ai Insights Post"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/ai/scenario",
+      "operationId": "post_scenario_api_ai_scenario_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "type": "object",
+        "title": "Request"
+      },
+      "responses": {
+        "200": {
+          "type": "object",
+          "title": "Response Post Scenario Api Ai Scenario Post"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/ai/status",
+      "operationId": "ai_status_api_ai_status_get",
+      "security": [],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {}
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/forgot-password",
+      "operationId": "forgot_password_api_auth_forgot_password_post",
+      "security": [],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/ForgotPasswordRequest"
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/ForgotPasswordResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/kickoff",
+      "operationId": "kickoff_session_api_auth_kickoff_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/KickoffResponse"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "operationId": "login_endpoint_api_auth_login_post",
+      "security": [],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/LoginRequest"
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/LoginResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/mfa/disable",
+      "operationId": "disable_mfa_api_auth_mfa_disable_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/MFADisableRequest"
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/MFAStatusMutationResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/mfa/setup",
+      "operationId": "setup_mfa_api_auth_mfa_setup_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/MFASetupResponse"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/mfa/status",
+      "operationId": "mfa_status_api_auth_mfa_status_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/MFAStatusResponse"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/mfa/verify",
+      "operationId": "verify_mfa_api_auth_mfa_verify_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/MFAVerifyRequest"
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/MFAVerifyResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/professor-only",
+      "operationId": "professor_check_api_auth_professor_only_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/ProfessorCheckResponse"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/professor-status",
+      "operationId": "get_professor_status_api_auth_professor_status_get",
+      "security": [],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/ProfessorStatusResponse"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/professor/me",
+      "operationId": "get_professor_info_api_auth_professor_me_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/ProfessorInfoResponse"
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/api/auth/professor/me",
+      "operationId": "update_professor_info_api_auth_professor_me_put",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/UpdateProfessorResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/refresh",
+      "operationId": "refresh_token_api_auth_refresh_post",
+      "security": [],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/RefreshTokenRequest"
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/RefreshTokenResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/register",
+      "operationId": "register_endpoint_api_auth_register_post",
+      "security": [],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/RegisterRequest"
+      },
+      "responses": {
+        "201": {
+          "$ref": "#/components/schemas/RegisterResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/reset-password",
+      "operationId": "reset_password_api_auth_reset_password_post",
+      "security": [],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/ResetPasswordRequest"
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/ResetPasswordResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/student-or-professor",
+      "operationId": "student_or_professor_check_api_auth_student_or_professor_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/StudentOrProfessorCheckResponse"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/student/me",
+      "operationId": "get_student_info_api_auth_student_me_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/StudentInfoResponse"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/verify",
+      "operationId": "verify_token_api_auth_verify_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/VerifyTokenResponse"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/classes",
+      "operationId": "list_classes_api_classes_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/ClassListResponse"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/classes",
+      "operationId": "create_class_api_classes_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/CreateClassRequest"
+      },
+      "responses": {
+        "201": {
+          "$ref": "#/components/schemas/ClassResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/classes/join",
+      "operationId": "join_class_api_classes_join_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/JoinClassRequest"
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/EnrollStudentResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/classes/my/classes",
+      "operationId": "my_classes_api_classes_my_classes_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/StudentClassListResponse"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/classes/{class_id}",
+      "operationId": "get_class_api_classes__class_id__get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/ClassResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/classes/{class_id}/students",
+      "operationId": "get_class_students_api_classes__class_id__students_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/ClassStudentsResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/dashboard/sessions",
+      "operationId": "get_dashboard_sessions_api_dashboard_sessions_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/DashboardSessionListResponse"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "operationId": "health_check_api_health_get",
+      "security": [],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/HealthResponse"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/professor/audit",
+      "operationId": "get_audit_logs_api_professor_audit_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/AuditLogResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/professor/change-password",
+      "operationId": "change_password_api_professor_change_password_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/ChangePasswordRequest"
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/ChangePasswordResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/professor/codes",
+      "operationId": "list_professor_codes_api_professor_codes_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/ProfessorCodeListResponse"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/professor/codes",
+      "operationId": "create_professor_code_api_professor_codes_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/ProfessorCodeCreateRequest"
+      },
+      "responses": {
+        "201": {
+          "$ref": "#/components/schemas/ProfessorCodeResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/professor/pre-create",
+      "operationId": "pre_create_professor_api_professor_pre_create_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/PreCreateProfessorRequest"
+      },
+      "responses": {
+        "201": {
+          "$ref": "#/components/schemas/PreCreateProfessorResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/professor/redeem",
+      "operationId": "redeem_professor_code_api_professor_redeem_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/RedeemCodeRequest"
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/RedeemCodeResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/saml/acs",
+      "operationId": "assertion_consumer_service_api_saml_acs_post",
+      "security": [],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {}
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/saml/login",
+      "operationId": "saml_login_api_saml_login_get",
+      "security": [],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/SAMLLoginResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/saml/metadata",
+      "operationId": "saml_metadata_api_saml_metadata_get",
+      "security": [],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {}
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/scim/v2/Groups",
+      "operationId": "list_groups_api_scim_v2_Groups_get",
+      "security": [],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {}
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/scim/v2/Users",
+      "operationId": "list_users_api_scim_v2_Users_get",
+      "security": [],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {}
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/scim/v2/Users",
+      "operationId": "create_user_api_scim_v2_Users_post",
+      "security": [],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {}
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/scim/v2/Users/.search",
+      "operationId": "search_users_api_scim_v2_Users__search_post",
+      "security": [],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {}
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/scim/v2/Users/{user_id}",
+      "operationId": "delete_user_api_scim_v2_Users__user_id__delete",
+      "security": [],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {},
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/scim/v2/Users/{user_id}",
+      "operationId": "get_user_api_scim_v2_Users__user_id__get",
+      "security": [],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {},
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/api/scim/v2/Users/{user_id}",
+      "operationId": "update_user_api_scim_v2_Users__user_id__put",
+      "security": [],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {},
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions",
+      "operationId": "create_session_api_sessions_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/CreateSessionRequest"
+      },
+      "responses": {
+        "201": {
+          "$ref": "#/components/schemas/CreateSessionResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/sessions/{code}",
+      "operationId": "delete_session_api_sessions__code__delete",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "204": null,
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/{code}",
+      "operationId": "get_session_api_sessions__code__get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/Session"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/{code}/advance",
+      "operationId": "advance_round_api_sessions__code__advance_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/AdvanceResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/{code}/announcements",
+      "operationId": "get_announcements_api_sessions__code__announcements_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/Announcement"
+          },
+          "title": "Response Get Announcements Api Sessions  Code  Announcements Get"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/{code}/announcements",
+      "operationId": "create_announcement_api_sessions__code__announcements_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/CreateAnnouncementRequest"
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/CreateAnnouncementResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/{code}/decisions/{round_num}",
+      "operationId": "get_decisions_api_sessions__code__decisions__round_num__get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/DecisionsResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/{code}/end",
+      "operationId": "end_session_api_sessions__code__end_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/EndSessionResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/{code}/export/grades",
+      "operationId": "export_grades_api_sessions__code__export_grades_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "type": "string"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/{code}/export/leaderboard",
+      "operationId": "export_leaderboard_api_sessions__code__export_leaderboard_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "type": "string"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/api/sessions/{code}/join",
+      "operationId": "join_session_api_sessions__code__join_put",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/JoinSessionRequest"
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/JoinSessionResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/{code}/leaderboard",
+      "operationId": "get_leaderboard_api_sessions__code__leaderboard_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/LeaderboardResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/{code}/process_round",
+      "operationId": "process_round_endpoint_api_sessions__code__process_round_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/ProcessRoundResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/{code}/results",
+      "operationId": "get_results_api_sessions__code__results_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/SessionResultsResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/{code}/start",
+      "operationId": "start_session_api_sessions__code__start_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/StartSessionResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/{code}/status",
+      "operationId": "get_session_status_api_sessions__code__status_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/StatusResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/{code}/submit_decision",
+      "operationId": "submit_decision_api_sessions__code__submit_decision_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/SubmitDecisionRequest"
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/SubmitDecisionResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/{code}/teams",
+      "operationId": "get_teams_api_sessions__code__teams_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/TeamsResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    }
+  ],
+  "knownUntypedSuccessResponses": [
+    {
+      "method": "GET",
+      "path": "/api/ai/status"
+    },
+    {
+      "method": "POST",
+      "path": "/api/saml/acs"
+    },
+    {
+      "method": "GET",
+      "path": "/api/saml/metadata"
+    },
+    {
+      "method": "GET",
+      "path": "/api/scim/v2/Groups"
+    },
+    {
+      "method": "GET",
+      "path": "/api/scim/v2/Users"
+    },
+    {
+      "method": "POST",
+      "path": "/api/scim/v2/Users"
+    },
+    {
+      "method": "POST",
+      "path": "/api/scim/v2/Users/.search"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/scim/v2/Users/{user_id}"
+    },
+    {
+      "method": "GET",
+      "path": "/api/scim/v2/Users/{user_id}"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/scim/v2/Users/{user_id}"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/sessions/{code}"
+    }
+  ]
+}

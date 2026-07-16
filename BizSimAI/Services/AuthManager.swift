@@ -31,6 +31,17 @@ final class AuthManager {
         keychain.string(forKey: "jwt_token")
     }
 
+#if DEBUG
+    /// Test-only token injection used by the network test target.
+    func setAccessToken(_ token: String) {
+        if token.isEmpty {
+            keychain.delete(forKey: "jwt_token")
+        } else {
+            keychain.set(token, forKey: "jwt_token")
+        }
+    }
+#endif
+
     /// Write tokens to Keychain — the ONLY place tokens are persisted
     private func persistTokens(access: String, refresh: String?) {
         keychain.set(access, forKey: "jwt_token")
@@ -432,13 +443,15 @@ final class AuthManager {
     }
 
     @MainActor
-    func verifyMFA(code: String) async throws -> [String: Any] {
-        return try await network.postRaw("/api/auth/mfa/verify", body: MFAVerifyRequest(code: code))
+    func verifyMFA(code: String) async throws -> MFAVerifyResponse {
+        return try await network.post("/api/auth/mfa/verify", body: MFAVerifyRequest(code: code))
     }
 
     @MainActor
     func disableMFA() async throws {
-        _ = try await network.postVoid("/api/auth/mfa/disable")
+        // FastAPI declares an optional-field JSON model, so the request body itself
+        // is still required. Send `{}` rather than a body-less POST (422).
+        _ = try await network.postVoid("/api/auth/mfa/disable", body: EmptyBody())
     }
 
     @MainActor

@@ -13,23 +13,26 @@ import XCTest
 final class SyncServiceTests: XCTestCase {
 
     var syncService: SyncService!
-    var mockDecisionRepo: MockDecisionRepository!
 
     override func setUp() {
         super.setUp()
-        // SyncService.shared is a singleton; we create a fresh instance
-        // for isolation by accessing the shared instance and resetting state.
-        syncService = SyncService.shared
+        DeterministicURLProtocol.handler = { request in
+            DeterministicURLProtocol.response(for: request, statusCode: 200, json: "{}")
+        }
+        let network = NetworkService(
+            configuration: DeterministicURLProtocol.configuration(),
+            baseURLOverride: "https://sync-unit-test.invalid"
+        )
+        syncService = SyncService(networkService: network)
         syncService.isConnected = true
         syncService.syncError = nil
         syncService.isSynced = false
-
-        mockDecisionRepo = MockDecisionRepository()
     }
 
     override func tearDown() {
         syncService.isConnected = true
         syncService.syncError = nil
+        DeterministicURLProtocol.handler = nil
         super.tearDown()
     }
 
@@ -60,14 +63,14 @@ final class SyncServiceTests: XCTestCase {
         let round = 1
         let teamId = UUID()
         let decision = makeSampleDecision()
-        mockDecisionRepo.submitResult = .success(())
 
         // Act
         try await syncService.syncDecisionSubmission(
             sessionCode: sessionCode,
             round: round,
             teamId: teamId,
-            decision: decision
+            decision: decision,
+            backendTeamId: "Test Team"
         )
 
         // Assert
@@ -92,7 +95,7 @@ final class SyncServiceTests: XCTestCase {
             round: round,
             teamId: teamId,
             decision: decision,
-            backendTeamId: nil
+            backendTeamId: "Fixture Team"
         )
         syncService.queueForSync(action)
 
@@ -122,7 +125,7 @@ final class SyncServiceTests: XCTestCase {
             round: round,
             teamId: teamId,
             decision: decision,
-            backendTeamId: nil
+            backendTeamId: "Fixture Team"
         )
         syncService.queueForSync(action)
 
@@ -149,10 +152,10 @@ final class SyncServiceTests: XCTestCase {
 
         let decision = makeSampleDecision()
         let action1 = SyncAction.submitDecision(
-            sessionId: "S1", round: 1, teamId: UUID(), decision: decision, backendTeamId: nil
+            sessionId: "S1", round: 1, teamId: UUID(), decision: decision, backendTeamId: "Fixture Team"
         )
         let action2 = SyncAction.submitDecision(
-            sessionId: "S2", round: 2, teamId: UUID(), decision: decision, backendTeamId: nil
+            sessionId: "S2", round: 2, teamId: UUID(), decision: decision, backendTeamId: "Fixture Team"
         )
 
         syncService.queueForSync(action1)
@@ -174,8 +177,15 @@ final class SyncServiceTests: XCTestCase {
         syncService.isConnected = true
 
         let decision = makeSampleDecision()
+        DeterministicURLProtocol.handler = { request in
+            DeterministicURLProtocol.response(
+                for: request,
+                statusCode: 400,
+                json: #"{"detail":"deterministic rejection"}"#
+            )
+        }
         let action = SyncAction.submitDecision(
-            sessionId: "FAIL01", round: 1, teamId: UUID(), decision: decision, backendTeamId: nil
+            sessionId: "FAIL01", round: 1, teamId: UUID(), decision: decision, backendTeamId: "Fixture Team"
         )
         syncService.queueForSync(action)
 

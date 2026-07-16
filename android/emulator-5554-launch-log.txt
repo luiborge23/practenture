@@ -1,0 +1,365 @@
+--------- beginning of main
+07-16 08:47:42.343  1172  1663 D ImsResolver: maybeAddedImsService, packageName: com.bizsimai.android
+07-16 08:47:42.343  1248  1248 D StatsLog: LAUNCHER_ALLAPPS_COUNT
+07-16 08:47:42.359  1248  1248 D SearchTargetUtil: query= size=15
+07-16 08:47:42.359  1248  1248 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=social security 2027 cola estimate,input_query=android.app.search.Query@952608a,group_id=web1423789,response_id=b3b0c917-4f95-42a4-abb5-f6229a6ddeee,support_query_builder=false,} searchAction=social security 2027 cola estimate searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 51566015-400b-4a43-9729-e222e73f2323
+07-16 08:47:42.359  1248  1248 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=bipartisan social security legislation,input_query=android.app.search.Query@952608a,group_id=web1423789,response_id=b3b0c917-4f95-42a4-abb5-f6229a6ddeee,support_query_builder=false,} searchAction=bipartisan social security legislation searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 11724a0c-c165-4626-bc9c-47ebd031a1cc
+07-16 08:47:42.359  1248  1248 D SearchTargetUtil: layoutType=extra_tall_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{bitmap_url=data:image/jpeg;base64,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
+07-16 08:47:42.359  1248  1248 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=nyt strands hints,input_query=android.app.search.Query@952608a,group_id=web1423789,response_id=b3b0c917-4f95-42a4-abb5-f6229a6ddeee,support_query_builder=false,} searchAction=nyt strands hints searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: f5666b29-4069-4fc0-aad0-10f85719eb30
+07-16 08:47:42.359  1248  1248 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=xbox game pass,input_query=android.app.search.Query@952608a,group_id=web1423789,response_id=b3b0c917-4f95-42a4-abb5-f6229a6ddeee,support_query_builder=false,} searchAction=xbox game pass searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 4f60b68f-69a6-46be-9b1e-c55e72a025ad
+07-16 08:47:42.359  1248  1248 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=tyler herro bam adebayo altercation,input_query=android.app.search.Query@952608a,group_id=web1423789,response_id=b3b0c917-4f95-42a4-abb5-f6229a6ddeee,support_query_builder=false,} searchAction=tyler herro bam adebayo altercation searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 2002595d-d89d-41e3-8077-3d6acdca7f27
+07-16 08:47:42.359  1248  1248 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=air quality canadian wildfires,input_query=android.app.search.Query@952608a,group_id=web1423789,response_id=b3b0c917-4f95-42a4-abb5-f6229a6ddeee,support_query_builder=false,} searchAction=air quality canadian wildfires searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 2fae86a3-2fd1-4f84-994a-cc19244503bb
+07-16 08:47:42.359  1248  1248 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=solitaire miles story,input_query=android.app.search.Query@952608a,group_id=web1423789,response_id=b3b0c917-4f95-42a4-abb5-f6229a6ddeee,support_query_builder=false,} searchAction=solitaire miles story searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 22bb9219-e96c-45b5-a1fa-7dc0e49d84fa
+07-16 08:47:42.359  1248  1248 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=vail resorts epic experience strategy,input_query=android.app.search.Query@952608a,group_id=web1423789,response_id=b3b0c917-4f95-42a4-abb5-f6229a6ddeee,support_query_builder=false,} searchAction=vail resorts epic experience strategy searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 2959d8cb-e57b-4ab5-9a4b-ce3c8f19d346
+07-16 08:47:42.359  1248  1248 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=new monkey species congo,input_query=android.app.search.Query@952608a,group_id=web1423789,response_id=b3b0c917-4f95-42a4-abb5-f6229a6ddeee,support_query_builder=false,} searchAction=new monkey species congo searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 0e038e06-767d-40a6-a1f6-ed84893b8a96
+07-16 08:47:42.359  1248  1248 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=2005 tim burton fantasy film,input_query=android.app.search.Query@952608a,group_id=web1423789,response_id=b3b0c917-4f95-42a4-abb5-f6229a6ddeee,support_query_builder=false,} searchAction=2005 tim burton fantasy film searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 9bbd2213-c774-428c-8e22-738a816fa3d6
+07-16 08:47:42.359  1248  1248 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=new castlevania game,input_query=android.app.search.Query@952608a,group_id=web1423789,response_id=b3b0c917-4f95-42a4-abb5-f6229a6ddeee,support_query_builder=false,} searchAction=new castlevania game searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 21040133-696e-4951-a57c-e83280701671
+07-16 08:47:42.359  1248  1248 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=costco july 2026 new products,input_query=android.app.search.Query@952608a,group_id=web1423789,response_id=b3b0c917-4f95-42a4-abb5-f6229a6ddeee,support_query_builder=false,} searchAction=costco july 2026 new products searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 360aecbe-8250-42b3-8dc6-456531094769
+07-16 08:47:42.359  1248  1248 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=nyc legionnaires disease outbreak,input_query=android.app.search.Query@952608a,group_id=web1423789,response_id=b3b0c917-4f95-42a4-abb5-f6229a6ddeee,support_query_builder=false,} searchAction=nyc legionnaires disease outbreak searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: e3e80f98-a4be-44cc-887b-d98a74001d5c
+07-16 08:47:42.359  1248  1248 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=vaibhav bhaskar 11.99 gpa florida,input_query=android.app.search.Query@952608a,group_id=web1423789,response_id=b3b0c917-4f95-42a4-abb5-f6229a6ddeee,support_query_builder=false,} searchAction=vaibhav bhaskar 11.99 gpa florida searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 458fbc25-5477-4f9d-a784-15bca33b3959
+07-16 08:47:42.372   984   989 W ndroid.systemui: Reducing the number of considered missed Gc histogram windows from 139 to 100
+07-16 08:47:42.374   984   991 W ndroid.systemui: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~zSsUKoH3f4S0dJFi7EH4iA==/com.bizsimai.android-_Dz2cpfyaeznJY9xB6L6ig==/base.apk' with 2 weak references
+--------- beginning of system
+07-16 08:47:42.374   577   604 I DropBoxManagerService: add tag=system_app_strictmode isTagEnabled=true flags=0x2
+07-16 08:47:42.445   577  1904 I ActivityManager: Force stopping com.bizsimai.android appid=10207 user=0: from pid 4744
+07-16 08:47:42.445   577  1904 I WindowManager:   Force removing ActivityRecord{a1665eb u0 com.bizsimai.android/.MainActivity t9 f} isExiting}
+07-16 08:47:42.445   577  1904 W WindowManager: removeAppToken: Attempted to remove non-existing token: Token{51141e1 ActivityRecord{a1665eb u0 com.bizsimai.android/.MainActivity t9 f} isExiting}}
+07-16 08:47:42.447  1172  1172 D CarrierSvcBindHelper: onHandleForceStop: [com.bizsimai.android]
+07-16 08:47:42.447  1172  1172 D CarrierSvcBindHelper: No carrier app for: 0
+07-16 08:47:42.447   577   932 I AppWidgetServiceImpl: Received broadcast: android.intent.action.PACKAGE_RESTARTED on user 0
+07-16 08:47:42.447   577   932 I AppWidgetServiceImpl: Updating package stopped masked state for uid 10207 package com.bizsimai.android isStopped true
+07-16 08:47:42.465   577  1904 W ActivityTaskManager: callingPackage for (uid=2000, pid=4749) has no WPC
+07-16 08:47:42.466   577  1904 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_USER_ASPECT_RATIO_OVERRIDE
+07-16 08:47:42.466   577  1904 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_USER_ASPECT_RATIO_FULLSCREEN_OVERRIDE
+07-16 08:47:42.466   577  1904 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_ORIENTATION_OVERRIDE
+07-16 08:47:42.466   577  1904 V GrammaticalInflectionUtils: AttributionSource: AttributionSource { uid = 10207, packageName = null, attributionTag = null, token = android.os.Binder@d6b3a30, deviceId = 0, next = null } does not have READ_SYSTEM_GRAMMATICAL_GENDER permission.
+07-16 08:47:42.466   577  1904 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_RESIZEABLE_ACTIVITY_OVERRIDES
+07-16 08:47:42.466   577  1904 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_MIN_ASPECT_RATIO_OVERRIDE
+07-16 08:47:42.467   577  1904 V SplashScreenExceptionList: SplashScreen checking exception for package com.bizsimai.android (target sdk:35) -> false
+07-16 08:47:42.468   577  1904 I ActivityTaskManager: Add Task{d592f48 #9 type=standard A=10207:com.bizsimai.android} to hidden list because adding Task{c7adc9e #10 type=standard A=10207:com.bizsimai.android}
+07-16 08:47:42.468   984  1042 V WindowManagerShell: Transition requested (#30): android.os.BinderProxy@c64f727 TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=10 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.bizsimai.android/.MainActivity } baseActivity=ComponentInfo{com.bizsimai.android/com.bizsimai.android.MainActivity} topActivity=ComponentInfo{com.bizsimai.android/com.bizsimai.android.MainActivity} origActivity=null realActivity=ComponentInfo{com.bizsimai.android/com.bizsimai.android.MainActivity} numActivities=1 lastActiveTime=1424015 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@9754dd4} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 132 - 0, 0) topActivityInfo=ActivityInfo{aa0eb7d com.bizsimai.android.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= falseisLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false topActivityEligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=1080 topActivityLetterboxHeight=2400 isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false cameraCompatTaskInfo=CameraCompatTaskInfo { cameraCompatControlState=hidden freeformCameraCompatMode=inactive}}}, pipTask = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 30 }
+07-16 08:47:42.469   577  2245 D CompatChangeReporter: Compat change id reported: 309578419; UID 10207; state: ENABLED
+07-16 08:47:42.469   577  1904 I ActivityTaskManager: START u0 {flg=0x10000000 cmp=com.bizsimai.android/.MainActivity} with LAUNCH_MULTIPLE from uid 2000 (BAL_ALLOW_PERMISSION) result code=0
+07-16 08:47:42.470   577   605 V GrammaticalInflectionUtils: AttributionSource: AttributionSource { uid = 10207, packageName = null, attributionTag = null, token = android.os.Binder@d6b3a30, deviceId = 0, next = null } does not have READ_SYSTEM_GRAMMATICAL_GENDER permission.
+07-16 08:47:42.472  1248  1248 W SplitSelectStateCtor: Missing session instanceIds
+07-16 08:47:42.472  1248  1248 D StatsLog: LAUNCHER_SPLIT_SELECTION_EXIT_INTERRUPTED
+07-16 08:47:42.473   366   366 D Zygote  : Forked child process 4752
+07-16 08:47:42.474   984  1068 D SplashScreenView: Build android.window.SplashScreenView{6e70d35 V.E...... ......ID 0,0-0,0}
+07-16 08:47:42.474   984  1068 D SplashScreenView: Icon: view: android.widget.ImageView{264f5ca V.ED..... ......I. 0,0-0,0 #1020504 android:id/splashscreen_icon_view} drawable: com.android.wm.shell.startingsurface.SplashscreenIconDrawableFactory$ImmobileIconDrawable@c1c633b size: 420
+07-16 08:47:42.474   984  1068 D SplashScreenView: Branding: view: android.view.View{8f46a58 G.ED..... ......I. 0,0-0,0 #1020503 android:id/splashscreen_branding_view} drawable: null size w: 0 h: 0
+07-16 08:47:42.475   577   613 I ActivityManager: Start proc 4752:com.bizsimai.android/u0a207 for next-top-activity {com.bizsimai.android/com.bizsimai.android.MainActivity}
+07-16 08:47:42.476   984  1042 D WindowManagerShell: setLauncherKeepClearAreaHeight: visible=false, height=527
+07-16 08:47:42.476  1248  1248 I TopTaskTracker: onTaskMovedToFront: (moved taskInfo to front) taskId=10, baseIntent=Intent { flg=0x10000000 cmp=com.bizsimai.android/.MainActivity }
+07-16 08:47:42.476   577   932 I AppWidgetServiceImpl: Received broadcast: android.intent.action.PACKAGE_UNSTOPPED on user 0
+07-16 08:47:42.476   577   932 I AppWidgetServiceImpl: Updating package stopped masked state for uid 10207 package com.bizsimai.android isStopped false
+07-16 08:47:42.479  1539  1769 I AssistantForeground: (REDACTED) Get launcher package: %s
+07-16 08:47:42.487   577  1095 D CoreBackPreview: Window{e5b989b u0 Splash Screen com.bizsimai.android}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@4508250, mPriority=0, mIsAnimationCallback=false}
+07-16 08:47:42.491  4752  4752 I izsimai.android: Late-enabling -Xcheck:jni
+07-16 08:47:42.493   984  1087 V WindowManagerShell: onTransitionReady(transaction=2478196130509)
+07-16 08:47:42.493   577   602 V WindowManager: Sent Transition (#30) createdAt=07-16 08:47:42.466 via request=TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=10 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.bizsimai.android/.MainActivity } baseActivity=ComponentInfo{com.bizsimai.android/com.bizsimai.android.MainActivity} topActivity=ComponentInfo{com.bizsimai.android/com.bizsimai.android.MainActivity} origActivity=null realActivity=ComponentInfo{com.bizsimai.android/com.bizsimai.android.MainActivity} numActivities=1 lastActiveTime=1424015 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{4b30a6f Task{c7adc9e #10 type=standard A=10207:com.bizsimai.android}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 132 - 0, 0) topActivityInfo=ActivityInfo{e43737c com.bizsimai.android.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= falseisLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false topActivityEligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=1080 topActivityLetterboxHeight=2400 isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false cameraCompatTaskInfo=CameraCompatTaskInfo { cameraCompatControlState=hidden freeformCameraCompatMode=inactive}}}, pipTask = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 30 }
+07-16 08:47:42.493   577   602 V WindowManager:     startWCT=WindowContainerTransaction { changes = {} hops = [] errorCallbackToken=null taskFragmentOrganizer=null }
+07-16 08:47:42.493   577   602 V WindowManager:     info={id=30 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[
+07-16 08:47:42.493   577   602 V WindowManager:         {WCT{RemoteToken{4b30a6f Task{c7adc9e #10 type=standard A=10207:com.bizsimai.android}}} m=OPEN f=NONE leash=Surface(name=Task=10)/@0x7dc0c49 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},
+07-16 08:47:42.493   577   602 V WindowManager:         {WCT{RemoteToken{f5620cd Task{4777284 #1 type=home}}} m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0x1e39936 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1}
+07-16 08:47:42.493   577   602 V WindowManager:     ]}
+07-16 08:47:42.494   984  1042 V WindowManagerShell: onTransitionReady (#30) android.os.BinderProxy@c64f727: {id=30 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{WCT{android.window.IWindowContainerToken$Stub$Proxy@a77d30f} m=OPEN f=NONE leash=Surface(name=Task=10)/@0x33a2c70 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},{WCT{android.window.IWindowContainerToken$Stub$Proxy@3ed9f9c} m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0x7ef3be9 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1}]}
+07-16 08:47:42.494   984  1042 V WindowManagerShell: Transition (#30) android.os.BinderProxy@c64f727@0 ready while (#29) android.os.BinderProxy@41e31d6@0 is still animating. Notify the animating transition in case they can be merged
+07-16 08:47:42.494   984  1042 V WindowManagerShell:    Merge into remote: RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@9b1a07e, appThread = android.app.IApplicationThread$Stub$Proxy@efbe9df, debugName = QuickstepLaunchHome }
+07-16 08:47:42.494   984  1042 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#29) android.os.BinderProxy@41e31d6@0
+07-16 08:47:42.494   577  1860 W UserManagerService: Requested status bar icon for non-badged user 0
+07-16 08:47:42.495   577  1095 E IPCThreadState: Binder transaction failure. id: 501741, BR_*: 29189, error: -22 (Invalid argument)
+07-16 08:47:42.495   577  1095 W ActivityManager: pid 577 system sent binder code 7 with flags 1 to frozen apps and got error -32
+07-16 08:47:42.495   577   602 V WindowManager: Finish Transition (#29): created at 07-16 08:47:42.229 collect-started=0.014ms request-sent=0.079ms started=12.498ms ready=64.949ms sent=65.915ms finished=265.43ms
+--------- beginning of kernel
+07-16 08:47:42.495  1095  1095 I binder  : 1095:577 cannot find target node
+07-16 08:47:42.497   577  1095 W WindowManager: Exception thrown during dispatchAppVisibility Window{192456b u0 com.bizsimai.android/com.bizsimai.android.MainActivity EXITING}
+07-16 08:47:42.497   577  1095 W WindowManager: android.os.DeadObjectException
+07-16 08:47:42.497   577  1095 W WindowManager: 	at android.os.BinderProxy.transactNative(Native Method)
+07-16 08:47:42.497   577  1095 W WindowManager: 	at android.os.BinderProxy.transact(BinderProxy.java:586)
+07-16 08:47:42.497   577  1095 W WindowManager: 	at android.view.IWindow$Stub$Proxy.dispatchAppVisibility(IWindow.java:553)
+07-16 08:47:42.497   577  1095 W WindowManager: 	at com.android.server.wm.WindowState.sendAppVisibilityToClients(WindowState.java:3253)
+07-16 08:47:42.497   577  1095 W WindowManager: 	at com.android.server.wm.WindowContainer.sendAppVisibilityToClients(WindowContainer.java:1289)
+07-16 08:47:42.497   577  1095 W WindowManager: 	at com.android.server.wm.WindowToken.setClientVisible(WindowToken.java:403)
+07-16 08:47:42.497   577  1095 W WindowManager: 	at com.android.server.wm.ActivityRecord.setClientVisible(ActivityRecord.java:7166)
+07-16 08:47:42.497   577  1095 W WindowManager: 	at com.android.server.wm.ActivityRecord.postApplyAnimation(ActivityRecord.java:5881)
+07-16 08:47:42.497   577  1095 W WindowManager: 	at com.android.server.wm.ActivityRecord.commitVisibility(ActivityRecord.java:5823)
+07-16 08:47:42.497   577  1095 W WindowManager: 	at com.android.server.wm.Transition.finishTransition(Transition.java:1286)
+07-16 08:47:42.497   577  1095 W WindowManager: 	at com.android.server.wm.TransitionController.finishTransition(TransitionController.java:937)
+07-16 08:47:42.497   577  1095 W WindowManager: 	at com.android.server.wm.WindowOrganizerController.finishTransition(WindowOrganizerController.java:494)
+07-16 08:47:42.497   577  1095 W WindowManager: 	at android.window.IWindowOrganizerController$Stub.onTransact(IWindowOrganizerController.java:289)
+07-16 08:47:42.497   577  1095 W WindowManager: 	at com.android.server.wm.WindowOrganizerController.onTransact(WindowOrganizerController.java:204)
+07-16 08:47:42.497   577  1095 W WindowManager: 	at android.os.Binder.execTransactInternal(Binder.java:1505)
+07-16 08:47:42.497   577  1095 W WindowManager: 	at android.os.Binder.execTransact(Binder.java:1444)
+07-16 08:47:42.497   577  1095 W Process : Unable to open /proc/4552/status
+07-16 08:47:42.499   984  1042 V WindowManagerShell: Playing animation for (#30) android.os.BinderProxy@c64f727@0
+07-16 08:47:42.499   984  1042 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultMixedHandler@678ea3
+07-16 08:47:42.499   984  1042 V WindowManagerShell:  try handler com.android.wm.shell.keyguard.KeyguardTransitionHandler@e9f95a0
+07-16 08:47:42.499   984  1042 V WindowManagerShell:  try handler com.android.wm.shell.pip.PipTransition@349a559
+07-16 08:47:42.499   984  1042 V WindowManagerShell:  try handler com.android.wm.shell.activityembedding.ActivityEmbeddingController@292b51e
+07-16 08:47:42.499   984  1042 V WindowManagerShell:  try handler com.android.wm.shell.recents.RecentsTransitionHandler@eda71ff
+07-16 08:47:42.499   984  1042 V ShellRecents: RecentsTransitionHandler.startAnimation: no controller found
+07-16 08:47:42.499   984  1042 V WindowManagerShell:  try handler com.android.wm.shell.splitscreen.StageCoordinator@bf86bcc
+07-16 08:47:42.499   984  1042 V WindowManagerShell:  try handler com.android.wm.shell.transition.RemoteTransitionHandler@5663e15
+07-16 08:47:42.499   984  1042 V WindowManagerShell: Transition doesn't have explicit remote, search filters for match for {id=30 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{WCT{android.window.IWindowContainerToken$Stub$Proxy@a77d30f} m=OPEN f=NONE leash=Surface(name=Task=10)/@0x33a2c70 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},{WCT{android.window.IWindowContainerToken$Stub$Proxy@3ed9f9c} m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0x7ef3be9 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1}]}
+07-16 08:47:42.499   984  1042 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=undefined independent=true modes=[OPEN,TO_FRONT] flags=IN_TASK_WITH_EMBEDDED_ACTIVITY mustBeTask=false order=ANY topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity} launchCookie=null},{atype=undefined independent=true modes=[CLOSE,TO_BACK] flags=IN_TASK_WITH_EMBEDDED_ACTIVITY mustBeTask=false order=ANY topActivity=null launchCookie=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@6e28332, appThread = android.app.IApplicationThread$Stub$Proxy@d174883, debugName = OverlaySwipeBack }}
+07-16 08:47:42.499   984  1042 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=dream independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null},{atype=home independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@353fa00, appThread = android.app.IApplicationThread$Stub$Proxy@ceda239, debugName = LauncherToDream }}
+07-16 08:47:42.499   984  1042 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity} launchCookie=null},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@9b1a07e, appThread = android.app.IApplicationThread$Stub$Proxy@efbe9df, debugName = QuickstepLaunchHome }}
+07-16 08:47:42.499   984  1042 V WindowManagerShell:  Delegate animation for (#30) to null
+07-16 08:47:42.499   984  1042 V WindowManagerShell:  try handler com.android.wm.shell.transition.DefaultTransitionHandler@1266864
+07-16 08:47:42.499   984  1042 V WindowManagerShell: start default transition animation, info = {id=30 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{WCT{android.window.IWindowContainerToken$Stub$Proxy@a77d30f} m=OPEN f=NONE leash=Surface(name=Task=10)/@0x33a2c70 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},{WCT{android.window.IWindowContainerToken$Stub$Proxy@3ed9f9c} m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0x7ef3be9 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1}]}
+07-16 08:47:42.499   984  1042 V WindowManagerShell: loadAnimation: anim=android.view.animation.AnimationSet@e68912b animAttr=0x13 type=OPEN isEntrance=false
+07-16 08:47:42.499   984  1042 V WindowManagerShell: loadAnimation: anim=android.view.animation.AnimationSet@c5d1507 animAttr=0x12 type=OPEN isEntrance=true
+07-16 08:47:42.499   984  1042 V WindowManagerShell:  animated by com.android.wm.shell.transition.DefaultTransitionHandler@1266864
+07-16 08:47:42.500  4752  4752 I izsimai.android: Using CollectorTypeCMC GC.
+07-16 08:47:42.503  4752  4752 D nativeloader: Load libframework-connectivity-tiramisu-jni.so using APEX ns com_android_tethering for caller /apex/com.android.tethering/javalib/framework-connectivity-t.jar: ok
+07-16 08:47:42.504   415   447 I adbd    : jdwp connection from 4752
+07-16 08:47:42.505  1248  1248 I TopTaskTracker: onTaskRemoved: taskId=9
+07-16 08:47:42.505  1248  1248 I TopTaskTracker: onTaskRemoved: taskId=9
+07-16 08:47:42.506   577  1095 W UserManagerService: Requested status bar icon for non-badged user 0
+07-16 08:47:42.506   577  1860 W UserManagerService: Requested status bar icon for non-badged user 0
+07-16 08:47:42.508   984  1093 D EGL_emulation: app_time_stats: avg=20443.64ms min=20443.64ms max=20443.64ms count=1
+07-16 08:47:42.516  4752  4752 W ziparchive: Unable to open '/data/app/~~B5lpckB7gMiueJJjmWYmDw==/com.bizsimai.android-CPuesIll12CMo5LJ32BJlA==/base.dm': No such file or directory
+07-16 08:47:42.516  4752  4752 W ziparchive: Unable to open '/data/app/~~B5lpckB7gMiueJJjmWYmDw==/com.bizsimai.android-CPuesIll12CMo5LJ32BJlA==/base.dm': No such file or directory
+07-16 08:47:42.535   409   409 E BpTransactionCompletedListener: Failed to transact (-32)
+07-16 08:47:42.535   387   474 I RanchuHwc: logCompositionFallbackIfChanged: layer 28 CompositionType fallback from 2 to 1
+07-16 08:47:42.596   409   512 W VsyncModulator: setTransactionSchedule: Unexpected EarlyEnd
+07-16 08:47:42.697  4752  4752 D nativeloader: Configuring clns-7 for other apk /data/app/~~B5lpckB7gMiueJJjmWYmDw==/com.bizsimai.android-CPuesIll12CMo5LJ32BJlA==/base.apk. target_sdk_version=35, uses_libraries=, library_path=/data/app/~~B5lpckB7gMiueJJjmWYmDw==/com.bizsimai.android-CPuesIll12CMo5LJ32BJlA==/lib/arm64:/data/app/~~B5lpckB7gMiueJJjmWYmDw==/com.bizsimai.android-CPuesIll12CMo5LJ32BJlA==/base.apk!/lib/arm64-v8a, permitted_path=/data:/mnt/expand:/data/user/0/com.bizsimai.android
+07-16 08:47:42.698  4752  4752 D CompatChangeReporter: Compat change id reported: 202956589; UID 10207; state: ENABLED
+07-16 08:47:42.703  4752  4752 V GraphicsEnvironment: Currently set values for:
+07-16 08:47:42.703  4752  4752 V GraphicsEnvironment:   angle_gl_driver_selection_pkgs=[]
+07-16 08:47:42.703  4752  4752 V GraphicsEnvironment:   angle_gl_driver_selection_values=[]
+07-16 08:47:42.703  4752  4752 V GraphicsEnvironment: Global.Settings values are invalid: number of packages: 0, number of values: 0
+07-16 08:47:42.704  4752  4752 V GraphicsEnvironment: Neither updatable production driver nor prerelease driver is supported.
+07-16 08:47:42.714  4752  4752 D CompatChangeReporter: Compat change id reported: 279646685; UID 10207; state: ENABLED
+07-16 08:47:42.717   577  1860 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ENABLE_FAKE_FOCUS
+07-16 08:47:42.717   577  1860 D CompatChangeReporter: Compat change id reported: 324203798; UID 10207; state: ENABLED
+07-16 08:47:42.743  4752  4752 D CompatChangeReporter: Compat change id reported: 309578419; UID 10207; state: ENABLED
+07-16 08:47:42.747  1512  1512 W MediaProvider: WorkProfileOwnerApps cache is empty
+07-16 08:47:42.747  1512  1512 D PickerSyncLockManager: Trying to acquire lock com.android.providers.media.photopicker.sync.CloseableReentrantLock@fbdbab[Unlocked]. Lock Name = CLOUD_PROVIDER_LOCK. Threads that may be waiting to acquire this lock = []
+07-16 08:47:42.747  1512  1512 D CloseableReentrantLock: Successfully acquired lock com.android.providers.media.photopicker.sync.CloseableReentrantLock@fbdbab[Locked by thread main]. Lock Name = CLOUD_PROVIDER_LOCK. Threads that may be waiting to acquire this lock = []
+07-16 08:47:42.747  1512  1512 D CloseableReentrantLock: Successfully released lock com.android.providers.media.photopicker.sync.CloseableReentrantLock@fbdbab[Unlocked]. Lock Name = CLOUD_PROVIDER_LOCK. Threads that may be waiting to acquire this lock = []
+07-16 08:47:42.750  1539  1539 I GsaVoiceInteractionSrv: (REDACTED) O received %s
+07-16 08:47:42.758  1539  1539 I GsaVoiceInteractionSrv: (REDACTED) O received %s
+07-16 08:47:42.758  1525  2034 I AiAiTextClassifier: [VisualCortexAdapter]: provideRegistration: Registered Prominent Screen Entities for updates.
+07-16 08:47:42.759   984   984 D ControlsListingControllerImpl: ServiceConfig reloaded, count: 0
+07-16 08:47:42.760   984   984 D ControlsListingControllerImpl: ServiceConfig reloaded, count: 0
+07-16 08:47:42.760  1525  2034 I AiAiTextClassifier: [VisualCortexAdapter]: provideRegistration: Registered Prominent Screen Entities for updates.
+07-16 08:47:42.760   984   984 D ControlsListingControllerImpl: ServiceConfig reloaded, count: 0
+07-16 08:47:42.761  1525  2034 I AiAiTextClassifier: [VisualCortexAdapter]: provideRegistration: Registered Prominent Screen Entities for updates.
+07-16 08:47:42.762  1525  2034 I AiAiTextClassifier: [VisualCortexAdapter]: provideRegistration: Registered Prominent Screen Entities for updates.
+07-16 08:47:42.764   577  1095 W PackageManager: Cannot suspend package "com.android.dynsystem": has OP_SYSTEM_EXEMPT_FROM_SUSPENSION set
+07-16 08:47:42.764   577  1095 W PackageManager: Cannot suspend package "android": has OP_SYSTEM_EXEMPT_FROM_SUSPENSION set
+07-16 08:47:42.765   577  1095 W PackageManager: Cannot suspend package "com.google.android.permissioncontroller": required for permissions management
+07-16 08:47:42.765   577  1095 W PackageManager: Cannot suspend package "com.android.providers.settings": has OP_SYSTEM_EXEMPT_FROM_SUSPENSION set
+07-16 08:47:42.765   577  1095 W PackageManager: Cannot suspend package "com.android.inputdevices": has OP_SYSTEM_EXEMPT_FROM_SUSPENSION set
+07-16 08:47:42.765   577  1095 W PackageManager: Cannot suspend package "com.google.android.dialer": is the default dialer
+07-16 08:47:42.765  1525  2034 I AiAiTextClassifier: [VisualCortexAdapter]: provideRegistration: Registered Prominent Screen Entities for updates.
+07-16 08:47:42.765   577  1095 W PackageManager: Cannot suspend package "com.android.server.telecom": has OP_SYSTEM_EXEMPT_FROM_SUSPENSION set
+07-16 08:47:42.765   577  1095 W PackageManager: Cannot suspend package "com.android.keychain": has OP_SYSTEM_EXEMPT_FROM_SUSPENSION set
+07-16 08:47:42.765   577  1095 W PackageManager: Cannot suspend package "com.google.android.packageinstaller": required for package installation
+07-16 08:47:42.765   577  1095 W PackageManager: Cannot suspend package "com.android.localtransport": has OP_SYSTEM_EXEMPT_FROM_SUSPENSION set
+07-16 08:47:42.765   577  1095 W PackageManager: Cannot suspend package "com.google.android.apps.nexuslauncher": contains the active launcher
+07-16 08:47:42.765   577  1095 W PackageManager: Cannot suspend package "com.android.DeviceAsWebcam": has OP_SYSTEM_EXEMPT_FROM_SUSPENSION set
+07-16 08:47:42.765   577  1095 W PackageManager: Cannot suspend package "com.android.emulator.multidisplay": has OP_SYSTEM_EXEMPT_FROM_SUSPENSION set
+07-16 08:47:42.765   577  1095 W PackageManager: Cannot suspend package "com.android.settings": has OP_SYSTEM_EXEMPT_FROM_SUSPENSION set
+07-16 08:47:42.765   577  1095 W PackageManager: Cannot suspend package "com.android.location.fused": has OP_SYSTEM_EXEMPT_FROM_SUSPENSION set
+07-16 08:47:42.765  1525  2034 I AiAiTextClassifier: [VisualCortexAdapter]: provideRegistration: Registered Prominent Screen Entities for updates.
+07-16 08:47:42.770  4752  4752 W HWUI    : Unknown dataspace 0
+07-16 08:47:42.772  1539  1539 I GsaVoiceInteractionSrv: (REDACTED) O received %s
+07-16 08:47:42.773  1539  1769 W A       : Failed to notify listeners
+07-16 08:47:42.773  1539  1769 W A       : java.util.concurrent.CancellationException
+07-16 08:47:42.773  1539  1769 W A       : 	at java.util.concurrent.FutureTask.report(FutureTask.java:121)
+07-16 08:47:42.773  1539  1769 W A       : 	at java.util.concurrent.FutureTask.get(FutureTask.java:191)
+07-16 08:47:42.773  1539  1769 W A       : 	at com.google.common.util.concurrent.bu.get(PG:1)
+07-16 08:47:42.773  1539  1769 W A       : 	at com.google.common.util.concurrent.dx.a(PG:2)
+07-16 08:47:42.773  1539  1769 W A       : 	at com.google.common.util.concurrent.cp.r(PG:10)
+07-16 08:47:42.773  1539  1769 W A       : 	at com.google.common.util.concurrent.ca.run(PG:24)
+07-16 08:47:42.773  1539  1769 W A       : 	at com.google.common.util.concurrent.bf.execute(PG:1)
+07-16 08:47:42.773  1539  1769 W A       : 	at com.google.common.util.concurrent.bj.c(PG:1)
+07-16 08:47:42.773  1539  1769 W A       : 	at com.google.common.util.concurrent.bj.b(PG:32)
+07-16 08:47:42.773  1539  1769 W A       : 	at com.google.common.util.concurrent.cy.done(PG:3)
+07-16 08:47:42.773  1539  1769 W A       : 	at java.util.concurrent.FutureTask.finishCompletion(FutureTask.java:381)
+07-16 08:47:42.773  1539  1769 W A       : 	at java.util.concurrent.FutureTask.cancel(FutureTask.java:179)
+07-16 08:47:42.773  1539  1769 W A       : 	at com.google.common.util.concurrent.bu.cancel(PG:5)
+07-16 08:47:42.773  1539  1769 W A       : 	at com.google.android.libraries.search.assistant.fulfillment.server.o.l.run(PG:14)
+07-16 08:47:42.773  1539  1769 W A       : 	at com.google.apps.tiktok.tracing.fk.run(PG:24)
+07-16 08:47:42.773  1539  1769 W A       : 	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:487)
+07-16 08:47:42.773  1539  1769 W A       : 	at com.google.common.util.concurrent.du.a(PG:3)
+07-16 08:47:42.773  1539  1769 W A       : 	at com.google.common.util.concurrent.cv.run(PG:21)
+07-16 08:47:42.773  1539  1769 W A       : 	at com.google.common.util.concurrent.dv.run(PG:5)
+07-16 08:47:42.773  1539  1769 W A       : 	at com.google.android.libraries.k.x.run(PG:3)
+07-16 08:47:42.773  1539  1769 W A       : 	at com.google.common.n.c.c.run(PG:50)
+07-16 08:47:42.773  1539  1769 W A       : 	at com.google.android.libraries.k.e.run(PG:8)
+07-16 08:47:42.773  1539  1769 W A       : 	at java.lang.Thread.run(Thread.java:1012)
+07-16 08:47:42.773  1539  1769 W A       : 	at com.google.android.libraries.k.d.b.run(PG:74)
+07-16 08:47:42.785  1319  4791 I Fitness : FitCleanupIntentOperation received Intent android.intent.action.PACKAGE_REMOVED [CONTEXT service_id=17 ]
+07-16 08:47:42.785   984  1042 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#30) android.os.BinderProxy@c64f727@0
+07-16 08:47:42.788   577   602 V WindowManager: Finish Transition (#30): created at 07-16 08:47:42.466 collect-started=0.01ms request-sent=2.063ms started=3.636ms ready=26.414ms sent=26.961ms finished=320.193ms
+07-16 08:47:42.788  1319  4790 I ProximityAuth: [RecentAppsMediator] Package added: (user=UserHandle{0}) com.bizsimai.android
+07-16 08:47:42.790  1319  4777 I FontLog : Package com.bizsimai.android has no metadata [CONTEXT service_id=132 ]
+07-16 08:47:42.792   984  1042 V WindowManagerShell: Track 0 became idle
+07-16 08:47:42.792   984  1042 V WindowManagerShell: All active transition animations finished
+07-16 08:47:42.792   577  1098 W UserManagerService: Requested status bar icon for non-badged user 0
+07-16 08:47:42.793   577  2137 W UserManagerService: Requested status bar icon for non-badged user 0
+07-16 08:47:42.797  1629  2257 W SearchServiceCore: Abort, client detached.
+07-16 08:47:42.797  1629  2257 W SearchServiceCore: Abort, client detached.
+07-16 08:47:42.800  1629  2257 W SearchServiceCore: Abort, client detached.
+07-16 08:47:42.803  1552  4781 I Auth    : [SupervisedAccountIntentOperation] onHandleIntent(): android.intent.action.PACKAGE_ADDED
+07-16 08:47:42.803  1552  4781 V Backup  : [PhotosPackagedAddedIO] Flag is disabled.
+07-16 08:47:42.805  1552  1552 D BoundBrokerSvc: onBind: Intent { act=com.google.android.gms.common.BIND_SHARED_PREFS pkg=com.google.android.gms }
+07-16 08:47:42.805  1552  1552 D BoundBrokerSvc: Loading bound service for intent: Intent { act=com.google.android.gms.common.BIND_SHARED_PREFS pkg=com.google.android.gms }
+07-16 08:47:42.806  1248  1248 D VRI[NexusLauncherActivity]: visibilityChanged oldVisibility=true newVisibility=false
+07-16 08:47:42.806  1525  1531 W ogle.android.as: Reducing the number of considered missed Gc histogram windows from 138 to 100
+07-16 08:47:42.806  1248  1248 D NexusLauncherModelDelegate: notifySmartspaceEvent: SmartspaceTargetEvent{mSmartspaceTarget=null, mSmartspaceActionId='null', mEventType=7}
+07-16 08:47:42.809  1552  4780 W SQLiteLog: (28) double-quoted string literal: "com.bizsimai.android"
+07-16 08:47:42.828  1552  4611 I Icing   : IndexChimeraService.getServiceInterface callingPackage=com.google.android.gms componentName=AppsCorpus serviceId=36
+07-16 08:47:42.829  1552  1552 D BoundBrokerSvc: onBind: Intent { act=com.google.android.gms.feedback.internal.IFeedbackService dat=chimera-action:/... cmp=com.google.android.gms/.chimera.GmsBoundBrokerService }
+07-16 08:47:42.829  1552  1552 D BoundBrokerSvc: Loading bound service for intent: Intent { act=com.google.android.gms.feedback.internal.IFeedbackService dat=chimera-action:/... cmp=com.google.android.gms/.chimera.GmsBoundBrokerService }
+07-16 08:47:42.832  1539  1543 I hbox:interactor: JIT allocated 60KB for compiled code of java.lang.Object com.google.android.apps.gsa.binaries.satin.app.awf.s()
+07-16 08:47:42.832  1539  1543 I hbox:interactor: Compiler allocated 5644KB to compile java.lang.Object com.google.android.apps.gsa.binaries.satin.app.awf.s()
+07-16 08:47:42.840  1552  4605 I Icing   : Usage reports ok 1, Failed Usage reports 0, indexed 0, rejected 0
+07-16 08:47:42.843  1552  2016 I Icing   : IndexChimeraService.getServiceInterface callingPackage=com.google.android.gms componentName=null serviceId=30
+07-16 08:47:42.848  1525  2034 I AiAiTextClassifier: [VisualCortexAdapter]: provideRegistration: Registered Prominent Screen Entities for updates.
+07-16 08:47:42.849  1552  4605 I Icing   : Usage reports ok 0, Failed Usage reports 0, indexed 0, rejected 0
+07-16 08:47:42.853  1525  2034 I AiAiTextClassifier: [VisualCortexAdapter]: provideRegistration: Registered Prominent Screen Entities for updates.
+07-16 08:47:42.857  1552  3141 I Icing   : Indexing com.google.android.gms-apps from com.google.android.gms
+07-16 08:47:42.857  1525  2034 I AiAiTextClassifier: [VisualCortexAdapter]: provideRegistration: Registered Prominent Screen Entities for updates.
+07-16 08:47:42.859  1552  3141 I Icing   : Indexing done com.google.android.gms-apps
+07-16 08:47:42.899  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/app/YouTube/YouTube.apk' with 1 weak references
+07-16 08:47:42.899  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/overlay/DisplayCutoutEmulationCorner/DisplayCutoutEmulationCornerOverlay.apk' with 1 weak references
+07-16 08:47:42.899  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /apex/com.android.extservices/priv-app/GoogleExtServices@350820300/GoogleExtServices.apk' with 1 weak references
+07-16 08:47:42.899  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/overlay/DisplayCutoutEmulationDouble/DisplayCutoutEmulationDoubleOverlay.apk' with 1 weak references
+07-16 08:47:42.899  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/TelephonyProvider/TelephonyProvider.apk' with 1 weak references
+07-16 08:47:42.899  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '/product/overlay/TelephonyProvider__sdk_gphone64_arm64__auto_generated_rro_product.apk' with 1 weak references
+07-16 08:47:42.899  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/DynamicSystemInstallationService/DynamicSystemInstallationService.apk' with 1 weak references
+07-16 08:47:42.899  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/priv-app/Velvet/Velvet.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/CalendarProvider/CalendarProvider.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/priv-app/GoogleOneTimeInitializer/GoogleOneTimeInitializer.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/app/GoogleExtShared/GoogleExtShared.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/ExternalStorageProvider/ExternalStorageProvider.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/app/HTMLViewer/HTMLViewer.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/app/CompanionDeviceManager/CompanionDeviceManager.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/DownloadProvider/DownloadProvider.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/priv-app/PrebuiltBugle/PrebuiltBugle.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/app/SoundPickerPrebuilt/SoundPickerPrebuilt.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /apex/com.android.mediaprovider/priv-app/MediaProviderGoogle@350820300/MediaProviderGoogle.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/priv-app/SafetyHubPrebuilt/SafetyHubPrebuilt.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/DownloadProviderUi/DownloadProviderUi.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /apex/com.android.wifi/app/OsuLoginGoogle@350820300/OsuLoginGoogle.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/app/PacProcessor/PacProcessor.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/app/SimAppDialog/SimAppDialog.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '/product/overlay/SimAppDialog__sdk_gphone64_arm64__auto_generated_rro_product.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /apex/com.android.adservices/priv-app/AdServicesApkGoogle@350820260/AdServicesApkGoogle.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/overlay/DisplayCutoutEmulationHole/DisplayCutoutEmulationHoleOverlay.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/overlay/DisplayCutoutEmulationTall/DisplayCutoutEmulationTallOverlay.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/app/CertInstaller/CertInstaller.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/app/talkback/talkback.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '/vendor/overlay/EmulatorTalkBackOverlay/EmulatorTalkBackOverlay.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/overlay/NavigationBarMode3Button/NavigationBarMode3ButtonOverlay.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/app/Camera2/Camera2.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/app/EasterEgg/EasterEgg.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/MtpService/MtpService.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /apex/com.android.nfcservices/priv-app/NfcNciApexGoogle@AE3A.240806.043/NfcNciApexGoogle.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/app/Stk/Stk.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/app/PrebuiltDeskClockGoogle/PrebuiltDeskClockGoogle.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/overlay/NavigationBarMode2Button/NavigationBarMode2ButtonOverlay.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/priv-app/DevicePersonalizationPrebuiltPixel2021-aiai_20240329.00_RC16/DevicePersonalizationPrebuiltPixel2021-aiai_20240329.00_RC16.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/app/PrebuiltGmail/PrebuiltGmail.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /apex/com.android.permission/priv-app/GooglePermissionController@350820360/GooglePermissionController.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '/product/overlay/GooglePermissionControllerOverlay.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /apex/com.android.btservices/app/BluetoothGoogle@342010060/BluetoothGoogle.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/SettingsProvider/SettingsProvider.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '/product/overlay/LargeScreenSettingsProviderOverlay.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '/product/overlay/SettingsProvider__sdk_gphone64_arm64__auto_generated_rro_product.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/app/PrintSpooler/PrintSpooler.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/app/BasicDreams/BasicDreams.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/priv-app/DeviceIntelligenceNetworkPrebuilt-astrea_20240329.00_RC02/DeviceIntelligenceNetworkPrebuilt-astrea_20240329.00_RC02.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/InputDevices/InputDevices.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /apex/com.android.devicelock/priv-app/DeviceLockControllerGoogle@AE3A.240806.043/DeviceLockControllerGoogle.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/priv-app/GoogleDialer/GoogleDialer.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/BuiltInPrintService/BuiltInPrintService.apk' with 1 weak references
+07-16 08:47:42.900  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '/product/overlay/BuiltInPrintService__sdk_gphone64_arm64__auto_generated_rro_product.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/app/CaptivePortalLoginGoogle/CaptivePortalLoginGoogle.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/MusicFX/MusicFX.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/app/Drive/Drive.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/app/Maps/Maps.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/app/ModuleMetadataGoogle/ModuleMetadataGoogle.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/overlay/DisplayCutoutEmulationEmu01/DisplayCutoutEmulationEmu01Overlay.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system_ext/priv-app/AvatarPickerGoogle/AvatarPickerGoogle.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/app/MarkupGoogle_v2/MarkupGoogle_v2.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/NetworkStackGoogle/NetworkStackGoogle.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /apex/com.android.rkpd/priv-app/rkpdapp.google@350820300/rkpdapp.google.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/app/GoogleContacts/GoogleContacts.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/Telecom/Telecom.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '/product/overlay/Telecom__sdk_gphone64_arm64__auto_generated_rro_product.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/app/KeyChain/KeyChain.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~yT4ywYz0V5Kw1W3BcJFKFA==/com.android.chrome-rHc-HnYLTQ42mokRjCptXA==/Chrome.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~au4FAWuUhpSJZfbqoWd9cA==/com.google.android.trichromelibrary_636771932-rpgp-haiWFjHwGWTT2EHeA==/TrichromeLibrary.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/GooglePackageInstaller/GooglePackageInstaller.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/app/PixelThemesStub/PixelThemesStub.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system_ext/priv-app/GoogleServicesFramework/GoogleServicesFramework.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/TagGoogle/TagGoogle.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/app/GoogleTTS/GoogleTTS.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/CallLogBackup/CallLogBackup.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/priv-app/PartnerSetupPrebuilt/PartnerSetupPrebuilt.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/app/CameraExtensionsProxy/CameraExtensionsProxy.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/app/NexusWallpapersStubPrebuilt2018/NexusWallpapersStubPrebuilt2018.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system_ext/priv-app/NexusLauncherRelease/NexusLauncherRelease.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/app/CarrierDefaultApp/CarrierDefaultApp.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/CredentialManager/CredentialManager.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /product/overlay/FontNotoSerifSource/FontNotoSerifSourceOverlay.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/DeviceAsWebcam/DeviceAsWebcam.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/ProxyHandler/ProxyHandler.apk' with 1 weak references
+07-16 08:47:42.901  4515  4524 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /apex/com.android.permission/priv-app/GoogleSafetyCenterResources@350820360/GoogleSafetyCenterResources.apk' with 1 weak references
+07-16 08:47:42.902  1248  1248 D SsBaseTemplateCard: No text view can be set up
+07-16 08:47:42.902  1248  1248 D SsBaseTemplateCard: Passed-in item info is null
+07-16 08:47:42.902  1248  1248 D SsBaseTemplateCard: Passed-in item info is null
+07-16 08:47:42.902  1248  1248 D SsBaseTemplateCard: Passed-in item info is null
+07-16 08:47:42.902  1248  1248 I SsBaseTemplateCard: Secondary card pane is null
+07-16 08:47:42.976  4752  4757 I izsimai.android: Compiler allocated 5250KB to compile void android.view.ViewRootImpl.performTraversals()
+07-16 08:47:43.042   577  1098 D CoreBackPreview: Window{8225de0 u0 com.bizsimai.android/com.bizsimai.android.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@2952bba, mPriority=0, mIsAnimationCallback=false}
+07-16 08:47:43.060  4752  4768 I EGL_emulation: Opening libGLESv1_CM_emulation.so
+07-16 08:47:43.061  4752  4768 I EGL_emulation: Opening libGLESv2_emulation.so
+07-16 08:47:43.065  4752  4768 W HWUI    : Failed to choose config with EGL_SWAP_BEHAVIOR_PRESERVED, retrying without...
+07-16 08:47:43.065  4752  4768 W HWUI    : Failed to initialize 101010-2 format, error = EGL_SUCCESS
+07-16 08:47:43.075   161   161 I hwservicemanager: getTransport: Cannot find entry android.hardware.graphics.mapper@4.0::IMapper/default in either framework or device VINTF manifest.
+07-16 08:47:43.075  4752  4768 I Gralloc4: mapper 4.x is not supported
+07-16 08:47:43.075   160   160 I servicemanager: Caller(pid=4752,uid=10207,sid=u:r:untrusted_app:s0:c207,c256,c512,c768) Could not find android.hardware.graphics.allocator.IAllocator/default in the VINTF manifest. No alternative instances declared in VINTF.
+07-16 08:47:43.098   577   602 W ziparchive: Unable to open '/data/app/~~B5lpckB7gMiueJJjmWYmDw==/com.bizsimai.android-CPuesIll12CMo5LJ32BJlA==/base.dm': No such file or directory
+07-16 08:47:43.098   577   602 I ActivityTaskManager: Displayed com.bizsimai.android/.MainActivity for user 0: +632ms
+07-16 08:47:43.106  1248  1248 D BaseDepthController: setSurface:
+07-16 08:47:43.106  1248  1248 D BaseDepthController: 	mWaitingOnSurfaceValidity: false
+07-16 08:47:43.106  1248  1248 D BaseDepthController: 	mSurface: null
+07-16 08:47:43.107  1248  1248 D BaseDepthController: mSurface is null and mCurrentBlur is: 0
+07-16 08:47:43.107  1248  1248 D StateManager: goToState - fromState: Normal, toState: Normal, partial trace:
+07-16 08:47:43.107  1248  1248 D StateManager: 	at com.android.launcher3.statemanager.StateManager.moveToRestState(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:4)
+07-16 08:47:43.107  1248  1248 D StateManager: 	at com.android.launcher3.statemanager.StateManager.moveToRestState(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:1)
+07-16 08:47:43.107  1248  1248 D StateManager: 	at com.android.launcher3.statemanager.StatefulActivity.onStop(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:34)
+07-16 08:47:43.107  1248  1248 D StatsLog: LAUNCHER_ONSTOP
+07-16 08:47:43.107   577  1904 I AppWidgetServiceImpl: setAppWidgetHidden() 0
+07-16 08:47:43.108  1248  2035 D OneSearchSuggestProvider: Shut down the binder channel
+07-16 08:47:43.108  1248  1248 D StatsLog: LAUNCHER_GOOGLE_SEARCH_RESTORE_LIST_SIZE_AFTER_ACTIVITY_RESTART
+07-16 08:47:43.108  1248  1260 I IPCThreadState: oneway function results for code 2 on binder at 0xb400007afaf710c0 will be dropped but finished with status UNKNOWN_TRANSACTION
+07-16 08:47:43.122   577   707 I ImeTracker: com.bizsimai.android:7f5d3ce: onRequestHide at ORIGIN_SERVER reason HIDE_UNSPECIFIED_WINDOW fromUser false
+07-16 08:47:43.122   577   707 I ImeTracker: com.bizsimai.android:7f5d3ce: onCancelled at PHASE_SERVER_SHOULD_HIDE
+07-16 08:47:43.123  1476  1476 I GoogleInputMethodService: GoogleInputMethodService.onFinishInput():3157 
+07-16 08:47:43.123  1476  1476 I GoogleInputMethodService: GoogleInputMethodService.updateDeviceLockedStatus():2248 repeatCheckTimes = 0, locked = false
+07-16 08:47:43.123  1476  1476 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1986 onStartInput(EditorInfo{EditorInfo{packageName=com.bizsimai.android, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, false)
+07-16 08:47:43.123  1476  1476 I GoogleInputMethodService: GoogleInputMethodService.updateDeviceLockedStatus():2248 repeatCheckTimes = 1, locked = false
+07-16 08:47:43.123  1476  1476 I AndroidIME: InputBundleManager.loadActiveInputBundleId():450 loadActiveInputBundleId: und-Latn-x-password, password
+07-16 08:47:43.123   577  1904 W PackageConfigPersister: App-specific configuration not found for packageName: com.bizsimai.android and userId: 0
+07-16 08:47:43.275  1319  2304 I FontLog : Received query Noto Color Emoji Compat, URI content://com.google.android.gms.fonts [CONTEXT service_id=132 ]
+07-16 08:47:43.275  1319  2304 I FontLog : Query [emojicompat-emoji-font] resolved to {Noto Color Emoji Compat, wdth 100.0, wght 400, ital 0.0, bestEffort false} [CONTEXT service_id=132 ]
+07-16 08:47:43.275  1319  2304 I FontLog : Fetch {Noto Color Emoji Compat, wdth 100.0, wght 400, ital 0.0, bestEffort false} end status Status{statusCode=SUCCESS, resolution=null} [CONTEXT service_id=132 ]
+07-16 08:47:43.279  1319  2304 I FontLog : Pulling font file for id = 8, cache size = 7 [CONTEXT service_id=132 ]
+07-16 08:47:43.280  1319  2304 I FontLog : Pulling font file for id = 8, cache size = 7 [CONTEXT service_id=132 ]
+07-16 08:47:43.294   365   365 I netd    : tetherGetStats() -> {[]} <0.32ms>
+07-16 08:47:43.455   984  1067 W WindowOnBackDispatcher: sendCancelIfRunning: isInProgress=false callback=android.view.ViewRootImpl$$ExternalSyntheticLambda11@6e3f817
+07-16 08:47:43.455   577  1098 W InputManager-JNI: Input channel object 'e5b989b Splash Screen com.bizsimai.android (client)' was disposed without first being removed with the input manager!
+07-16 08:47:43.456   577  1863 D CoreBackPreview: Window{e5b989b u0 Splash Screen com.bizsimai.android EXITING}: Setting back callback null
+07-16 08:47:43.505   984  1067 W FrameTracker: Missed SF frame:PREDICTION_ERROR, 16631, 2766079, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+07-16 08:47:43.506   984  1067 W FrameTracker: Missed SF frame:PREDICTION_ERROR, 16727, 2444541, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+07-16 08:47:43.506   984  1067 W FrameTracker: Missed SF frame:PREDICTION_ERROR, 16806, 3140755, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+07-16 08:47:43.506   984  1067 W FrameTracker: Missing HWUI jank callback for vsyncId: 16861, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+07-16 08:47:43.639   984  1093 D EGL_emulation: app_time_stats: avg=112.69ms min=12.06ms max=986.17ms count=10
+07-16 08:47:46.475   577  2759 E TaskPersister: File error accessing recents directory (directory doesn't exist?).

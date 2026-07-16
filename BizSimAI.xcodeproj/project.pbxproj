@@ -7,12 +7,21 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2D4BE40B26EDC56D697694F5 /* BizSimAIUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D78FB59F204B7CEE92E93D51 /* BizSimAIUITests.swift */; };
 		9E65DEFA2FC7587800B5A8CE /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 9E65DEF92FC7587800B5A8CE /* GoogleSignIn */; };
 		9E65DEFC2FC7587800B5A8CE /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 9E65DEFB2FC7587800B5A8CE /* GoogleSignInSwift */; };
 		9E65DEFE2FC7587800B5A8CE /* AuthenticationServices in Frameworks */ = {isa = PBXBuildFile; fileRef = 9E65DEFF2FC7587800B5A8CE /* AuthenticationServices */; };
+		FF23F4989D9BE57AB070F1C7 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 78AC184354D080DA2AB23C0D /* Foundation.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		470993501F372F484DEB66C1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1719A7F92F800AE5004E8B1A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1719A8002F800AE5004E8B1A;
+			remoteInfo = BizSimAI;
+		};
 		AA0000022FC7600100B5A8CE /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 1719A7F92F800AE5004E8B1A /* Project object */;
@@ -24,8 +33,11 @@
 
 /* Begin PBXFileReference section */
 		1719A8012F800AE5004E8B1A /* BizSimAI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BizSimAI.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2697A897521864591E93C0CC /* BizSimAIUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BizSimAIUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		78AC184354D080DA2AB23C0D /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		9E65DEFF2FC7587800B5A8CE /* AuthenticationServices */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AuthenticationServices; path = System/Library/Frameworks/AuthenticationServices.framework; sourceTree = SDKROOT; };
 		AA0000012FC7600100B5A8CE /* BizSimAITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BizSimAITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D78FB59F204B7CEE92E93D51 /* BizSimAIUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BizSimAIUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -51,6 +63,8 @@
 		};
 		AA0000102FC7600100B5A8CE /* BizSimAITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = BizSimAITests;
 			sourceTree = "<group>";
 		};
@@ -64,6 +78,14 @@
 				9E65DEFA2FC7587800B5A8CE /* GoogleSignIn in Frameworks */,
 				9E65DEFC2FC7587800B5A8CE /* GoogleSignInSwift in Frameworks */,
 				9E65DEFE2FC7587800B5A8CE /* AuthenticationServices in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		437CF236A80FAACEEA13D4BC /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FF23F4989D9BE57AB070F1C7 /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -84,6 +106,8 @@
 				AA0000102FC7600100B5A8CE /* BizSimAITests */,
 				1719A8022F800AE5004E8B1A /* Products */,
 				9ECCAB8730006D7F009E24AE /* Recovered References */,
+				C5938F22888A8DEAB6A95448 /* Frameworks */,
+				5653F5C2595B19914C4191DE /* BizSimAIUITests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -92,8 +116,17 @@
 			children = (
 				1719A8012F800AE5004E8B1A /* BizSimAI.app */,
 				AA0000012FC7600100B5A8CE /* BizSimAITests.xctest */,
+				2697A897521864591E93C0CC /* BizSimAIUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		5653F5C2595B19914C4191DE /* BizSimAIUITests */ = {
+			isa = PBXGroup;
+			children = (
+				D78FB59F204B7CEE92E93D51 /* BizSimAIUITests.swift */,
+			);
+			path = BizSimAIUITests;
 			sourceTree = "<group>";
 		};
 		9ECCAB8730006D7F009E24AE /* Recovered References */ = {
@@ -102,6 +135,22 @@
 				9E65DEFF2FC7587800B5A8CE /* AuthenticationServices */,
 			);
 			name = "Recovered References";
+			sourceTree = "<group>";
+		};
+		BE0E14572F23F28562878652 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				78AC184354D080DA2AB23C0D /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
+		C5938F22888A8DEAB6A95448 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				BE0E14572F23F28562878652 /* iOS */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -131,6 +180,24 @@
 			productReference = 1719A8012F800AE5004E8B1A /* BizSimAI.app */;
 			productType = "com.apple.product-type.application";
 		};
+		20594C9FDC9A0F6C78475CFC /* BizSimAIUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 80E0DAB5163F1E545365EDCF /* Build configuration list for PBXNativeTarget "BizSimAIUITests" */;
+			buildPhases = (
+				EC094A128FC75C6649F9E456 /* Sources */,
+				437CF236A80FAACEEA13D4BC /* Frameworks */,
+				3256C848189CD72C53083A35 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				26633838917DED4AB3492B9D /* PBXTargetDependency */,
+			);
+			name = BizSimAIUITests;
+			productName = BizSimAIUITests;
+			productReference = 2697A897521864591E93C0CC /* BizSimAIUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		AA0000002FC7600100B5A8CE /* BizSimAITests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = AA0000152FC7600100B5A8CE /* Build configuration list for PBXNativeTarget "BizSimAITests" */;
@@ -148,8 +215,6 @@
 				AA0000102FC7600100B5A8CE /* BizSimAITests */,
 			);
 			name = BizSimAITests;
-			packageProductDependencies = (
-			);
 			productName = BizSimAITests;
 			productReference = AA0000012FC7600100B5A8CE /* BizSimAITests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -199,12 +264,20 @@
 			targets = (
 				1719A8002F800AE5004E8B1A /* BizSimAI */,
 				AA0000002FC7600100B5A8CE /* BizSimAITests */,
+				20594C9FDC9A0F6C78475CFC /* BizSimAIUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		1719A7FF2F800AE5004E8B1A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3256C848189CD72C53083A35 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -235,9 +308,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		EC094A128FC75C6649F9E456 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2D4BE40B26EDC56D697694F5 /* BizSimAIUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		26633838917DED4AB3492B9D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = BizSimAI;
+			target = 1719A8002F800AE5004E8B1A /* BizSimAI */;
+			targetProxy = 470993501F372F484DEB66C1 /* PBXContainerItemProxy */;
+		};
 		AA0000032FC7600100B5A8CE /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 1719A8002F800AE5004E8B1A /* BizSimAI */;
@@ -443,13 +530,52 @@
 			};
 			name = Release;
 		};
+		96EB0647A38D7953E0B4CF86 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = SP3UAUR57Y;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.luisborges.bizsim.BizSimAIUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = BizSimAI;
+			};
+			name = Debug;
+		};
+		A32D419671465C8206E21003 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = SP3UAUR57Y;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.luisborges.bizsim.BizSimAIUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = BizSimAI;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		AA0000132FC7600100B5A8CE /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = CGQPHW75W3;
+				DEVELOPMENT_TEAM = SP3UAUR57Y;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
@@ -469,7 +595,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = CGQPHW75W3;
+				DEVELOPMENT_TEAM = SP3UAUR57Y;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
@@ -499,6 +625,15 @@
 			buildConfigurations = (
 				1719A80D2F800AE7004E8B1A /* Debug */,
 				1719A80E2F800AE7004E8B1A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		80E0DAB5163F1E545365EDCF /* Build configuration list for PBXNativeTarget "BizSimAIUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A32D419671465C8206E21003 /* Release */,
+				96EB0647A38D7953E0B4CF86 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

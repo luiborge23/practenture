@@ -207,7 +207,7 @@ struct JoinSessionView: View {
     private func onTeamJoined(teamId: UUID?) {
         guard let teamId else { return }
         guard let team = viewModel.joinedTeam, teamId == team.id else { return }
-        
+
         // Use backend session config if available, otherwise fall back to defaults
         let config: SessionConfiguration
         if let backendSession = viewModel.loadedSession {
@@ -232,14 +232,42 @@ struct JoinSessionView: View {
                 plantCapacity: 500
             )
         }
-        
+
         let session = SimulationSession(config: config)
-        
+
+        // CRITICAL: Use the backend session code, not a locally generated one.
+        // Without this, the app creates a new local session with a random code
+        // (e.g., BIZ-V9WR) that doesn't exist on the backend — all API calls fail.
+        session.code = viewModel.loadedSession?.code ?? viewModel.sessionCode
+        session.sessionCode = viewModel.loadedSession?.code ?? viewModel.sessionCode
+
         // Load backend announcements into the session
         if !viewModel.loadedAnnouncements.isEmpty {
             session.loadAnnouncements(from: viewModel.loadedAnnouncements)
         }
-        
+
         appState.setActiveSession(session, joinedTeam: team)
+
+        // Restore historical results from backend so history doesn't disappear on re-login
+        let sessionCode = session.sessionCode
+        NSLog("[BizSimAI] JoinSessionView: fetching results for session \\(sessionCode) to restore history")
+        Task {
+            do {
+                let backendResults = try await NetworkService.shared.getResults(code: sessionCode)
+                if !backendResults.isEmpty {
+                    await MainActor.run {
+                        // Use the session from appState (same reference we just set)
+                        if let activeSession = appState.activeSession {
+                            NSLog("[BizSimAI] JoinSessionView: restoring \\(backendResults.count) rounds of history")
+                            activeSession.restoreResultsFromBackend(backendResults)
+                        }
+                    }
+                } else {
+                    NSLog("[BizSimAI] JoinSessionView: no backend results yet (session may be new)")
+                }
+            } catch {
+                NSLog("[BizSimAI] JoinSessionView: failed to restore history: \\(error)")
+            }
+        }
     }
 }

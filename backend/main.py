@@ -12,7 +12,7 @@ load_dotenv()
 # when running via gunicorn from /app (Docker) or uvicorn locally
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -20,10 +20,14 @@ from fastapi.responses import JSONResponse
 from database import db
 from models import (
     AdvanceResponse,
+    HealthResponse,
     ProcessRoundResponse,
     RoundResult,
+    SessionResultsResponse,
     SessionState,
+    TeamsResponse,
 )
+from auth import get_current_user, verify_professor
 from routers import ai, announcements, auth, classes, dashboard, decisions, grades, leaderboard, professor, sessions, websocket
 from simulation_engine import process_round
 
@@ -99,7 +103,7 @@ async def general_exception_handler(request: Request, exc: Exception):
 # ── Health check ───────────────────────────────────────────────────────────
 
 
-@app.get("/api/health")
+@app.get("/api/health", response_model=HealthResponse)
 async def health_check():
     return {
         "status": "healthy",
@@ -138,84 +142,56 @@ app.include_router(scim_router_mod.router)
 # ── Team listing endpoint ──────────────────────────────────────────────────
 
 
-@app.get("/api/sessions/{code}/teams")
-async def get_teams(code: str):
-    """Get all teams in a session."""
+def _verify_session_participant(code: str, session, user: dict) -> None:
+    """Authorize the owning professor, owner, or a student enrolled in the session."""
+    role = user.get("role")
+    if role in ("professor", "owner"):
+        if role != "owner" and db.get_session_professor_user_id(code) != user.get("sub"):
+            raise HTTPException(status_code=403, detail="Not your session")
+    elif role == "student":
+        if not any(not team.isAI and team.studentId == user.get("sub") for team in session.teams):
+            raise HTTPException(status_code=403, detail="Not enrolled in session")
+    else:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+
+@app.get("/api/sessions/{code}/teams", response_model=TeamsResponse)
+async def get_teams(code: str, user=Depends(get_current_user)):
+    """Get all teams in a session for an authorized participant."""
     session = db.get_session(code)
     if not session:
-        return JSONResponse(status_code=404, content={"detail": "Session not found"})
-    return {
-        "sessionId": session.id,
-        "teams": [
-            {
-                "teamName": t.teamName,
-                "isAI": t.isAI,
-                "aiStrategy": t.aiStrategy,
-                "studentId": t.studentId,
-            }
-            for t in session.teams
-        ],
-    }
+        raise HTTPException(status_code=404, detail="Session not found")
+    _verify_session_participant(code, session, user)
+    return TeamsResponse(sessionId=session.id, teams=session.teams)
 
 
 # ── Round results endpoint ─────────────────────────────────────────────────
 
 
-@app.get("/api/sessions/{code}/results")
-async def get_results(code: str):
-    """Get all round results for a session."""
+@app.get("/api/sessions/{code}/results", response_model=SessionResultsResponse)
+async def get_results(code: str, user=Depends(get_current_user)):
+    """Get complete round history for an authorized session participant."""
     session = db.get_session(code)
     if not session:
-        return JSONResponse(status_code=404, content={"detail": "Session not found"})
-
+        raise HTTPException(status_code=404, detail="Session not found")
+    _verify_session_participant(code, session, user)
     all_results = db.get_all_results(code)
-    output = {}
-    for round_num, results in sorted(all_results.items()):
-        output[str(round_num)] = [r.model_dump() for r in results]
-    return {"sessionId": session.id, "results": output}
+    output = {
+        str(round_num): results
+        for round_num, results in sorted(all_results.items())
+    }
+    return SessionResultsResponse(sessionId=session.id, results=output)
 
 
 # ── Advance endpoint ───────────────────────────────────────────────────────
 
 
 @app.post("/api/sessions/{code}/advance", response_model=AdvanceResponse)
-async def advance_round(code: str):
-    """Advance to next round: process current round, then auto-generate AI decisions for next."""
-    session = db.get_session(code)
-    if not session:
-        return JSONResponse(status_code=404, content={"detail": "Session not found"})
-
-    current_round = session.currentRound
-    if current_round >= session.config.totalRounds:
-        return JSONResponse(status_code=400, content={"detail": "All rounds completed"})
-
-    # Get decisions
-    decisions_map = db.get_decisions(code, current_round)
-
-    # If no human decisions, we still want to process (AI will auto-generate)
-    team_states = db.team_states.get(code, {})
-    engine_results, new_team_states = process_round(
-        config=session.config,
-        teams=session.teams,
-        decisions=decisions_map,
-        round_num=current_round,
-        team_states=team_states,
-    )
-
-    db.store_results(code, current_round, engine_results)
-    for tid, state in new_team_states.items():
-        db.update_team_state(code, tid, state)
-
-    # Advance round
-    next_round = current_round + 1
-    if next_round > session.config.totalRounds:
-        new_state = SessionState.FINISHED
-    else:
-        new_state = SessionState.ACTIVE
-    db.update_session(code, {"currentRound": next_round, "state": new_state})
-
+async def advance_round(code: str, user=Depends(verify_professor)):
+    """Compatibility alias for the authoritative, instructor-only round processor."""
+    processed = await decisions.process_round_endpoint(code, user)
     return AdvanceResponse(
-        round=current_round,
+        round=processed.round,
         status="processed",
-        results=engine_results,
+        results=processed.results,
     )

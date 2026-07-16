@@ -5,7 +5,8 @@ import os
 
 // MARK: - SessionMonitorViewModel
 /// ViewModel for the professor's session monitoring screens.
-/// Orchestrates AI decisions, engine processing, and round advancement.
+/// Uses the backend as the sole round authority for online classroom sessions.
+/// The local engine remains available only for explicit offline/demo sessions.
 @Observable
 final class SessionMonitorViewModel {
 
@@ -72,24 +73,34 @@ final class SessionMonitorViewModel {
         return Double(currentRound) / Double(totalRounds)
     }
 
+    var isBackendSession: Bool {
+        !session.sessionCode.isEmpty && session.sessionCode != session.id.uuidString
+    }
+
     var allDecisionsSubmitted: Bool {
-        teams.allSatisfy { $0.hasSubmittedDecision }
+        if isBackendSession {
+            return backendTeamCount > 0 && backendSubmittedCount >= backendTeamCount
+        }
+        return teams.allSatisfy { $0.hasSubmittedDecision }
     }
 
     var submittedCount: Int {
-        teams.filter(\.hasSubmittedDecision).count
+        if isBackendSession { return backendSubmittedCount }
+        return teams.filter(\.hasSubmittedDecision).count
     }
 
     var pendingCount: Int {
-        teams.filter { !$0.hasSubmittedDecision }.count
+        if isBackendSession { return max(backendTeamCount - backendSubmittedCount, 0) }
+        return teams.filter { !$0.hasSubmittedDecision }.count
     }
 
     var submissionSummary: String {
-        "\(submittedCount)/\(teams.count) teams submitted"
+        "\(submittedCount)/\(isBackendSession ? backendTeamCount : teams.count) teams submitted"
     }
 
     var canAdvanceRound: Bool {
         allDecisionsSubmitted && !isProcessingRound && !isSessionComplete
+            && (!isBackendSession || backendTeamStatus == "active")
     }
 
     var isLastRound: Bool {
@@ -219,7 +230,7 @@ final class SessionMonitorViewModel {
 
     /// Poll the backend for the current team submission status.
     func pollBackendStatus() async {
-        guard isPollingActive, !session.sessionCode.isEmpty else { return }
+        guard !session.sessionCode.isEmpty else { return }
 
         let sessionCode = session.sessionCode
         do {
@@ -227,6 +238,12 @@ final class SessionMonitorViewModel {
             backendSubmittedCount = status.teamsSubmitted
             backendTeamCount = status.totalTeams
             backendTeamStatus = status.state
+            session.currentRound = min(status.currentRound, session.totalRounds)
+            if status.state == "finished" || status.state == "completed" {
+                session.state = .completed
+            } else if status.state == "active" {
+                session.state = .inProgress
+            }
             
             // Update last poll time
             await MainActor.run {
@@ -238,96 +255,26 @@ final class SessionMonitorViewModel {
         }
     }
 
-    /// Process the round via backend and sync results back.
+    /// Process an online round exactly once via the backend and apply its response.
+    /// Never invokes the local engine and never calls the legacy /advance endpoint.
     func processRoundWithBackend() async {
-        guard canAdvanceRound else { return }
+        guard isBackendSession, canAdvanceRound else { return }
 
         isProcessingRound = true
         roundProcessingError = nil
 
-        let sessionCode = session.sessionCode
-
-        // Generate AI decisions locally first
-        var rng = SeededRandomGenerator(seed: session.config.randomSeed &+ UInt64(session.currentRound))
-        let playerPrevDecision: PlayerDecision? = session.previousRoundDecisions[session.playerTeam?.id ?? UUID()]
-
-        let submittedDecisions = Array(session.currentRoundDecisions.values)
-        let avgWholesale = submittedDecisions.isEmpty ? 80.0
-            : submittedDecisions.map(\.wholesalePrice).reduce(0, +) / Double(submittedDecisions.count)
-        let avgInternet = submittedDecisions.isEmpty ? 90.0
-            : submittedDecisions.map(\.internetPrice).reduce(0, +) / Double(submittedDecisions.count)
-
-        for aiComp in aiCompetitors {
-            guard let team = session.teams.first(where: { $0.id == aiComp.teamId }) else { continue }
-            let competitorProfits = session.teams.reduce(into: [:]) { dict, t in
-                dict[t.id] = t.cumulativeProfit
-            }
-            let context = AIDecisionContext(
-                config: session.config,
-                team: team,
-                playerPreviousDecision: playerPrevDecision,
-                roundsRemaining: session.totalRounds - session.currentRound,
-                competitorProfits: competitorProfits,
-                averageWholesalePrice: avgWholesale,
-                averageInternetPrice: avgInternet
-            )
-            let decision = aiComp.strategy.makeDecisions(
-                teamId: aiComp.teamId,
-                round: session.currentRound,
-                context: context,
-                rng: &rng
-            )
-            session.submitDecision(decision)
-        }
-
-        // Send to backend for processing
         do {
-            let results = try await NetworkService.shared.processRound(code: sessionCode)
+            let processedRound = session.currentRound
+            let results = try await NetworkService.shared.processRound(code: session.sessionCode)
 
-            // Sync local round counter with backend (process_round advances internally)
-            if let status = try? await NetworkService.shared.getSessionStatus(code: sessionCode) {
-                session.currentRound = status.currentRound
-                if status.state == "finished" || status.state == "completed" {
-                    session.state = .completed
-                }
-            }
-
-            // Update local state from backend results
-            for result in results {
-                let teamUUID = UUID(uuidString: result.teamId) ?? UUID()
-                if let index = teams.firstIndex(where: { $0.id == teamUUID }) {
-                    teams[index].cash = result.cash
-                    teams[index].reputation = result.reputation
-                    teams[index].sqRating = result.sqRating
-                    teams[index].investorScore = result.totalScore
-                }
-                if let aiIndex = aiCompetitors.firstIndex(where: { $0.teamId == teamUUID }) {
-                    // Use lightweight update — no full RoundResult needed
-                    aiCompetitors[aiIndex].updateFromBackendResult(
-                        profit: result.profit,
-                        revenue: result.revenue,
-                        marketShare: result.marketShare
-                    )
-                }
-            }
-
-            // Backend process_round already advances the round counter internally.
-            // Do NOT call session.advanceRound() here — that would double-advance.
+            // process_round both computes this round and advances backend currentRound.
+            // Hydrate returned results, then poll the authoritative status exactly once.
+            session.restoreResultsFromBackend([processedRound: results])
+            await pollBackendStatus()
             refreshTeamStatuses()
         } catch {
-            // Backend failed — fall back to local processing
-            let (localResults, _) = engine.processRound(
-                session: session,
-                decisions: session.currentRoundDecisions
-            )
-            for result in localResults {
-                if let index = aiCompetitors.firstIndex(where: { $0.teamId == result.teamId }) {
-                    aiCompetitors[index].updateFromResult(result)
-                }
-            }
-            session.advanceRound()
-            refreshTeamStatuses()
-            roundProcessingError = "Backend failed, used local processing: \(UserFriendlyError.message(for: error))"
+            // Never split authority by falling back to SimulationEngine online.
+            roundProcessingError = UserFriendlyError.message(for: error)
         }
 
         isProcessingRound = false

@@ -59,9 +59,12 @@ final class NetworkService {
 
     static let shared = NetworkService()
 
+    private let baseURLOverride: String?
+
     /// Environment-aware base URL. Single source of truth: Info.plist BIZSIMAI_BACKEND_URL key.
     /// Falls back to EC2 IP only if plist key is missing (never at runtime).
     var baseURL: String {
+        if let baseURLOverride { return baseURLOverride }
         if let plistURL = Bundle.main.object(forInfoDictionaryKey: "BIZSIMAI_BACKEND_URL") as? String, !plistURL.isEmpty {
             return plistURL
         }
@@ -72,6 +75,7 @@ final class NetworkService {
     private let session: URLSession
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private let authTokenProvider: @MainActor () -> String?
 
     // MARK: - Token Refresh
 
@@ -144,8 +148,17 @@ final class NetworkService {
         }
     }
 
-    private init(timeout: TimeInterval = 15) {
-        let config = URLSessionConfiguration.default
+    /// Internal injection points keep XCTest hermetic while the shared production
+    /// instance continues to use the normal configuration and Info.plist URL.
+    init(
+        timeout: TimeInterval = 15,
+        configuration: URLSessionConfiguration = .default,
+        baseURLOverride: String? = nil,
+        authTokenProvider: @escaping @MainActor () -> String? = { AuthManager.shared.accessToken }
+    ) {
+        self.baseURLOverride = baseURLOverride
+        self.authTokenProvider = authTokenProvider
+        let config = configuration
         // Disable URL caching — API responses must always hit the network.
         // Previously .returnCacheDataElseLoad caused stale empty session lists.
         config.urlCache = nil
@@ -156,7 +169,10 @@ final class NetworkService {
         self.session = URLSession(configuration: config)
 
         self.encoder = JSONEncoder()
-        self.encoder.keyEncodingStrategy = .convertToSnakeCase
+        // FastAPI's mobile contract uses camelCase aliases (teamName, studentId,
+        // wholesalePrice, etc.). Preserve DTO CodingKeys exactly; a global
+        // snake_case strategy corrupts otherwise-correct request payloads.
+        self.encoder.keyEncodingStrategy = .useDefaultKeys
 
         self.decoder = JSONDecoder()
         self.decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -249,7 +265,7 @@ final class NetworkService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         // Auto-attach auth token from AuthManager if available
-        if let token = AuthManager.shared.accessToken, !token.isEmpty {
+        if let token = await authTokenProvider(), !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
@@ -346,7 +362,7 @@ final class NetworkService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         // Auto-attach auth token from AuthManager if available
-        if let token = AuthManager.shared.accessToken, !token.isEmpty {
+        if let token = await authTokenProvider(), !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
@@ -408,7 +424,7 @@ final class NetworkService {
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        if let token = AuthManager.shared.accessToken, !token.isEmpty {
+        if let token = await authTokenProvider(), !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
@@ -490,14 +506,12 @@ final class NetworkService {
 
     // MARK: - Decision Operations
 
-    func submitDecision(code: String, round: Int, teamId: UUID, decision: PlayerDecision, backendTeamId: String? = nil) async throws {
+    func submitDecision(code: String, round: Int, decision: PlayerDecision, backendTeamId: String) async throws {
         let backendDecision = decision.toBackendDecision()
-        // Backend expects team name as teamId string, not a UUID.
-        // Use backendTeamId if provided (from join response), otherwise fall back to uuidString.
-        let teamIdString = backendTeamId ?? teamId.uuidString
+        // Backend uses the join-returned team name as teamId. Never substitute a local UUID.
         let request = SubmitDecisionRequestBackend(
             round: round,
-            teamId: teamIdString,
+            teamId: backendTeamId,
             decision: backendDecision
         )
         try await postVoid("/api/sessions/\(code)/submit_decision", body: request)
@@ -522,22 +536,16 @@ final class NetworkService {
         return response.results
     }
 
-    func advanceRound(code: String) async throws -> [RoundResultBackend] {
-        // POST to advance to next round, then GET results from /results
-        try await postVoid("/api/sessions/\(code)/advance")
-        let results: [RoundResultBackend] = try await get("/api/sessions/\(code)/results")
-        return results
-    }
-
     // MARK: - Results and Leaderboard
 
     func getResults(code: String) async throws -> [Int: [RoundResultBackend]] {
-        let results: [RoundResultBackend] = try await get("/api/sessions/\(code)/results")
-        var grouped: [Int: [RoundResultBackend]] = [:]
-        for result in results {
-            grouped[result.round, default: []].append(result)
-        }
-        return grouped
+        // Backend returns {"results": {"1": [...], "2": [...]}}.
+        // Preserve full round history and convert JSON string keys to Int for the app.
+        let response: SessionResultsResponseBackend = try await get("/api/sessions/\(code)/results")
+        return Dictionary(uniqueKeysWithValues: response.results.compactMap { key, value in
+            guard let round = Int(key) else { return nil }
+            return (round, value)
+        })
     }
 
     /// Get round results for a specific team and round
@@ -604,7 +612,7 @@ final class NetworkService {
         }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        if let token = AuthManager.shared.accessToken, !token.isEmpty {
+        if let token = await authTokenProvider(), !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         let (data, response) = try await session.data(for: request)
@@ -640,7 +648,7 @@ final class NetworkService {
         }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        if let token = AuthManager.shared.accessToken, !token.isEmpty {
+        if let token = await authTokenProvider(), !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         let (data, response) = try await session.data(for: request)
@@ -872,6 +880,10 @@ struct ProcessRoundResponseBackend: Decodable {
     var results: [RoundResultBackend] = []
 }
 
+struct SessionResultsResponseBackend: Codable {
+    var results: [String: [RoundResultBackend]] = [:]
+}
+
 struct LeaderboardResponseBackend: Codable {
     var sessionId: String = ""
     var round: Int = 0
@@ -891,18 +903,33 @@ struct PlayerDecisionBackend: Codable {
     var wholesalePrice: Double = 28
     var internetPrice: Double = 30
     var amazonPrice: Double = 32
-    var materialsQuality: Double = 0.5   // 0-1 scale
+    var privateLabelBidPrice: Double = 0
+    var privateLabelMaxUnits: Int = 0
+    var amazonAdBudget: Double = 0
+    var materialsQuality: Double = 0.5   // Legacy 0...1 value translated by FastAPI.
     var stylingBudget: Double = 100000
-    var numModels: Int = 2
+    var numModels: Int = 2               // Transitional legacy alias.
+    var modelsOffered: Int = 2            // Modern authoritative field.
     var tqmInvestment: Double = 0
     var rdInvestment: Double = 0
     var marketingInvestment: Double = 150000
     var advertisingBudget: Double = 80000
-    var celebrityType: String = "none"
+    var celebrityType: String = "none"   // Transitional legacy alias.
+    var celebrityEndorsement: String = "none"
+    var retailOutlets: Int = 0
+    var mailInRebate: Double = 0
+    var deliveryTime: String = "standard"
+    var freeShippingThreshold: Double = 0
     var socialMediaBudget: SocialMediaBudgetBackend = SocialMediaBudgetBackend()
+    var tiktokBudget: Double = 0
+    var instagramBudget: Double = 0
+    var youtubeBudget: Double = 0
+    var influencerTier: String = "none"
     var baseWage: Double = 25000
     var incentivePay: Double = 0
-    var trainingBudget: Double = 0
+    var trainingBudget: Double = 0        // Transitional legacy alias.
+    var trainingHours: Double = 0         // Modern authoritative field.
+    var bestPracticesInvestment: Double = 0
     var productionQuantity: Int = 8000
     var overtimePercent: Int = 0
     var csrInvestment: Double = 0
@@ -910,7 +937,6 @@ struct PlayerDecisionBackend: Codable {
     var newLoanAmount: Double = 0
     var sharesBuyback: Int = 0
     var sharesIssued: Int = 0
-    var retailOutlets: Int = 0
     var fulfillmentMethod: String = "fbm"
     var internetPromotion: Double = 0
 }
@@ -1007,22 +1033,37 @@ extension PlayerDecision {
             wholesalePrice: pricing.wholesalePrice,
             internetPrice: pricing.internetPrice,
             amazonPrice: pricing.amazonPrice,
+            privateLabelBidPrice: privateLabelBidPrice,
+            privateLabelMaxUnits: privateLabelMaxUnits,
+            amazonAdBudget: amazonAdBudget,
             materialsQuality: materialsQuality.backendValue,
             stylingBudget: stylingBudget,
             numModels: modelsOffered,
+            modelsOffered: modelsOffered,
             tqmInvestment: tqmInvestment,
             rdInvestment: rdInvestment,
             marketingInvestment: marketing.advertisingBudget,
             advertisingBudget: marketing.advertisingBudget,
             celebrityType: celebrityEndorsement.backendValue,
+            celebrityEndorsement: celebrityEndorsement.rawValue,
+            retailOutlets: retailOutlets,
+            mailInRebate: mailInRebate,
+            deliveryTime: deliveryTime.rawValue,
+            freeShippingThreshold: freeShippingThreshold,
             socialMediaBudget: SocialMediaBudgetBackend(
                 tiktok: tiktokBudget,
                 instagram: instagramBudget,
                 youtube: youtubeBudget
             ),
+            tiktokBudget: tiktokBudget,
+            instagramBudget: instagramBudget,
+            youtubeBudget: youtubeBudget,
+            influencerTier: influencerTier.rawValue,
             baseWage: baseWage,
             incentivePay: incentivePay,
             trainingBudget: trainingHours * 50,
+            trainingHours: trainingHours,
+            bestPracticesInvestment: bestPracticesInvestment,
             productionQuantity: productionQuantity,
             overtimePercent: Int(overtimePercent),
             csrInvestment: csrInvestment,
@@ -1030,7 +1071,6 @@ extension PlayerDecision {
             newLoanAmount: newLoanAmount,
             sharesBuyback: sharesBuyback,
             sharesIssued: sharesIssued,
-            retailOutlets: retailOutlets,
             fulfillmentMethod: fulfillmentMethod.backendValue,
             internetPromotion: 0
         )

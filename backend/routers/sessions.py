@@ -26,6 +26,13 @@ from ws_manager import manager
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
 
+def _verify_session_professor(code: str, user: dict) -> None:
+    if user.get("role") == "owner":
+        return
+    if db.get_session_professor_user_id(code) != user.get("sub"):
+        raise HTTPException(status_code=403, detail="Not your session")
+
+
 class StartSessionResponse(BaseModel):
     status: str = "started"
     sessionId: str
@@ -48,6 +55,13 @@ async def create_session(req: CreateSessionRequest, user=Depends(verify_professo
     Optional classId in the request body ties the session to a specific class.
     Creates AI competitor teams based on numberOfAICompetitors in config.
     """
+    if req.classId:
+        cls = db.get_class(req.classId)
+        if not cls:
+            raise HTTPException(status_code=404, detail="Class not found")
+        if cls["professor_user_id"] != user["sub"] and user.get("role") != "owner":
+            raise HTTPException(status_code=403, detail="Not your class")
+
     # Build teams list: start with any provided teams, then add AI competitors
     teams = list(req.teams) if req.teams else []
     
@@ -75,8 +89,8 @@ async def create_session(req: CreateSessionRequest, user=Depends(verify_professo
 
 
 @router.get("/{code}", response_model=Session)
-async def get_session(code: str):
-    """Get session details by code."""
+async def get_session(code: str, user=Depends(get_current_user)):
+    """Get session details by code. Requires authentication."""
     session = db.get_session(code)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -84,11 +98,19 @@ async def get_session(code: str):
 
 
 @router.put("/{code}/join", response_model=JoinSessionResponse)
-async def join_session(code: str, req: JoinSessionRequest):
-    """Student joins an active session, gets assigned to a team."""
+async def join_session(
+    code: str,
+    req: JoinSessionRequest,
+    user=Depends(get_current_user),
+):
+    """Authenticated student joins a session using their own identity."""
     session = db.get_session(code)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    if user.get("role") != "student":
+        raise HTTPException(status_code=403, detail="Student access required")
+    if req.studentId != user.get("sub"):
+        raise HTTPException(status_code=403, detail="Student ID does not match authenticated user")
     if session.state not in (SessionState.CREATING, SessionState.ACTIVE):
         raise HTTPException(status_code=400, detail=f"Session is {session.state.value}, cannot join")
 
@@ -97,13 +119,14 @@ async def join_session(code: str, req: JoinSessionRequest):
     if req.teamName in team_names:
         raise HTTPException(status_code=409, detail="Team name already taken")
 
+    human_team_count = sum(1 for team in session.teams if not team.isAI)
+    if human_team_count >= session.maxHumanTeams:
+        raise HTTPException(status_code=400, detail="Maximum team capacity reached")
+
     # Generate team ID
     team_id = req.teamName  # Use team name as team ID
     team = TeamConfig(teamName=req.teamName, studentId=req.studentId)
     session.teams.append(team)
-
-    if len(session.teams) > session.maxHumanTeams:
-        raise HTTPException(status_code=400, detail="Maximum team capacity reached")
 
     # Auto-transition to active when first team joins (fixes creating→active deadlock)
     new_state = session.state
@@ -142,11 +165,12 @@ async def get_session_status(code: str, user=Depends(get_current_user)):
 
 
 @router.post("/{code}/start", response_model=StartSessionResponse)
-async def start_session(code: str):
+async def start_session(code: str, user=Depends(verify_professor)):
     """Professor starts the session (transitions from creating → active, round 1)."""
     session = db.get_session(code)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    _verify_session_professor(code, user)
     if session.state == SessionState.ACTIVE:
         raise HTTPException(status_code=400, detail=f"Session is already {session.state.value}")
     if session.state == SessionState.FINISHED or session.state == SessionState.COMPLETED:
@@ -172,11 +196,12 @@ async def start_session(code: str):
 
 
 @router.post("/{code}/end", response_model=EndSessionResponse)
-async def end_session(code: str):
+async def end_session(code: str, user=Depends(verify_professor)):
     """Professor manually ends the session."""
     session = db.get_session(code)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    _verify_session_professor(code, user)
 
     # Get final results
     all_results = db.get_all_results(code)
@@ -189,11 +214,12 @@ async def end_session(code: str):
 
 
 @router.delete("/{code}", status_code=204)
-async def delete_session(code: str):
+async def delete_session(code: str, user=Depends(verify_professor)):
     """Professor deletes a session and all associated data."""
     session = db.get_session(code)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    _verify_session_professor(code, user)
 
     # Use the database method which handles both SQLite and in-memory cleanup
     db.delete_session(code)
