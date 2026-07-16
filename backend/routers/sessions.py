@@ -120,7 +120,7 @@ async def join_session(
 
     # Check team name not already taken by a human team with an assigned student
     for t in session.teams:
-        if t.teamName == req.teamName and not t.isAI and t.studentId is not None:
+        if t.teamName == req.teamName and not t.isAI and t.studentId:
             raise HTTPException(status_code=409, detail="Team name already taken")
 
     # If team exists but has no student yet (professor-created slot), reuse it
@@ -131,7 +131,7 @@ async def join_session(
             break
 
     if existing:
-        existing.studentId = req.studentId
+        existing.studentId = effective_student_id
         team_id = req.teamName
         team = existing
     else:
@@ -141,7 +141,7 @@ async def join_session(
 
         # Generate team ID
         team_id = req.teamName  # Use team name as team ID
-        team = TeamConfig(teamName=req.teamName, studentId=req.studentId)
+        team = TeamConfig(teamName=req.teamName, studentId=effective_student_id)
         session.teams.append(team)
 
     # Auto-transition to active when first team joins (fixes creating→active deadlock)
