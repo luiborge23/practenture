@@ -109,7 +109,11 @@ async def join_session(
         raise HTTPException(status_code=404, detail="Session not found")
     if user.get("role") != "student":
         raise HTTPException(status_code=403, detail="Student access required")
-    if req.studentId != user.get("sub"):
+    # If studentId is not provided in the request, use the JWT sub (authenticated user)
+    effective_student_id = req.studentId if req.studentId else user.get("sub", "")
+    if not effective_student_id:
+        raise HTTPException(status_code=403, detail="Student ID is required")
+    if effective_student_id != user.get("sub"):
         raise HTTPException(status_code=403, detail="Student ID does not match authenticated user")
     if session.state not in (SessionState.CREATING, SessionState.ACTIVE):
         raise HTTPException(status_code=400, detail=f"Session is {session.state.value}, cannot join")
