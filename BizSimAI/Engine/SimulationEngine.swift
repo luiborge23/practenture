@@ -364,7 +364,9 @@ final class SimulationEngine: SimulationEngineProtocol {
             let dividendsPaid = decision.dividendsPerShare * Double(newShares)
 
             // Stock issuance proceeds (capital raised)
-            let issuancePrice = max(5, team.cumulativeInvestorScore > 0 ? team.cumulativeInvestorScore / 2 : 15)
+            // Parity: Python uses previous round's single totalScore, not cumulative average
+            let prevScore = session.roundResult(for: team.id, round: round - 1)?.scorecard.totalScore ?? 0
+            let issuancePrice = max(5, prevScore > 0 ? prevScore / 2 : 15)
             let issuanceProceeds = Double(decision.sharesIssued) * issuancePrice
 
             let totalRevenue = wholesaleRev + internetRev + amazonRev + privateLabelRev
@@ -387,7 +389,7 @@ final class SimulationEngine: SimulationEngineProtocol {
 
             // Customer satisfaction
             let priceFairness = min(1.0, avgWholesalePrice / max(decision.wholesalePrice, 1))
-            let supplyAdequacy = totalDemandForTeam > 0 ? min(1.0, Double(totalSold) / Double(totalDemandForTeam)) : 0.5
+            let supplyAdequacy = totalDemandForTeam > 0 ? min(1.0, Double(totalSold) / Double(totalDemandForTeam)) : 0.0
             let satisfaction = min(1.0, max(0.0,
                 0.35 * (sq / 10.0) + 0.3 * priceFairness + 0.2 * supplyAdequacy + 0.15 * team.reputation))
 
@@ -436,8 +438,8 @@ final class SimulationEngine: SimulationEngineProtocol {
                 * rng.noiseFactor(amplitude: 0.03))
             // Blend with previous price to dampen volatility (40% previous, 60% new)
             let stockPrice = round > 1
-                ? 0.4 * previousStockPrice + 0.6 * rawStockPrice
-                : rawStockPrice
+                ? min(500.0, 0.4 * previousStockPrice + 0.6 * rawStockPrice)
+                : min(500.0, rawStockPrice)
 
             // Ratcheting targets: expectations increase each round
             let ratchetMultiplier = pow(1.0 + targetRatchetRate, Double(round))
@@ -457,8 +459,11 @@ final class SimulationEngine: SimulationEngineProtocol {
                 round: round,
                 eps: eps, roe: roe, stockPrice: stockPrice,
                 imageRating: imageRating, creditRating: creditRating,
-                epsScore: epsScore, roeScore: roeScore, stockPriceScore: stockPriceScore,
-                imageScore: imageScore, creditScore: creditScore
+                epsScore: (epsScore * 100).rounded() / 100,
+                roeScore: (roeScore * 100).rounded() / 100,
+                stockPriceScore: (stockPriceScore * 100).rounded() / 100,
+                imageScore: (imageScore * 100).rounded() / 100,
+                creditScore: (Double(creditScore) * 100).rounded() / 100
             )
 
             let result = RoundResult(
@@ -765,7 +770,8 @@ final class SimulationEngine: SimulationEngineProtocol {
             let safeBuyback = min(decision.sharesBuyback, team.sharesOutstanding - 1)
             let newShares = max(1, team.sharesOutstanding - safeBuyback + decision.sharesIssued)
             let dividendsPaid = decision.dividendsPerShare * Double(newShares)
-            let issuancePrice = max(5, team.cumulativeInvestorScore > 0 ? team.cumulativeInvestorScore / 2 : 15)
+            let prevScore = updatedRoundResults[team.id]?[round - 1]?.scorecard.totalScore ?? 0
+            let issuancePrice = max(5, prevScore > 0 ? prevScore / 2 : 15)
             let issuanceProceeds = Double(decision.sharesIssued) * issuancePrice
 
             let totalRevenue = wholesaleRev + internetRev + amazonRev + privateLabelRev
@@ -783,7 +789,7 @@ final class SimulationEngine: SimulationEngineProtocol {
             let marketShare = Double(totalSold) / max(totalDemand, 1)
 
             let priceFairness = min(1.0, avgWholesalePrice / max(decision.wholesalePrice, 1))
-            let supplyAdequacy = totalDemandForTeam > 0 ? min(1.0, Double(totalSold) / Double(totalDemandForTeam)) : 0.5
+            let supplyAdequacy = totalDemandForTeam > 0 ? min(1.0, Double(totalSold) / Double(totalDemandForTeam)) : 0.0
             let satisfaction = min(1.0, max(0.0,
                 0.35 * (sq / 10.0) + 0.3 * priceFairness + 0.2 * supplyAdequacy + 0.15 * team.reputation))
             let newReputation = 0.7 * team.reputation + 0.3 * satisfaction
@@ -819,7 +825,7 @@ final class SimulationEngine: SimulationEngineProtocol {
             let rawStockPrice = max(1, baseStockTarget * epsGrowthFactor * roeFactor
                 * (1 + dividendYield) * creditFactor * dilutionPenalty
                 * rng.noiseFactor(amplitude: 0.03))
-            let stockPrice = round > 1 ? 0.4 * previousStockPrice + 0.6 * rawStockPrice : rawStockPrice
+            let stockPrice = round > 1 ? min(500.0, 0.4 * previousStockPrice + 0.6 * rawStockPrice) : min(500.0, rawStockPrice)
 
             let ratchetMultiplier = pow(1.0 + targetRatchetRate, Double(round))
             let epsTarget = baseEPSTarget * ratchetMultiplier
@@ -836,8 +842,11 @@ final class SimulationEngine: SimulationEngineProtocol {
             let scorecard = InvestorScorecard(
                 round: round, eps: eps, roe: roe, stockPrice: stockPrice,
                 imageRating: imageRating, creditRating: creditRating,
-                epsScore: epsScore, roeScore: roeScore, stockPriceScore: stockPriceScore,
-                imageScore: imageScore, creditScore: creditScore)
+                epsScore: (epsScore * 100).rounded() / 100,
+                roeScore: (roeScore * 100).rounded() / 100,
+                stockPriceScore: (stockPriceScore * 100).rounded() / 100,
+                imageScore: (imageScore * 100).rounded() / 100,
+                creditScore: (Double(creditScore) * 100).rounded() / 100)
 
             let result = RoundResult(
                 teamId: team.id, round: round,
@@ -928,7 +937,7 @@ final class SimulationEngine: SimulationEngineProtocol {
         rate -= min(0.03, trainingHours / 100.0 * 0.03)  // Training reduces up to 3%
         rate -= min(0.02, incentivePay / 2.0 * 0.02)     // Incentive pay reduces up to 2%
         rate -= min(0.02, bestPractices / 5000 * 0.02)    // Best practices reduces up to 2%
-        return max(0.01, rate) // Minimum 1% rejection rate
+        return max(0.01, min(0.50, rate)) // Minimum 1%, maximum 50% rejection rate (parity with Python)
     }
 
     // MARK: - Explanations (Enhanced)

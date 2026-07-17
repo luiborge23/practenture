@@ -226,9 +226,8 @@ struct TeamDashboardView: View {
     // MARK: - Round Header
 
     private var roundHeader: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             if session?.state == .completed {
-                // Hide round display when simulation is complete — actionSection shows "Simulation Complete!" instead
                 EmptyView()
             } else {
                 HStack(spacing: 8) {
@@ -239,17 +238,38 @@ struct TeamDashboardView: View {
                         .font(.title2)
                         .foregroundStyle(.secondary)
                 }
+
+                // Progress bar with gradient fill
                 HStack(spacing: 3) {
                     ForEach(1...totalRounds, id: \.self) { round in
                         Capsule()
-                            .fill(round <= backendCurrentRound ? Color.blue : Color.secondary.opacity(0.15))
-                            .frame(width: 20, height: 4)
+                            .fill(
+                                round <= backendCurrentRound
+                                    ? AnyShapeStyle(LinearGradient(colors: [Color.blue, Color.blue.opacity(0.7)], startPoint: .top, endPoint: .bottom))
+                                    : AnyShapeStyle(Color.secondary.opacity(0.12))
+                            )
+                            .frame(height: 5)
+                            .frame(maxWidth: .infinity)
                     }
                 }
             }
         }
         .padding(20)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.gray.opacity(0.1)))
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.gray.opacity(0.08), Color.gray.opacity(0.03)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.gray.opacity(0.06), lineWidth: 0.5)
+        )
+        .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 3)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -264,7 +284,13 @@ struct TeamDashboardView: View {
                 Text("Score: \(String(format: "%.0f", investorScore))/100")
                     .font(.subheadline)
                     .fontWeight(.bold)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
                     .foregroundStyle(investorScore >= 70 ? .green : investorScore < 40 ? .red : .orange)
+                    .background(
+                        (investorScore >= 70 ? Color.green : investorScore < 40 ? Color.red : Color.orange).opacity(0.10),
+                        in: Capsule()
+                    )
             }
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 5), spacing: 10) {
@@ -281,7 +307,21 @@ struct TeamDashboardView: View {
             }
         }
         .padding(16)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.blue.opacity(0.05)))
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.blue.opacity(0.06), Color.blue.opacity(0.02)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.blue.opacity(0.08), lineWidth: 0.5)
+        )
+        .shadow(color: Color.blue.opacity(0.04), radius: 6, x: 0, y: 3)
     }
 
     private func scorecardMetric(label: String, value: String, color: Color) -> some View {
@@ -295,8 +335,17 @@ struct TeamDashboardView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.gray.opacity(0.08)))
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.gray.opacity(0.06), Color.clear],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+        )
     }
 
     private func formatCompact(_ value: Double) -> String {
@@ -353,10 +402,27 @@ struct TeamDashboardView: View {
         VStack(spacing: 12) {
             if session?.state == .completed {
                 // Game over state
-                VStack(spacing: 8) {
-                    Image(systemName: "trophy.fill")
-                        .font(.largeTitle)
-                        .foregroundStyle(.yellow)
+                VStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.yellow.opacity(0.2), Color.orange.opacity(0.1)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .frame(width: 60, height: 60)
+                        Image(systemName: "trophy.fill")
+                            .font(.largeTitle)
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [Color.yellow, Color.orange],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                    }
                     Text("Simulation Complete!")
                         .font(.title3)
                         .fontWeight(.bold)
@@ -365,11 +431,25 @@ struct TeamDashboardView: View {
                         .foregroundStyle(.secondary)
                     Text("Investor Score: \(String(format: "%.0f", investorScore))/100")
                         .font(.subheadline)
+                        .fontWeight(.semibold)
                         .foregroundStyle(investorScore >= 70 ? .green : .orange)
                 }
                 .padding()
                 .frame(maxWidth: .infinity)
-                .background(RoundedRectangle(cornerRadius: 16).fill(.yellow.opacity(0.08)))
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.yellow.opacity(0.08), Color.orange.opacity(0.04)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .strokeBorder(Color.yellow.opacity(0.15), lineWidth: 1)
+                )
 
                 Button {
                     showResults = true
@@ -426,17 +506,42 @@ struct TeamDashboardView: View {
 
     private func quickActionButton(title: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.title3)
-                    .foregroundStyle(color)
+            VStack(spacing: 8) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [color.opacity(0.15), color.opacity(0.05)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                    Image(systemName: icon)
+                        .font(.title3)
+                        .foregroundStyle(color)
+                }
+                .frame(width: 40, height: 40)
                 Text(title)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.gray.opacity(0.1)))
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.gray.opacity(0.08), Color.gray.opacity(0.03)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Color.gray.opacity(0.06), lineWidth: 0.5)
+            )
+            .shadow(color: Color.black.opacity(0.03), radius: 4, x: 0, y: 2)
         }
         .buttonStyle(.borderless)
         .contentShape(Rectangle())

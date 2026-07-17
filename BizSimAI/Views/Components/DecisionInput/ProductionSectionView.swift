@@ -37,7 +37,8 @@ struct ProductionSectionView: View {
                 range: DecisionInputViewModel.overtimeRange,
                 step: 1,
                 format: "%.0f%%",
-                description: "Up to 20% above capacity. 50% premium on overtime units."
+                description: "Up to 20% above capacity. 50% premium on overtime units.",
+                accentColor: .green
             )
             
             ProductionPreview(viewModel: viewModel)

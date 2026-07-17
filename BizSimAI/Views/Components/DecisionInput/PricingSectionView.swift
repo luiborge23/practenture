@@ -25,7 +25,8 @@ struct PricingSectionView: View {
                 range: DecisionInputViewModel.wholesalePriceRange,
                 step: 1,
                 format: "$%.0f",
-                description: "Price charged to retail chains (primary channel)."
+                description: "Price charged to retail chains (primary channel).",
+                accentColor: .blue
             )
             
             decisionSlider(
@@ -34,7 +35,8 @@ struct PricingSectionView: View {
                 range: DecisionInputViewModel.internetPriceRange,
                 step: 1,
                 format: "$%.0f",
-                description: "Direct-to-consumer online price (higher margins)."
+                description: "Direct-to-consumer online price (higher margins).",
+                accentColor: .purple
             )
             
             Divider()
@@ -50,7 +52,8 @@ struct PricingSectionView: View {
                     range: DecisionInputViewModel.privateLabelPriceRange,
                     step: 1,
                     format: "$%.0f",
-                    description: "Lowest bid wins. Fills excess capacity."
+                    description: "Lowest bid wins. Fills excess capacity.",
+                    accentColor: .green
                 )
                 
                 HStack {
@@ -79,7 +82,8 @@ struct PricingSectionView: View {
                     range: DecisionInputViewModel.amazonPriceRange,
                     step: 1,
                     format: "$%.0f",
-                    description: "Listing price on Amazon. 15% referral fee applies."
+                    description: "Listing price on Amazon. 15% referral fee applies.",
+                    accentColor: .orange
                 )
                 
                 Picker("Fulfillment Method", selection: $viewModel.fulfillmentMethod) {
@@ -96,7 +100,8 @@ struct PricingSectionView: View {
                     range: DecisionInputViewModel.amazonAdRange,
                     step: 500,
                     format: "$%.0f",
-                    description: "Sponsored product ads. Boosts visibility in search and Buy Box."
+                    description: "Sponsored product ads. Boosts visibility in search and Buy Box.",
+                    accentColor: .orange
                 )
                 
                 AmazonEconomicsPreview(viewModel: viewModel)
@@ -109,27 +114,46 @@ struct PricingSectionView: View {
 
 fileprivate struct FBAInfoCard: View {
     var body: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("FBA")
-                    .font(.caption)
-                    .fontWeight(.semibold)
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 4) {
+                    Image(systemName: "shippingbox.fill")
+                        .font(.caption)
+                    Text("FBA")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                }
+                .foregroundStyle(.orange)
                 Text("$4.50/unit, Prime badge, higher Buy Box win rate")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            VStack(alignment: .leading, spacing: 2) {
-                Text("FBM")
-                    .font(.caption)
-                    .fontWeight(.semibold)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 4) {
+                    Image(systemName: "shippingbox")
+                        .font(.caption)
+                    Text("FBM")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                }
+                .foregroundStyle(.blue)
                 Text("$1.50/unit, you handle shipping, lower visibility")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.gray.opacity(0.08)))
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.gray.opacity(0.06), Color.clear],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+        )
     }
 }
 
@@ -193,6 +217,19 @@ fileprivate struct AmazonEconomicsPreview: View {
             }
         }
         .padding()
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.05)))
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.orange.opacity(0.06), Color.orange.opacity(0.02)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Color.orange.opacity(0.12), lineWidth: 0.5)
+        )
     }
 }

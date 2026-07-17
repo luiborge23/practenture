@@ -657,7 +657,8 @@ class Database:
         if not user:
             return None
         # Check by name match for students (name stored as username in login)
-        if user["role"] == "student" and user.get("name") != username:
+        # Only redirect to student_id lookup if name is set AND doesn't match
+        if user["role"] == "student" and user.get("name") and user.get("name") != username:
             # Try student_id match
             user = self.get_user_by_student_id(username)
             if not user:

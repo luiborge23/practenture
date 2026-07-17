@@ -25,7 +25,8 @@ struct SocialMediaSectionView: View {
                 range: DecisionInputViewModel.socialMediaRange,
                 step: 500,
                 format: "$%.0f",
-                description: "Viral reach, younger demographic. Best for awareness and internet sales."
+                description: "Viral reach, younger demographic. Best for awareness and internet sales.",
+                accentColor: .pink
             )
             
             decisionSlider(
@@ -34,7 +35,8 @@ struct SocialMediaSectionView: View {
                 range: DecisionInputViewModel.socialMediaRange,
                 step: 500,
                 format: "$%.0f",
-                description: "Brand image & lifestyle positioning. Strongest impact on Image Rating."
+                description: "Brand image & lifestyle positioning. Strongest impact on Image Rating.",
+                accentColor: .pink
             )
             
             decisionSlider(
@@ -43,7 +45,8 @@ struct SocialMediaSectionView: View {
                 range: DecisionInputViewModel.socialMediaRange,
                 step: 500,
                 format: "$%.0f",
-                description: "Trust & credibility. Builds long-term brand perception and product awareness."
+                description: "Trust & credibility. Builds long-term brand perception and product awareness.",
+                accentColor: .pink
             )
             
             Divider()

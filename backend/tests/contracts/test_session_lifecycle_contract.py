@@ -63,8 +63,12 @@ def test_join_duplicate_and_finished_state_errors():
     payload={"teamName":"Alpha","studentId":"student-a"}
     student_a_headers=H("student-a","student")
     assert client.put(f"/api/sessions/{code}/join",json=payload,headers=student_a_headers).status_code==200
-    duplicate=client.put(f"/api/sessions/{code}/join",json=payload,headers=student_a_headers)
-    assert duplicate.status_code==409 and duplicate.json()=={"detail":"Team name already taken"}
+    # Same student re-joining the same team is now idempotent (returns 200)
+    idempotent=client.put(f"/api/sessions/{code}/join",json=payload,headers=student_a_headers)
+    assert idempotent.status_code==200
+    # A DIFFERENT student trying to join the same team name gets 409
+    duplicate=client.put(f"/api/sessions/{code}/join",json={"teamName":"Alpha","studentId":"student-b"},headers=H("student-b","student"))
+    assert duplicate.status_code==409 and duplicate.json()=={"detail":"Team name already taken by another student"}
     db.update_session(code,{"state":SessionState.FINISHED})
     blocked=client.put(f"/api/sessions/{code}/join",json={"teamName":"Beta","studentId":"student-b"},headers=H("student-b","student"))
     assert blocked.status_code==400 and blocked.json()=={"detail":"Session is finished, cannot join"}
@@ -76,7 +80,7 @@ def test_status_exact_contract_and_auth():
     assert client.get(f"/api/sessions/{code}/status").status_code==401
     r=client.get(f"/api/sessions/{code}/status",headers=H("student-a","student"))
     assert r.status_code==200
-    assert r.json()=={"sessionId":db.get_session(code).id,"code":code,"state":"active","currentRound":1,"totalRounds":2,"teamsSubmitted":1,"totalTeams":1}
+    assert r.json()=={"sessionId":db.get_session(code).id,"code":code,"state":"active","currentRound":1,"totalRounds":2,"teamsSubmitted":1,"totalTeams":1,"humanTeams":1}
 
 @pytest.mark.parametrize("method,suffix",[("post","start"),("post","end"),("delete","")])
 def test_state_changes_require_owning_professor_or_owner(method,suffix):

@@ -54,7 +54,9 @@ struct WaitingRoomView: View {
                 HStack(spacing: 4) {
                     ForEach(1...totalRounds, id: \.self) { round in
                         RoundedRectangle(cornerRadius: 2)
-                            .fill(round <= currentRound ? Color.blue : Color.secondary.opacity(0.2))
+                            .fill(round <= currentRound
+                                ? AnyShapeStyle(LinearGradient(colors: [.blue, .cyan], startPoint: .leading, endPoint: .trailing))
+                                : AnyShapeStyle(Color.secondary.opacity(0.2)))
                             .frame(width: round == currentRound ? 24 : 12, height: 6)
                             .animation(.spring(duration: 0.3), value: currentRound)
                     }
@@ -137,8 +139,19 @@ struct WaitingRoomView: View {
             .padding(20)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.gray.opacity(0.1))
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.yellow.opacity(0.12), Color.orange.opacity(0.06)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color.yellow.opacity(0.15), lineWidth: 1)
+                    )
             )
+            .shadow(color: .yellow.opacity(0.08), radius: 8, y: 4)
             .frame(maxWidth: 460)
 
             Spacer()

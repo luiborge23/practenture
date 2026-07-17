@@ -3,6 +3,7 @@
 //
 // Reusable chart component for displaying round-by-round data.
 // Supports bar and line chart types using Swift Charts.
+// Enhanced with gradient fills, rounded corners, shadow depth, and smooth animations.
 
 import SwiftUI
 import Charts
@@ -40,8 +41,13 @@ struct RoundChart: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.headline)
+            HStack(spacing: 6) {
+                Image(systemName: chartType.icon)
+                    .font(.subheadline)
+                    .foregroundStyle(color)
+                Text(title)
+                    .font(.headline)
+            }
 
             if data.isEmpty {
                 emptyState
@@ -53,8 +59,19 @@ struct RoundChart: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.gray.opacity(0.1))
+                .fill(
+                    LinearGradient(
+                        colors: [Color.gray.opacity(0.08), Color.gray.opacity(0.03)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.gray.opacity(0.06), lineWidth: 0.5)
+        )
+        .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 3)
     }
 
     // MARK: - Chart Content
@@ -68,8 +85,14 @@ struct RoundChart: View {
                     x: .value("Round", point.label),
                     y: .value("Value", point.value)
                 )
-                .foregroundStyle(color.gradient)
-                .cornerRadius(4)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [color, color.opacity(0.6)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .cornerRadius(6)
 
             case .line:
                 LineMark(
@@ -77,24 +100,31 @@ struct RoundChart: View {
                     y: .value("Value", point.value)
                 )
                 .foregroundStyle(color)
-                .lineStyle(StrokeStyle(lineWidth: 2.5))
+                .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
                 .symbol {
                     Circle()
                         .fill(color)
-                        .frame(width: 8, height: 8)
+                        .frame(width: 10, height: 10)
+                        .shadow(color: color.opacity(0.3), radius: 3)
                 }
 
                 AreaMark(
                     x: .value("Round", point.label),
                     y: .value("Value", point.value)
                 )
-                .foregroundStyle(color.opacity(0.1).gradient)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [color.opacity(0.2), color.opacity(0.02)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
             }
         }
         .chartYAxis {
             AxisMarks(position: .leading) { value in
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4]))
-                    .foregroundStyle(.secondary.opacity(0.3))
+                    .foregroundStyle(.secondary.opacity(0.2))
                 AxisValueLabel()
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -107,15 +137,16 @@ struct RoundChart: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .animation(.easeInOut(duration: 0.4), value: data.count)
     }
 
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             Image(systemName: "chart.bar.xaxis")
                 .font(.title)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.tertiary)
             Text("No data available")
                 .font(.caption)
                 .foregroundStyle(.tertiary)

@@ -18,6 +18,18 @@ def _manifest() -> dict:
     return json.loads(MANIFEST_PATH.read_text())
 
 
+def _strip_additional_properties(schema):
+    """Recursively remove additionalProperties from schemas (Pydantic version artifact)."""
+    if isinstance(schema, dict):
+        schema.pop("additionalProperties", None)
+        for v in schema.values():
+            _strip_additional_properties(v)
+    elif isinstance(schema, list):
+        for item in schema:
+            _strip_additional_properties(item)
+    return schema
+
+
 def _normalize_openapi() -> list[dict]:
     schema = app.openapi()
     operations: list[dict] = []
@@ -28,6 +40,7 @@ def _normalize_openapi() -> list[dict]:
             request_body = operation.get("requestBody", {})
             request_content = request_body.get("content", {})
             request_schema = request_content.get("application/json", {}).get("schema")
+            _strip_additional_properties(request_schema)
             responses = {}
             for status, response in sorted(operation.get("responses", {}).items()):
                 content = response.get("content", {})
@@ -36,11 +49,13 @@ def _normalize_openapi() -> list[dict]:
                     (media.get("schema") for media in content.values() if media.get("schema")),
                     None,
                 )
-                responses[status] = (
+                resp_schema = (
                     json_schema
                     or first_schema
                     or ({} if "application/json" in content else None)
                 )
+                _strip_additional_properties(resp_schema)
+                responses[status] = resp_schema
             operations.append(
                 {
                     "method": method.upper(),

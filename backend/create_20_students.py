@@ -29,15 +29,15 @@ def main():
         
         if existing:
             cursor.execute(
-                "UPDATE users SET password_hash = ?, role = ? WHERE username = ?",
-                (hashed_pw, role, username)
+                "UPDATE users SET password_hash = ?, role = ?, name = ?, student_id = ? WHERE username = ?",
+                (hashed_pw, role, username, username, username)
             )
             updated += 1
             print(f"✅ Updated {username}")
         else:
             cursor.execute(
-                "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-                (username, hashed_pw, role)
+                "INSERT INTO users (username, password_hash, role, name, student_id) VALUES (?, ?, ?, ?, ?)",
+                (username, hashed_pw, role, username, username)
             )
             created += 1
             print(f"✅ Created {username}")

@@ -134,7 +134,7 @@ def test_process_round_requires_owning_professor_and_advances_atomically():
     r=client.post(url,headers=H("prof-a","professor")); assert r.status_code==200,r.text
     body=r.json(); assert set(body)=={"round","results"} and body["round"]==1
     assert {x["teamId"] for x in body["results"]}=={"Zulu","Alpha","AI-Balanced"}
-    expected={"teamId","round","revenue","costs","profit","marketShare","sqRating","reputation","cumulativeProfit","cash","inventory","equity","debt","sharesOutstanding","eps","roe","stockPrice","epsScore","roeScore","stockPriceScore","imageScore","awarenessScore","creditScore","totalScore","productionCost","marketingCost","unitCost","demand"}
+    expected={"teamId","round","revenue","costs","profit","marketShare","sqRating","reputation","cumulativeProfit","cash","inventory","equity","debt","sharesOutstanding","eps","roe","stockPrice","epsScore","roeScore","stockPriceScore","imageScore","awarenessScore","creditScore","totalScore","productionCost","marketingCost","unitCost","demand","wholesaleRevenue","internetRevenue","amazonRevenue","privateLabelRevenue","wholesaleUnitsSold","internetUnitsSold","amazonUnitsSold","privateLabelUnitsSold","workforceCosts","csrCosts","endorsementCosts","rebateCosts","deliveryCosts","storageCosts","interestExpense","dividendsPaid","socialMediaCosts","amazonFees","imageRating","creditRating","customerSatisfaction","rejectionRate"}
     assert all(set(x)==expected and x["round"]==1 for x in body["results"])
     assert db.get_session(code).currentRound==2
     assert len(db.get_all_results(code)[1])==3

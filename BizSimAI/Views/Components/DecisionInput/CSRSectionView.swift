@@ -24,7 +24,8 @@ struct CSRSectionView: View {
                 range: DecisionInputViewModel.csrRange,
                 step: 500,
                 format: "$%.0f",
-                description: "Ethics, sustainability, and community programs."
+                description: "Ethics, sustainability, and community programs.",
+                accentColor: .indigo
             )
             
             Text("CSR has diminishing returns — first dollars have the most impact on Image Rating.")

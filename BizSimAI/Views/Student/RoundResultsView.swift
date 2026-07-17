@@ -128,7 +128,21 @@ struct RoundResultsView: View {
             }
         }
         .padding(16)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.blue.opacity(0.05)))
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.blue.opacity(0.06), Color.blue.opacity(0.02)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.blue.opacity(0.08), lineWidth: 0.5)
+        )
+        .shadow(color: Color.blue.opacity(0.04), radius: 6, x: 0, y: 3)
     }
 
     private func scorecardItem(_ label: String, value: String, score: Double, maxScore: Double) -> some View {
@@ -145,8 +159,17 @@ struct RoundResultsView: View {
                 .foregroundStyle(.tertiary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.gray.opacity(0.08)))
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.gray.opacity(0.06), Color.clear],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+        )
     }
 
     // MARK: - Channel Revenue Breakdown
@@ -156,22 +179,31 @@ struct RoundResultsView: View {
             Text("Revenue by Channel")
                 .font(.headline)
 
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 channelCard(title: "Wholesale", revenue: viewModel.wholesaleRevenue,
                             units: viewModel.wholesaleUnitsSold, color: .blue)
                 channelCard(title: "Internet", revenue: viewModel.internetRevenue,
                             units: viewModel.internetUnitsSold, color: .purple)
+            }
+            HStack(spacing: 10) {
+                channelCard(title: "Amazon", revenue: viewModel.amazonRevenue,
+                            units: viewModel.amazonUnitsSold, color: .orange)
                 channelCard(title: "Private Label", revenue: viewModel.privateLabelRevenue,
-                            units: viewModel.privateLabelUnitsSold, color: .orange)
+                            units: viewModel.privateLabelUnitsSold, color: .green)
             }
         }
     }
 
     private func channelCard(title: String, revenue: Double, units: Int, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(color)
+                    .frame(width: 6, height: 6)
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Text(viewModel.formatted(revenue))
                 .font(.headline)
                 .fontWeight(.bold)
@@ -181,15 +213,22 @@ struct RoundResultsView: View {
                 .foregroundStyle(.tertiary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
+        .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(color.opacity(0.08))
+                .fill(
+                    LinearGradient(
+                        colors: [color.opacity(0.08), color.opacity(0.03)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(color.opacity(0.2), lineWidth: 1)
+                .strokeBorder(color.opacity(0.15), lineWidth: 0.5)
         )
+        .shadow(color: color.opacity(0.06), radius: 4, x: 0, y: 2)
     }
 
     // MARK: - Income Statement

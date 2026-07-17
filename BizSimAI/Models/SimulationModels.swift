@@ -480,8 +480,8 @@ struct SessionConfiguration: Codable, Identifiable {
 
     init(
         name: String = "New Session",
-        totalRounds: Int = 10,
-        startingCash: Double = 100_000,
+        totalRounds: Int = 20,
+        startingCash: Double = 500_000,
         marketType: MarketType = .moderate,
         aiDifficulty: AIDifficulty = .medium,
         numberOfAICompetitors: Int = 3,
@@ -491,9 +491,9 @@ struct SessionConfiguration: Codable, Identifiable {
         baseCostPerUnit: Double = 30,
         baseMarketDemand: Int = 10_000,
         sharesOutstanding: Int = 10_000,
-        initialEquity: Double = 80_000,
+        initialEquity: Double = 300_000,
         baseInterestRate: Double = 0.06,
-        plantCapacity: Int = 500,
+        plantCapacity: Int = 10_000,
         courseCode: String = "",
         semester: String = "",
         maxHumanTeams: Int = 1,

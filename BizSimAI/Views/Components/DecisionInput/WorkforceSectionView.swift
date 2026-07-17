@@ -25,7 +25,8 @@ struct WorkforceSectionView: View {
                 range: DecisionInputViewModel.baseWageRange,
                 step: 1000,
                 format: "$%.0f",
-                description: "Industry avg: $25,000. Higher wages attract better workers."
+                description: "Industry avg: $25,000. Higher wages attract better workers.",
+                accentColor: .blue
             )
             
             decisionSlider(
@@ -34,7 +35,8 @@ struct WorkforceSectionView: View {
                 range: DecisionInputViewModel.incentivePayRange,
                 step: 0.10,
                 format: "$%.2f",
-                description: "Per-pair bonus motivates output and reduces defects."
+                description: "Per-pair bonus motivates output and reduces defects.",
+                accentColor: .blue
             )
             
             decisionSlider(
@@ -43,7 +45,8 @@ struct WorkforceSectionView: View {
                 range: DecisionInputViewModel.trainingHoursRange,
                 step: 5,
                 format: "%.0f hrs",
-                description: "More training = higher quality, lower rejection rate, better S/Q."
+                description: "More training = higher quality, lower rejection rate, better S/Q.",
+                accentColor: .blue
             )
             
             WorkforceImpactPreview(viewModel: viewModel)

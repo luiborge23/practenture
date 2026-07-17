@@ -81,7 +81,17 @@ struct StudentLeaderboardView: View {
                 .padding(.vertical, 10)
                 .background(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(.blue.opacity(0.08))
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.blue.opacity(0.10), Color.blue.opacity(0.04)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(Color.blue.opacity(0.12), lineWidth: 0.5)
                 )
             }
         }
@@ -129,7 +139,17 @@ struct StudentLeaderboardView: View {
         .padding(8)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.gray.opacity(0.1))
+                .fill(
+                    LinearGradient(
+                        colors: [Color.gray.opacity(0.08), Color.gray.opacity(0.03)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.gray.opacity(0.06), lineWidth: 0.5)
         )
     }
 

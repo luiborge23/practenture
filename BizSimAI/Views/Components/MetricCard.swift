@@ -2,6 +2,7 @@
 // BizSimAI
 //
 // Reusable metric display card with icon, value, trend indicator, and color accent.
+// Enhanced with gradient backgrounds, shadow depth, and smooth animations.
 
 import SwiftUI
 
@@ -36,13 +37,27 @@ struct MetricCard: View {
         GroupBox {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Image(systemName: icon)
-                        .font(.title2)
-                        .foregroundStyle(accentColor)
-                        .frame(width: 32, height: 32)
+                    // Icon with gradient circle background
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [accentColor.opacity(0.8), accentColor.opacity(0.4)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                        Image(systemName: icon)
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.white)
+                    }
+                    .frame(width: 36, height: 36)
+                    .shadow(color: accentColor.opacity(0.3), radius: 4, x: 0, y: 2)
 
                     Spacer()
 
+                    // Trend badge
                     HStack(spacing: 4) {
                         Image(systemName: trend.symbol)
                             .font(.caption)
@@ -76,6 +91,7 @@ struct MetricCard: View {
         #else
         .backgroundStyle(Color(uiColor: .secondarySystemBackground))
         #endif
+        .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 4)
     }
 }
 

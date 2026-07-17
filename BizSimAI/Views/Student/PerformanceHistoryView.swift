@@ -62,7 +62,11 @@ struct PerformanceHistoryView: View {
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
                             .background(
-                                Capsule().fill(viewModel.selectedMetric == metric ? Color.accentColor : Color.gray.opacity(0.15))
+                                Capsule().fill(
+                                    viewModel.selectedMetric == metric
+                                        ? AnyShapeStyle(LinearGradient(colors: [Color.accentColor, Color.accentColor.opacity(0.8)], startPoint: .leading, endPoint: .trailing))
+                                        : AnyShapeStyle(Color.gray.opacity(0.15))
+                                )
                             )
                             .foregroundStyle(viewModel.selectedMetric == metric ? .white : .primary)
                     }

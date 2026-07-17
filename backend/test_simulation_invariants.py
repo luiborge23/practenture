@@ -43,7 +43,7 @@ def _decision(**overrides):
 
 
 def _assert_round_invariants(result, state, config, decision, previous_inventory=0):
-    numeric = result.model_dump(exclude={"teamId", "demand"}).values()
+    numeric = result.model_dump(exclude={"teamId", "demand", "creditRating"}).values()
     assert all(math.isfinite(float(value)) for value in numeric)
     assert result.profit == pytest.approx(result.revenue - result.costs, abs=0.02)
     assert result.demand["totalSold"] == pytest.approx(

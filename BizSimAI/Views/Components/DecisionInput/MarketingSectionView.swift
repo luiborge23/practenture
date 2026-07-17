@@ -26,7 +26,8 @@ struct MarketingSectionView: View {
                 range: DecisionInputViewModel.advertisingRange,
                 step: 500,
                 format: "$%.0f",
-                description: "Higher spend increases brand awareness and demand."
+                description: "Higher spend increases brand awareness and demand.",
+                accentColor: .purple
             )
             
             Picker("Celebrity Endorsement", selection: $viewModel.celebrityEndorsement) {
@@ -62,7 +63,8 @@ struct MarketingSectionView: View {
                     range: DecisionInputViewModel.rebateRange,
                     step: 0.5,
                     format: "$%.1f",
-                    description: "Consumer rebate on wholesale purchases. ~60% redemption rate."
+                    description: "Consumer rebate on wholesale purchases. ~60% redemption rate.",
+                    accentColor: .purple
                 )
                 
                 Picker("Delivery Time", selection: $viewModel.deliveryTime) {
@@ -88,7 +90,8 @@ struct MarketingSectionView: View {
                     range: DecisionInputViewModel.freeShipRange,
                     step: 5,
                     format: "$%.0f",
-                    description: "Lower threshold = more internet orders. $0 = free shipping on all."
+                    description: "Lower threshold = more internet orders. $0 = free shipping on all.",
+                    accentColor: .purple
                 )
             }
         }

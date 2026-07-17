@@ -25,7 +25,8 @@ struct FinanceSectionView: View {
                 range: DecisionInputViewModel.dividendRange,
                 step: 0.10,
                 format: "$%.2f",
-                description: "Investors expect stable or growing dividends. Cutting hurts stock price."
+                description: "Investors expect stable or growing dividends. Cutting hurts stock price.",
+                accentColor: .orange
             )
             
             decisionSlider(
@@ -34,7 +35,8 @@ struct FinanceSectionView: View {
                 range: DecisionInputViewModel.loanRange,
                 step: 1000,
                 format: "$%.0f",
-                description: "Borrow to fund growth. Interest rate depends on credit rating."
+                description: "Borrow to fund growth. Interest rate depends on credit rating.",
+                accentColor: .orange
             )
             
             Divider()

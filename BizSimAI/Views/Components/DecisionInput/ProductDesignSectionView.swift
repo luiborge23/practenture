@@ -36,7 +36,8 @@ struct ProductDesignSectionView: View {
                 range: DecisionInputViewModel.stylingRange,
                 step: 500,
                 format: "$%.0f",
-                description: "Design investment per model — improves S/Q rating."
+                description: "Design investment per model — improves S/Q rating.",
+                accentColor: .teal
             )
             
             HStack {
@@ -56,7 +57,8 @@ struct ProductDesignSectionView: View {
                 range: DecisionInputViewModel.tqmRange,
                 step: 500,
                 format: "$%.0f",
-                description: "Quality programs — cumulative effect improves S/Q and reduces defects."
+                description: "Quality programs — cumulative effect improves S/Q and reduces defects.",
+                accentColor: .teal
             )
             
             decisionSlider(
@@ -65,7 +67,8 @@ struct ProductDesignSectionView: View {
                 range: DecisionInputViewModel.bestPracticesRange,
                 step: 500,
                 format: "$%.0f",
-                description: "Workforce quality programs — reduces rejection rate, boosts S/Q."
+                description: "Workforce quality programs — reduces rejection rate, boosts S/Q.",
+                accentColor: .teal
             )
         }
     }
