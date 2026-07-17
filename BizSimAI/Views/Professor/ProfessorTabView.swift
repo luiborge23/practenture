@@ -14,7 +14,7 @@ struct ProfessorTabView: View {
         case sessions = "Sessions"
         case activeSession = "Monitor"
         case teams = "Teams"
-        case announcements = "Announce"
+        case announcements = "Announcements"
         case grading = "Grading"
         case settings = "Settings"
 

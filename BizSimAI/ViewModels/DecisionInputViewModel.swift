@@ -4,14 +4,14 @@ import SwiftUI
 
 extension DecisionInputViewModel {
     enum DecisionCategory: String, CaseIterable, Identifiable {
-        case pricing = "Pricing"
-        case product = "Product"
+        case pricing = "Pricing & Sales"
+        case product = "Product Design"
         case marketing = "Marketing"
-        case amazon = "Amazon"
-        case socialMedia = "Social"
+        case amazon = "Amazon Marketplace"
+        case socialMedia = "Social Media Adv."
         case workforce = "Workforce"
         case production = "Production"
-        case csr = "CSR"
+        case csr = "CSR & Image"
         case finance = "Finance"
         
         var id: String { rawValue }
@@ -34,8 +34,9 @@ extension DecisionInputViewModel {
 
 // MARK: - DecisionInputViewModel
 /// Decision input ViewModel.
-/// Manages 7 decision categories: Pricing, Product Design, Marketing,
-/// Workforce, Production, CSR, and Finance with validation and budget tracking.
+/// Manages 9 decision categories: Pricing & Sales, Product Design, Marketing,
+/// Amazon Marketplace, Social Media Adv., Workforce, Production, CSR & Image, and Finance
+/// with validation and budget tracking.
 
 @Observable
 final class DecisionInputViewModel {
@@ -448,7 +449,7 @@ final class DecisionInputViewModel {
             let joinedTeamName = session.backendTeamId?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard let joinedTeamName, !joinedTeamName.isEmpty else {
-                submissionError = "Your backend team could not be identified. Please leave and join the session again."
+                submissionError = "Your team could not be found on the server. Please leave the session and rejoin with your session code."
                 HapticsManager.warning()
                 return false
             }
@@ -540,7 +541,7 @@ final class DecisionInputViewModel {
                 HapticsManager.success()
                 return true
             } catch {
-                submissionError = "Decision was not submitted: \(UserFriendlyError.message(for: error))"
+                submissionError = "Failed to submit decisions: \(UserFriendlyError.message(for: error))"
                 isSubmitting = false
                 HapticsManager.warning()
                 return false

@@ -66,7 +66,7 @@ struct AboutView: View {
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 infoParagraph(
-                    "BizSim AI is a marketplace simulation where teams run athletic footwear companies competing in a global marketplace. Each round, you make strategic decisions across pricing, production, marketing, workforce, and finance."
+                    "BizSim AI is a marketplace simulation where teams run athletic footwear companies competing in a global marketplace. Each round, you make strategic decisions across pricing, product design, marketing, Amazon, social media, workforce, production, CSR, and finance."
                 )
 
                 bulletPoint("Each simulation runs for a fixed number of rounds (typically 5-15)")

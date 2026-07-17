@@ -15,7 +15,7 @@ struct SocialMediaSectionView: View {
     
     var body: some View {
         DecisionInputSectionView(
-            title: "Social Media Marketing",
+            title: "Social Media Advertising",
             icon: "share.2",
             description: "Leverage TikTok, Instagram, and YouTube to boost awareness and demand."
         ) {
@@ -43,7 +43,7 @@ struct SocialMediaSectionView: View {
                 range: DecisionInputViewModel.socialMediaRange,
                 step: 500,
                 format: "$%.0f",
-                description: "Trust & credibility. Builds long-term brand perception and S/Q awareness."
+                description: "Trust & credibility. Builds long-term brand perception and product awareness."
             )
             
             Divider()

@@ -413,7 +413,7 @@ struct TeamDashboardView: View {
                 quickActionButton(title: "History", icon: "chart.xyaxis.line", color: .purple) {
                     showHistory = true
                 }
-                quickActionButton(title: "Rankings", icon: "trophy", color: .orange) {
+                quickActionButton(title: "Leaderboard", icon: "trophy", color: .orange) {
                     showLeaderboard = true
                 }
                 quickActionButton(title: "AI Coach", icon: "brain.head.profile", color: .blue) {

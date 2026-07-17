@@ -280,34 +280,4 @@ struct PerformanceHistoryView: View {
             }
         }
     }
-
-    // MARK: - Sample Data
-
-    private func loadSampleData() {
-        // In production, this would call:
-        // viewModel.loadHistory(from: session, for: teamId)
-        // For now, populate with sample round summaries.
-        viewModel.rounds = [
-            PerformanceHistoryViewModel.RoundSnapshot(
-                round: 1, revenue: 32_000, profit: 8_500, cash: 85_000,
-                unitsSold: 180, marketShare: 0.20, customerSatisfaction: 0.70,
-                sqRating: 5.0, investorScore: 45, imageRating: 42, rejectionRate: 0.10
-            ),
-            PerformanceHistoryViewModel.RoundSnapshot(
-                round: 2, revenue: 38_500, profit: 12_200, cash: 88_500,
-                unitsSold: 210, marketShare: 0.22, customerSatisfaction: 0.74,
-                sqRating: 5.8, investorScore: 52, imageRating: 48, rejectionRate: 0.08
-            ),
-            PerformanceHistoryViewModel.RoundSnapshot(
-                round: 3, revenue: 45_200, profit: 15_800, cash: 93_200,
-                unitsSold: 230, marketShare: 0.25, customerSatisfaction: 0.79,
-                sqRating: 6.4, investorScore: 61, imageRating: 55, rejectionRate: 0.06
-            ),
-            PerformanceHistoryViewModel.RoundSnapshot(
-                round: 4, revenue: 52_300, profit: 18_700, cash: 98_200,
-                unitsSold: 245, marketShare: 0.28, customerSatisfaction: 0.76,
-                sqRating: 6.8, investorScore: 72, imageRating: 62, rejectionRate: 0.04
-            ),
-        ]
-    }
 }

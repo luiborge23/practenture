@@ -144,7 +144,7 @@ struct ProfessorLeaderboardView: View {
     private var headerSection: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Team Rankings")
+                Text("Leaderboard")
                     .font(.title2)
                     .fontWeight(.bold)
 
@@ -224,7 +224,7 @@ struct ProfessorLeaderboardView: View {
             columnHeader("Team", width: nil, alignment: .leading)
             columnHeader("Revenue", width: 110)
             columnHeader("Profit", width: 110)
-            columnHeader("Mkt Share", width: 90)
+            columnHeader("Market Share", width: 110)
             columnHeader("Satisfaction", width: 90)
         }
         .padding(.horizontal, 16)
