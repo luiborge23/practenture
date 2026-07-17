@@ -118,10 +118,19 @@ async def join_session(
     if session.state not in (SessionState.CREATING, SessionState.ACTIVE):
         raise HTTPException(status_code=400, detail=f"Session is {session.state.value}, cannot join")
 
-    # Check team name not already taken by a human team with an assigned student
+    # Check team name not already taken by a DIFFERENT student
     for t in session.teams:
         if t.teamName == req.teamName and not t.isAI and t.studentId:
-            raise HTTPException(status_code=409, detail="Team name already taken")
+            if t.studentId != effective_student_id:
+                raise HTTPException(status_code=409, detail="Team name already taken by another student")
+            # Same student re-joining — allow idempotent re-join
+            # Return their existing team without creating a duplicate
+            return JoinSessionResponse(
+                teamId=req.teamName,
+                teamName=req.teamName,
+                round=session.currentRound,
+                state=session.state.value,
+            )
 
     # If team exists but has no student yet (professor-created slot), reuse it
     existing = None
