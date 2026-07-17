@@ -120,7 +120,7 @@ struct AboutView: View {
 
                 decisionCard(
                     title: "Social Media & Influencers",
-                    icon: "person.3.fill",
+                    icon: "megaphone.fill",
                     color: .pink,
                     description: "Allocate budgets across TikTok (viral awareness), Instagram (brand image), and YouTube (credibility). Choose influencer tiers from Nano (6.5% engagement, $300/ea) to Mega (1% engagement, $50K/ea). Social media boosts internet demand, image rating, and overall awareness."
                 )
@@ -223,7 +223,7 @@ struct AboutView: View {
 
                 decisionCard(
                     title: "Teams & Enrollment",
-                    icon: "person.3.fill",
+                    icon: "person.crop.circle.badge.checkmark",
                     color: .blue,
                     description: "Configure max teams and team size (1-6 students). Students join with a session code. Auto-assign distributes students evenly, or manually assign via the Teams tab."
                 )

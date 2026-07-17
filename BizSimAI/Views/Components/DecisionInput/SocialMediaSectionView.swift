@@ -16,7 +16,7 @@ struct SocialMediaSectionView: View {
     var body: some View {
         DecisionInputSectionView(
             title: "Social Media Advertising",
-            icon: "share.2",
+            icon: "megaphone.fill",
             description: "Leverage TikTok, Instagram, and YouTube to boost awareness and demand."
         ) {
             decisionSlider(

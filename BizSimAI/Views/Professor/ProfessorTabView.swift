@@ -22,7 +22,7 @@ struct ProfessorTabView: View {
             switch self {
             case .sessions: return "list.bullet.rectangle.portrait"
             case .activeSession: return "play.circle.fill"
-            case .teams: return "person.3"
+            case .teams: return "person.crop.circle.badge.checkmark"
             case .announcements: return "megaphone"
             case .grading: return "graduationcap"
             case .settings: return "gearshape"

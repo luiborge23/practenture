@@ -62,6 +62,10 @@ async def create_session(req: CreateSessionRequest, user=Depends(verify_professo
         if cls["professor_user_id"] != user["sub"] and user.get("role") != "owner":
             raise HTTPException(status_code=403, detail="Not your class")
 
+    # If num_rounds is provided, override config.totalRounds
+    if req.num_rounds:
+        req.config.totalRounds = req.num_rounds
+
     # Build teams list: start with any provided teams, then add AI competitors
     teams = list(req.teams) if req.teams else []
     

@@ -20,7 +20,7 @@ enum LeaderboardSortColumn: String, CaseIterable {
     var icon: String {
         switch self {
         case .rank: return "number"
-        case .team: return "person.3"
+        case .team: return "person.crop.circle.badge.checkmark"
         case .revenue: return "dollarsign.arrow.circlepath"
         case .profit: return "chart.line.uptrend.xyaxis"
         case .marketShare: return "chart.pie"

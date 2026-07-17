@@ -203,7 +203,7 @@ struct CreateSessionView: View {
             }
             .font(.subheadline)
         } header: {
-            Label("Teams & Enrollment", systemImage: "person.3")
+            Label("Teams & Enrollment", systemImage: "person.crop.circle.badge.checkmark")
         } footer: {
             Text("Students join using the session code. Teams can be auto-assigned or manually configured.")
         }

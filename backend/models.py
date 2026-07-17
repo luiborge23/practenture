@@ -517,6 +517,8 @@ class CreateSessionRequest(BaseModel):
     created_by: str = "professor"
     maxHumanTeams: int = 30
     classId: Optional[str] = None
+    # Convenience: num_rounds overrides config.totalRounds if provided
+    num_rounds: Optional[int] = None
 
 
 class CreateSessionResponse(BaseModel):
