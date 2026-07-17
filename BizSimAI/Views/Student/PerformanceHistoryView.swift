@@ -6,6 +6,7 @@
 
 import SwiftUI
 import Charts
+import Combine
 
 struct PerformanceHistoryView: View {
     @Environment(AppState.self) private var appState
