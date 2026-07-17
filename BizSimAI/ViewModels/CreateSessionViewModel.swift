@@ -157,31 +157,22 @@ final class CreateSessionViewModel {
         if useBackend {
             // Create session on the backend first
             do {
-                // Build team configs for AI competitors
-                var teams: [TeamConfig] = []
-                let shuffledNames = Self.aiCompanyNames.shuffled()
-                for name in shuffledNames.prefix(numberOfAICompetitors) {
-                    teams.append(TeamConfig(
-                        id: UUID(),
-                        name: name,
-                        isAI: true
-                    ))
-                }
-
+                // Do NOT send AI team configs — let the backend generate them
+                // from config.numberOfAICompetitors. Sending them here causes
+                // the backend to double-generate AI teams (6 instead of 3).
                 let sessionResult = try await NetworkService.shared.createSession(
                     config: config,
-                    teams: teams
+                    teams: []  // Empty — backend generates AI teams from numberOfAICompetitors
                 )
+
+                // Sync the actual team list from backend so local model matches
+                let syncedSession = try await syncTeamsFromBackend(config: config, sessionCode: sessionResult.code)
 
                 // Create local session with the backend code
                 backendSessionCode = sessionResult.code
 
-                let localSession = SimulationSession(config: config)
-                // Override the local session code with the backend code
-                // (SimulationSession generates its own code, but we use the backend one)
-
                 isCreating = false
-                return localSession
+                return syncedSession
 
             } catch {
                 isCreating = false
@@ -217,6 +208,32 @@ final class CreateSessionViewModel {
             // Silently fail — local mode doesn't need this
             backendTeamCount = 0
         }
+    }
+
+    /// Create a SimulationSession synced with the actual backend team list.
+    /// This ensures the local model matches what the backend actually created,
+    /// preventing the 6-teams bug where iOS and backend both generate AI teams.
+    private func syncTeamsFromBackend(config: SessionConfiguration, sessionCode: String) async throws -> SimulationSession {
+        // Fetch the actual teams from backend
+        let backendTeams = try await NetworkService.shared.getTeams(code: sessionCode)
+
+        // Create a local session with the backend code
+        let session = SimulationSession(code: sessionCode, config: config)
+
+        // Sync the actual team list from backend
+        let teamStatuses = backendTeams.map { backend in
+            TeamStatus(
+                id: UUID(),  // Local UUID; backend uses team name as ID
+                name: backend.teamName,
+                cash: config.startingCash,
+                isAI: backend.isAI,
+                equity: config.initialEquity,
+                sharesOutstanding: config.sharesOutstanding
+            )
+        }
+        session.teams = teamStatuses
+
+        return session
     }
 
     /// Reset all form fields to defaults.
