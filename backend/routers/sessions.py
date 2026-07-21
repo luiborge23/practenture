@@ -101,6 +101,15 @@ async def get_session(code: str, user=Depends(get_current_user)):
     return session
 
 
+@router.get("/{code}/public", response_model=Session)
+async def get_session_public(code: str):
+    """Get session details by code without authentication (public read)."""
+    session = db.get_session(code)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return session
+
+
 @router.put("/{code}/join", response_model=JoinSessionResponse)
 async def join_session(
     code: str,

@@ -4,7 +4,7 @@ version = "1.0.0"
 requires-python = ">=3.10"
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "pytest-cov>=7.0"]
 
 [tool.uv]
-dev-dependencies = ["pytest>=8.0"]
+dev-dependencies = ["pytest>=8.0", "pytest-cov>=7.0"]

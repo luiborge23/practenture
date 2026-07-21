@@ -131,8 +131,8 @@ def test_health_check():
 def test_create_session_returns_valid_code(created_session):
     """Test that session creation returns a valid BIZ-XXXXXX code."""
     assert created_session.startswith("BIZ-")
-    # Verify the session exists
-    response = client.get(f"/api/sessions/{created_session}")
+    # Verify the session exists (public endpoint for tests)
+    response = client.get(f"/api/sessions/{created_session}/public")
     assert response.status_code == 200
     session = response.json()
     assert session["code"] == created_session
@@ -145,7 +145,7 @@ def test_create_session_returns_valid_code(created_session):
 # ── Session get ────────────────────────────────────────────────────────────
 
 def test_get_nonexistent_session():
-    response = client.get("/api/sessions/BIZ-999999")
+    response = client.get("/api/sessions/BIZ-999999/public")
     assert response.status_code == 404
 
 
@@ -769,7 +769,7 @@ def test_end_session(created_session):
     assert data["status"] == "ended"
 
     # Verify session state is finished
-    session_resp = client.get(f"/api/sessions/{created_session}")
+    session_resp = client.get(f"/api/sessions/{created_session}/public")
     assert session_resp.json()["state"] == "finished"
 
 

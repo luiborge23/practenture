@@ -80,7 +80,7 @@ app.add_middleware(
 
 
 # ── Global error handlers ──────────────────────────────────────────────────
-
+# ── Global error handlers ──────────────────────────────────────────────────
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(
@@ -98,6 +98,37 @@ async def general_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"detail": "Internal server error"},
     )
+
+
+# ── Security headers middleware ─────────────────────────────────────────────
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    
+    # Content-Security-Policy (SOTA: restrict to self, allow inline for SwiftUI)
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "font-src 'self'; "
+        "connect-src 'self'; "
+        "frame-ancestors 'self'; "
+        "base-uri 'self'; "
+        "form-action 'self';"
+    )
+    
+    # X-Content-Type-Options (prevent MIME type sniffing)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    
+    # X-Frame-Options (prevent clickjacking)
+    response.headers["X-Frame-Options"] = "DENY"
+    
+    # X-XSS-Protection (legacy, but still useful)
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    
+    return response
 
 
 # ── Health check ───────────────────────────────────────────────────────────

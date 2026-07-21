@@ -1,5 +1,5 @@
 {
-  "operationCount": 64,
+  "operationCount": 65,
   "operations": [
     {
       "method": "POST",
@@ -1070,6 +1070,22 @@
       "responses": {
         "200": {
           "$ref": "#/components/schemas/ProcessRoundResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/{code}/public",
+      "operationId": "get_session_public_api_sessions__code__public_get",
+      "security": [],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/Session"
         },
         "422": {
           "$ref": "#/components/schemas/HTTPValidationError"

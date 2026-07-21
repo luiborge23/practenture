@@ -3,19 +3,26 @@
 import json
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from auth import _verify_token, verify_student_or_professor
 from database import db
 from ws_manager import manager
 
 router = APIRouter(tags=["websocket"])
+http_bearer = HTTPBearer(auto_error=False)
 
 
 @router.websocket("/ws/{code}")
-async def websocket_endpoint(websocket: WebSocket, code: str):
+async def websocket_endpoint(
+    websocket: WebSocket,
+    code: str,
+    credentials: HTTPAuthorizationCredentials = None,
+):
     """WebSocket endpoint for real-time session updates.
     
     Clients connect with the session code to receive live updates.
+    JWT token can be passed via Authorization header (Bearer scheme) or query param.
     Supported message types:
     - {"type": "join", "teamId": "..."} — identify as a team
     - {"type": "ping"} — keepalive
@@ -27,14 +34,20 @@ async def websocket_endpoint(websocket: WebSocket, code: str):
         await websocket.close(code=4004, reason="Session not found")
         return
     
-    # Verify authentication (token in query param)
-    token = websocket.query_params.get("token")
+    # Verify authentication (token in Authorization header or query param)
+    token = None
+    if credentials and credentials.credentials:
+        # Use Authorization header (preferred, SOTA: no token in URL)
+        token = credentials.credentials
+    else:
+        # Fallback to query param for backward compatibility
+        token = websocket.query_params.get("token")
+    
     if not token:
         await websocket.close(code=4001, reason="Authentication required")
         return
     
     # Verify JWT token
-    from auth import _verify_token
     payload = _verify_token(token)
     if not payload:
         await websocket.close(code=4001, reason="Invalid token")
