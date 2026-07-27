@@ -128,7 +128,7 @@ ATHLETIC_FOOTWEAR_CLASSIC = ScenarioPack(
 
 WEARABLE_TECHNOLOGY = ScenarioPack(
     scenario_id="wearable-technology",
-    scenario_version="0.1.0-research",
+    scenario_version="0.1.0",
     title="Wearable Technology — Research Scenario",
     terminology=ScenarioTerminology(
         industry="Wearable Technology",
@@ -181,7 +181,7 @@ def get_scenario_pack(
 
 
 # Scenarios not yet available for gameplay (research/calibration only).
-RESEARCH_SCENARIOS: frozenset[str] = frozenset({"wearable-technology"})
+RESEARCH_SCENARIOS: frozenset[str] = frozenset()
 
 
 def is_scenario_playable(scenario_id: str) -> bool:

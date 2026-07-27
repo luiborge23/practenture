@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 from database import db
 from models import (
@@ -170,8 +170,26 @@ app.include_router(classes.router)
 app.include_router(professor.router)
 
 # Owner Administration
-app.include_router(owner_admin.router, prefix="/owner")
-app.include_router(owner_audit.router, prefix="/owner")
+app.include_router(owner_admin.router, prefix="/api/owner")
+app.include_router(owner_audit.router)
+
+
+@app.get("/admin", include_in_schema=False)
+async def admin_console(request: Request):
+    """Serve login or the protected Owner Console at the canonical URL."""
+    from auth import _verify_token
+
+    token = request.cookies.get("practenture_admin_token")
+    payload = _verify_token(token) if token else None
+    if payload and payload.get("role") in ("owner", "admin"):
+        return FileResponse("templates/owner_dashboard.html")
+    return FileResponse("templates/login_owner.html")
+
+
+@app.get("/owner", include_in_schema=False)
+@app.get("/owner/", include_in_schema=False)
+async def legacy_owner_redirect():
+    return RedirectResponse(url="/admin", status_code=308)
 
 # SOTA Phase 2: SAML SSO + SCIM 2.0 user provisioning
 import saml as saml_router_mod

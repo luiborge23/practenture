@@ -73,13 +73,13 @@ class TestWearableScenarioPack:
     """Verify the Wearable pack is registered but not playable."""
 
     def test_wearable_pack_exists(self):
-        pack = get_scenario_pack("wearable-technology", "0.1.0-research")
+        pack = get_scenario_pack("wearable-technology", "0.1.0")
         assert pack is WEARABLE_TECHNOLOGY
         assert pack.title == "Wearable Technology — Research Scenario"
 
-    def test_wearable_is_not_playable(self):
-        assert "wearable-technology" in RESEARCH_SCENARIOS
-        assert not is_scenario_playable("wearable-technology")
+    def test_wearable_is_playable(self):
+        assert "wearable-technology" not in RESEARCH_SCENARIOS
+        assert is_scenario_playable("wearable-technology")
 
     def test_footwear_is_playable(self):
         assert is_scenario_playable("athletic-footwear-classic")
@@ -126,7 +126,7 @@ class TestCoefficientContext:
         assert c.private_label_share == PRIVATE_LABEL_SHARE
 
     def test_wearable_context_has_specified_values(self):
-        c = _resolve_coeffs("wearable-technology", "0.1.0-research")
+        c = _resolve_coeffs("wearable-technology", "0.1.0")
         assert c.price_elasticity == 1.8
         assert c.sq_weight == 1.5
         assert c.storage_cost_per_unit == 2.00
@@ -222,7 +222,7 @@ class TestWearableStability:
 
     def test_channel_shares_sum_to_one(self):
         """Wearable channel shares must sum to 1.0."""
-        c = _resolve_coeffs("wearable-technology", "0.1.0-research")
+        c = _resolve_coeffs("wearable-technology", "0.1.0")
         total = c.wholesale_share + c.amazon_share + c.internet_share + c.private_label_share
         assert abs(total - 1.0) < 1e-9, f"Channel shares sum to {total}, not 1.0"
 

@@ -91,6 +91,7 @@ async def create_professor_invitation(
     
     return {
         "id": invitation_id,
+        "code": secret,
         "maskedCode": f"****{secret[-4:]}",
         "organizationId": org_id,
         "intendedEmail": intended_email,
@@ -252,6 +253,7 @@ async def pre_create_professor(
         "name": name,
         "universityName": university_name,
         "mustChangePassword": True,
+        "temporaryPassword": temp_password,
     }
 
 
@@ -698,130 +700,47 @@ async def get_audit_event(
         "afterJson": row["after_json"],
     }
 
-
-# ── Owner Console Dashboard (HTML) ─────────────────────────────────────────────
-
-@router.get("/")
-async def owner_dashboard(request: Request):
-    """Serve the Owner Console dashboard HTML."""
-    from fastapi.responses import FileResponse
-    return FileResponse("templates/owner_dashboard.html")
-
-
-@router.get("/login")
-async def owner_login_page(request: Request):
-    """Serve the Owner Console login page HTML."""
-    from fastapi.responses import FileResponse
-    return FileResponse("templates/login_owner.html")
-
-
-@router.get("/professors")
-async def owner_professors(request: Request):
-    """Serve the Professor Management page HTML."""
-    from fastapi.responses import FileResponse
-    return FileResponse("templates/professor_management.html")
-
-
-@router.get("/health")
-async def owner_health(request: Request):
-    """Serve the System Health page HTML."""
-    from fastapi.responses import FileResponse
-    return FileResponse("templates/system_health.html")
-
-
-@router.get("/backup")
-async def owner_backup(request: Request):
-    """Serve the Backup/Cleanup page HTML."""
-    from fastapi.responses import FileResponse
-    return FileResponse("templates/backup_cleanup.html")
-
-
-# ── Login Endpoint ───────────────────────────────────────────────────────────
+# ── Owner Console Authentication ────────────────────────────────────────────
 
 @router.post("/login")
 async def owner_login(request: Request):
-    """Login endpoint for Owner Console - uses standard auth provider."""
-    from fastapi import status
-    from pydantic import BaseModel
-    
-    class LoginRequest(BaseModel):
-        provider: str
-        username: Optional[str] = None
-        password: Optional[str] = None
-    
-    # Parse request body
+    """Authenticate an owner and set the secure admin-session cookie."""
+    from fastapi.responses import JSONResponse
+    from auth import LoginRequest as AuthLoginRequest
+    from routers.auth import login_endpoint
+
     try:
         data = await request.json()
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid JSON body",
+        auth_request = AuthLoginRequest(
+            provider="password",
+            username=data.get("username"),
+            password=data.get("password"),
         )
-    
-    # Validate request
-    try:
-        req = LoginRequest(**data)
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid login request",
-        )
-    
-    if req.provider != "password":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only password login is supported",
-        )
-    
-    if not req.username or not req.password:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username and password required",
-        )
-    
-    # Call the standard login endpoint
-    from routers.auth import LoginRequest as AuthLoginRequest, login as auth_login
-    auth_req = AuthLoginRequest(provider=req.provider, username=req.username, password=req.password)
-    result = auth_login(auth_req)  # Returns dict directly
-    return result
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid login request") from exc
+
+    result = await login_endpoint(auth_request)
+    payload = result.model_dump(by_alias=True) if hasattr(result, "model_dump") else dict(result)
+    if payload.get("role") not in ("owner", "admin"):
+        raise HTTPException(status_code=403, detail="Owner or admin access required")
+
+    token = payload.get("accessToken") or payload.get("access_token")
+    response = JSONResponse(payload)
+    response.set_cookie(
+        key="practenture_admin_token",
+        value=token,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        max_age=24 * 60 * 60,
+        path="/",
+    )
+    return response
 
 
-# ── Owner Dashboard (Server-side Auth Check) ────────────────────────────────
-
-@router.get("/owner")
-async def owner_dashboard_redirect(request: Request):
-    """Redirect /owner to /owner/ for consistent routing."""
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/owner/")
-
-
-@router.get("/owner/")
-async def owner_dashboard(request: Request):
-    """Serve the Owner Dashboard HTML with server-side auth check."""
-    from fastapi.responses import RedirectResponse
-    
-    # Check for token in Authorization header or cookie
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header[7:]
-        payload = _verify_token(token)
-        if payload and payload.get("role") in ("owner", "admin"):
-            return FileResponse("templates/owner_dashboard.html")
-    
-    # Check for token in cookie
-    token = request.cookies.get("token")
-    if token:
-        payload = _verify_token(token)
-        if payload and payload.get("role") in ("owner", "admin"):
-            return FileResponse("templates/owner_dashboard.html")
-    
-    # No valid authentication - redirect to login
-    return RedirectResponse(url="/owner/login")
-
-
-@router.get("/owner/dashboard")
-async def owner_dashboard_page(request: Request):
-    """Serve the Owner Dashboard HTML."""
-    return FileResponse("templates/owner_dashboard.html")
-
-
+@router.post("/logout")
+async def owner_logout():
+    from fastapi.responses import JSONResponse
+    response = JSONResponse({"status": "logged_out"})
+    response.delete_cookie("practenture_admin_token", path="/")
+    return response

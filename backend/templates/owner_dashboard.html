@@ -9,35 +9,7 @@
     <link rel="stylesheet" href="/static/owner/owner.css">
 </head>
 <body>
-    <!-- Auth Check Script -->
-    <script>
-        // Check if user is authenticated
-        const token = localStorage.getItem('token');
-        if (!token) {
-            // Not authenticated - redirect to login
-            window.location.href = '/owner/login';
-        } else {
-            // Try to verify token with backend
-            fetch('/api/owner/system/database-health', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            })
-            .then(response => {
-                if (!response.ok) {
-                    // Token is invalid - redirect to login
-                    localStorage.removeItem('token');
-                    window.location.href = '/owner/login';
-                }
-            })
-            .catch(() => {
-                // Network error - redirect to login
-                localStorage.removeItem('token');
-                window.location.href = '/owner/login';
-            });
-        }
-    </script>
-    
-
-    <div id="app">
+<div id="app">
         <!-- Navigation -->
         <nav class="owner-nav">
             <div class="logo">Practenture Owner</div>

@@ -10,7 +10,7 @@
         const token = localStorage.getItem('token');
         if (!token) {
             // Not authenticated - redirect to login
-            window.location.href = '/owner/login';
+            window.location.href = '/admin/login';
         } else {
             // Try to verify token with backend
             fetch('/api/owner/system/database-health', {
@@ -23,13 +23,13 @@
                 } else {
                     // Token is invalid - redirect to login
                     localStorage.removeItem('token');
-                    window.location.href = '/owner/login';
+                    window.location.href = '/admin/login';
                 }
             })
             .catch(() => {
                 // Network error - redirect to login
                 localStorage.removeItem('token');
-                window.location.href = '/owner/login';
+                window.location.href = '/admin/login';
             });
         }
     </script>
