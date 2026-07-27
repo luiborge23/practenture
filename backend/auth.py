@@ -1,4 +1,4 @@
-"""JWT authentication for BizSimAI backend.
+"""JWT authentication for Practenture backend.
 
 Supports:
 - Owner login (super-admin, bootstraps on first run)
@@ -29,16 +29,16 @@ import hmac as _hmac
 import hashlib
 import json as _json
 
-_SECRET = os.environ.get("BIZSIMAI_JWT_SECRET")
+_SECRET = os.environ.get("PRACTENTURE_JWT_SECRET")
 if not _SECRET:
     raise RuntimeError(
-        "BIZSIMAI_JWT_SECRET environment variable is required. "
+        "PRACTENTURE_JWT_SECRET environment variable is required. "
         "Generate one with: python -c 'import secrets; print(secrets.token_hex(32))'"
     )
 SECRET_KEY = _SECRET
 
 try:
-    _expiry = int(os.environ.get("BIZSIMAI_JWT_EXPIRY_HOURS", "24"))
+    _expiry = int(os.environ.get("PRACTENTURE_JWT_EXPIRY_HOURS", "24"))
 except ValueError:
     _expiry = 24
 # ── Token expiry settings ──────────────────────────────────────────────────
@@ -104,6 +104,7 @@ class LoginRequest(BaseModel):
     id_token: Optional[str] = None  # Apple/Google ID token
     mfa_code: Optional[str] = None  # TOTP code (required if MFA enabled)
     professor_code: Optional[str] = None  # PROF-XXXX-XXXX code required for new OAuth users
+    provider_nonce: Optional[str] = None  # nonce bound into provider token
 
     model_config = {"extra": "ignore"}
 
@@ -141,6 +142,17 @@ class RegisterRequest(BaseModel):
     password: str
 
 
+class ProfessorActivationRequest(BaseModel):
+    professor_code: str = Field(alias="professorCode")
+    username: str
+    email: str
+    name: str
+    university_name: str = Field(default="", alias="universityName")
+    password: str
+    confirm_password: str = Field(alias="confirmPassword")
+    model_config = {"populate_by_name": True, "extra": "forbid"}
+
+
 class RegisterResponse(BaseModel):
     model_config = {"populate_by_name": True}
 
@@ -157,14 +169,14 @@ def ensure_owner() -> None:
     """Bootstrap the owner account on first run. Creates user in SQLite if not exists."""
     from security import hash_password
 
-    username = os.environ.get("BIZSIMAI_OWNER_USERNAME", "owner")
-    password = os.environ.get("BIZSIMAI_OWNER_PASSWORD")
+    username = os.environ.get("PRACTENTURE_OWNER_USERNAME", "owner")
+    password = os.environ.get("PRACTENTURE_OWNER_PASSWORD")
 
     if not password:
         # Auto-generate a random owner password on first run
         password = secrets.token_hex(16)
         # Write it back so it's stable across restarts (env var takes precedence)
-        os.environ["BIZSIMAI_OWNER_PASSWORD"] = password
+        os.environ["PRACTENTURE_OWNER_PASSWORD"] = password
 
     h = hash_password(password)
     db_module.db.create_user(
@@ -181,13 +193,13 @@ def ensure_professor() -> None:
     New professors should be pre-created by the owner via the admin API
     with a temporary password that must be changed on first login.
     
-    SECURITY FIX: Uses BIZSIMAI_PROFESSOR_PASSWORD env var consistently.
+    SECURITY FIX: Uses PRACTENTURE_PROFESSOR_PASSWORD env var consistently.
     If not set, generates a random password and stores it in the DB for persistence.
     """
     from security import hash_password
 
-    username = os.environ.get("BIZSIMAI_PROFESSOR_USERNAME", "professor")
-    password = os.environ.get("BIZSIMAI_PROFESSOR_PASSWORD")
+    username = os.environ.get("PRACTENTURE_PROFESSOR_USERNAME", "professor")
+    password = os.environ.get("PRACTENTURE_PROFESSOR_PASSWORD")
 
     if not password:
         # Generate a stable random password on first run and store it in DB
@@ -273,7 +285,7 @@ def login(req: LoginRequest) -> LoginResponse:
             )
 
         # Check owner
-        owner_username = os.environ.get("BIZSIMAI_OWNER_USERNAME", "owner")
+        owner_username = os.environ.get("PRACTENTURE_OWNER_USERNAME", "owner")
         if req.username == owner_username:
             user = db_module.db.verify_user(req.username, req.password)
             if user and user["role"] == "owner":
@@ -374,94 +386,79 @@ def login(req: LoginRequest) -> LoginResponse:
     elif req.provider in ("apple", "google"):
         if not req.id_token:
             raise HTTPException(status_code=400, detail="id_token required")
-
-        apple_aud = os.environ.get("BIZSIMAI_APPLE_AUDIENCE")
-        google_aud = os.environ.get("BIZSIMAI_GOOGLE_AUDIENCE")
-
-        if req.provider == "apple":
-            payload = verify_apple_id_token(req.id_token, apple_aud)
-        else:
-            payload = verify_google_id_token(req.id_token, google_aud)
-
+        apple_aud = os.environ.get("PRACTENTURE_APPLE_AUDIENCE")
+        google_aud = os.environ.get("PRACTENTURE_GOOGLE_AUDIENCE")
+        payload = (verify_apple_id_token(req.id_token, apple_aud) if req.provider == "apple"
+                   else verify_google_id_token(req.id_token, google_aud))
         if not payload:
             raise HTTPException(status_code=401, detail="Invalid provider token")
+        if req.provider_nonce:
+            token_nonce = str(payload.get("nonce") or "")
+            if not token_nonce or not _hmac.compare_digest(token_nonce, req.provider_nonce):
+                raise HTTPException(status_code=401, detail="Provider nonce mismatch")
 
+        from auth_enrollment import find_social_user, enroll_social_professor
         from security import hash_password
         from audit import log_event
-
-        user_id = payload.get("sub") or payload.get("email") or f"{req.provider}_unknown"
-        email = payload.get("email")
-        name = payload.get("name", "")
-
-        # Look up existing user — they may already be a professor or student
-        existing_user = db_module.db.get_user(user_id)
+        subject = str(payload.get("sub") or "")
+        if not subject:
+            raise HTTPException(status_code=401, detail="Provider token has no stable subject")
+        email = str(payload.get("email") or "")
+        name = str(payload.get("name") or "")
+        existing_user = find_social_user(req.provider, subject)
         if existing_user:
-            # User exists — use their existing role
-            role = existing_user["role"]
-            must_change = bool(existing_user.get("must_change_password", 0))
+            user = existing_user
         else:
-            # New Google/Apple user — MUST provide a valid PROF- code to join.
-            # No auto-creation as student without an invitation code.
             if not req.professor_code:
-                # Return a special response so iOS can show the code entry screen
-                resp = LoginResponse(
-                    accessToken="", tokenType="bearer", role="student",
-                    userId=user_id, mustChangePassword=False, refreshToken=None,
-                    mfaRequired=False, professorCodeRequired=True,
+                return LoginResponse(accessToken="", tokenType="bearer", role="professor",
+                    userId="", mustChangePassword=False, refreshToken=None,
+                    mfaRequired=False, professorCodeRequired=True).model_dump(by_alias=True)
+            try:
+                user = enroll_social_professor(
+                    provider=req.provider, subject=subject, email=email, name=name,
+                    code=req.professor_code,
+                    password_hash=hash_password(secrets.token_hex(24)),
                 )
-                return resp.model_dump(by_alias=True)
-
-            # Validate the PROF- code
-            from audit import log_event as auth_log
-            code_info = db_module.db.validate_professor_code(req.professor_code)
-            if not code_info:
-                auth_log(actor=user_id, action="oauth_redeem_failed", details={"provider": req.provider, "reason": "invalid_code"})
-                raise HTTPException(
-                    status_code=401,
-                    detail="Invalid professor code. Please check and try again.",
-                )
-
-            # Create user as student first (required by redemption flow)
-            dummy_hash = hash_password(secrets.token_hex(16))
-            db_module.db.upsert_user(
-                username=user_id, password_hash=dummy_hash, role="student",
-                name=name, email=email or "", provider=req.provider,
-                provider_uid=user_id,
-            )
-
-            # Immediately redeem the code to promote to professor
-            db_module.db.redeem_professor_code(req.professor_code, user_id)
-
-            # Create org + membership for the redeemed professor
-            university_name = code_info.get("university_name", "")
-            if university_name:
-                org = db_module.db.get_or_create_organization(university_name, created_by=user_id)
-                db_module.db.add_membership(user_id, org["id"], role="professor")
-
-            auth_log(actor=user_id, action="oauth_redeemed_code", details={"provider": req.provider, "university": university_name})
-            role = "professor"
-            must_change = False
-
-        # Derive tenantId
+            except ValueError as exc:
+                raise HTTPException(status_code=409 if "used" in str(exc).lower() else 401, detail=str(exc))
+        user_id = user["username"]
+        role = user["role"]
         org = db_module.db.get_primary_org(user_id)
         tenant_id = org["id"] if org else ""
-
-        token = _create_token({
-            "sub": user_id,
-            "role": role,
-            "tenantId": tenant_id,
-            "email": email,
-            "exp": (datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_SOTA_MINUTES)).timestamp(),
-        })
+        token = _create_token({"sub": user_id, "role": role, "tenantId": tenant_id,
+            "email": user.get("email") or email,
+            "exp": (datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_SOTA_MINUTES)).timestamp()})
         refresh = _generate_refresh_token(user_id)
-        resp = LoginResponse(accessToken=token, tokenType="bearer", role=role, userId=user_id, refreshToken=refresh)
-        resp_dict = resp.model_dump(by_alias=True)
-        resp_dict["mustChangePassword"] = must_change
-        resp_dict["professorCodeRequired"] = False
         log_event(actor=user_id, action="login_success", details={"role": role, "provider": req.provider})
-        return resp_dict
+        return LoginResponse(accessToken=token, tokenType="bearer", role=role,
+            userId=user_id, refreshToken=refresh, mustChangePassword=bool(user.get("must_change_password", 0)),
+            professorCodeRequired=False).model_dump(by_alias=True)
 
     raise HTTPException(status_code=400, detail=f"Unsupported provider: {req.provider}")
+
+
+def activate_password_professor(req: ProfessorActivationRequest) -> LoginResponse:
+    """Atomically consume a PROF invitation and create a password professor."""
+    from security import hash_password, validate_password_complexity
+    from auth_enrollment import activate_password_professor as persist_activation
+    if req.password != req.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+    valid, message = validate_password_complexity(req.password)
+    if not valid:
+        raise HTTPException(status_code=400, detail=message)
+    try:
+        user = persist_activation(code=req.professor_code, username=req.username, email=req.email,
+            name=req.name, university_name=req.university_name, password_hash=hash_password(req.password))
+    except ValueError as exc:
+        detail = str(exc)
+        raise HTTPException(status_code=409 if "exists" in detail or "used" in detail else 400, detail=detail)
+    org = db_module.db.get_primary_org(user["username"])
+    tenant_id = org["id"] if org else ""
+    token = _create_token({"sub": user["username"], "role": "professor", "name": user["name"],
+        "tenantId": tenant_id,
+        "exp": (datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_SOTA_MINUTES)).timestamp()})
+    refresh = _generate_refresh_token(user["username"])
+    return LoginResponse(accessToken=token, role="professor", userId=user["username"], refreshToken=refresh)
 
 
 def register(req: RegisterRequest) -> RegisterResponse:

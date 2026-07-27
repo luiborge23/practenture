@@ -1,10 +1,10 @@
-# BizSimAI Phase 5 — Implementation Plan
+# Practenture Phase 5 — Implementation Plan
 
 ## Status: Phase 5 Auth + WebSocket Complete ✅ | Build Fixed ✅ | E2E Testing Complete ✅ | Ready for Deployment 🚀
 
 ### Completed Items
 
-- [x] **Production JWT Configuration** — `BIZSIMAI_JWT_SECRET`, `BIZSIMAI_JWT_EXPIRY_HOURS`, CORS, HOST, PORT env vars
+- [x] **Production JWT Configuration** — `PRACTENTURE_JWT_SECRET`, `PRACTENTURE_JWT_EXPIRY_HOURS`, CORS, HOST, PORT env vars
 - [x] **Apple/Google ID Token Verification** — JWKS caching (6hr TTL), token validation, same format as password login
 - [x] **iOS Auth Integration** — `AuthManager.swift` (JWT, Apple Sign-In, Google Sign-In via conditional compilation), `AuthState.swift` (Observable)
 - [x] **WebSocket Reconnection** — `ReconnectableWSClient` (exponential backoff, session join flow)
@@ -43,7 +43,7 @@ All compiler errors resolved:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  BizSimAI iOS App (SwiftUI)                         │
+│  Practenture iOS App (SwiftUI)                         │
 │                                                     │
 │  ┌─────────────┐  ┌──────────────┐  ┌───────────┐ │
 │  │  AuthManager│  │ LaunchView   │  │ LoginView │ │
@@ -59,7 +59,7 @@ All compiler errors resolved:
                          │
                          ▼
 ┌─────────────────────────────────────────────────────┐
-│  BizSimAI Backend (FastAPI)                         │
+│  Practenture Backend (FastAPI)                         │
 │                                                     │
 │  ┌─────────────┐  ┌──────────────┐  ┌───────────┐ │
 │  │ /api/auth   │  │ /api/sessions│  │ /ws/      │ │
@@ -103,7 +103,7 @@ python -m pytest test_backend.py -v
 
 Run iOS build:
 ```bash
-xcodebuild -project BizSimAI.xcodeproj -scheme BizSimAI -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16' build
+xcodebuild -project Practenture.xcodeproj -scheme Practenture -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16' build
 ```
 
 ---
@@ -111,11 +111,11 @@ xcodebuild -project BizSimAI.xcodeproj -scheme BizSimAI -sdk iphonesimulator -de
 ## Environment Variables
 
 ```bash
-export BIZSIMAI_JWT_SECRET=<your-secret>
-export BIZSIMAI_JWT_EXPIRY_HOURS=24
-export BIZSIMAI_CORS_ORIGINS="*"
-export BIZSIMAI_HOST="0.0.0.0"
-export BIZSIMAI_PORT=8000
+export PRACTENTURE_JWT_SECRET=<your-secret>
+export PRACTENTURE_JWT_EXPIRY_HOURS=24
+export PRACTENTURE_CORS_ORIGINS="*"
+export PRACTENTURE_HOST="0.0.0.0"
+export PRACTENTURE_PORT=8000
 ```
 
 ---

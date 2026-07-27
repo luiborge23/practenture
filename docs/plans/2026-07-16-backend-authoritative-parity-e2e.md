@@ -25,7 +25,7 @@
 **Files:**
 - Modify: `backend/simulation_engine.py`
 - Test: `backend/tests/test_engine_parity.py`
-- Source: `BizSimAI/Engine/SimulationEngine.swift:122-132,586-596`
+- Source: `Practenture/Engine/SimulationEngine.swift:122-132,586-596`
 
 **Implementation:**
 - Compute `demandGrowth = min(2.0, 1.0 + 0.05 * round_num)`.
@@ -78,7 +78,7 @@ Expected: demand-growth, multiplier, noise-sequence, and channel-sum tests pass.
 **Files:**
 - Create: `shared/fixtures/parity/*.json`
 - Create: `backend/tests/test_swift_python_parity.py`
-- Create: `BizSimAIParityTests/SimulationParityTests.swift` or an executable Swift fixture runner that does not modify `project.pbxproj` unsafely.
+- Create: `PractentureParityTests/SimulationParityTests.swift` or an executable Swift fixture runner that does not modify `project.pbxproj` unsafely.
 
 **Fixtures:**
 - One team baseline with noise disabled.
@@ -98,12 +98,12 @@ Expected: demand-growth, multiplier, noise-sequence, and channel-sum tests pass.
 ## Task 5: Backend-Authoritative iOS Online Flow
 
 **Files to trace/modify:**
-- `BizSimAI/ViewModels/DecisionInputViewModel.swift`
-- `BizSimAI/Services/NetworkService.swift`
-- `BizSimAI/Services/BackendState.swift`
-- `BizSimAI/Services/SyncService.swift`
-- `BizSimAI/Engine/GameController.swift`
-- `BizSimAI/Views/Professor/RoundControlView.swift`
+- `Practenture/ViewModels/DecisionInputViewModel.swift`
+- `Practenture/Services/NetworkService.swift`
+- `Practenture/Services/BackendState.swift`
+- `Practenture/Services/SyncService.swift`
+- `Practenture/Engine/GameController.swift`
+- `Practenture/Views/Professor/RoundControlView.swift`
 
 **Online flow:**
 1. Submit `{round, teamId, decision}`.
@@ -163,9 +163,9 @@ Classify failures as current-contract defects or stale expectations. Update stal
 
 ## Task 9: EC2 Deployment and Production Verification
 
-1. Back up `/data/bizsim.db`.
+1. Back up `/data/practenture.db`.
 2. Record local source hashes and Git diff.
-3. Sync backend to `/home/ec2-user/bizsimai/backend/`.
+3. Sync backend to `/home/ec2-user/practenture/backend/`.
 4. Remove stale Docker image if needed; rebuild and restart.
 5. Verify container source hashes equal local hashes.
 6. Verify `/api/health`.

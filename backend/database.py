@@ -1,4 +1,4 @@
-"""Persistent SQLite database for BizSimAI sessions + users."""
+"""Persistent SQLite database for Practenture sessions + users."""
 
 from __future__ import annotations
 
@@ -18,8 +18,14 @@ from models import (
     SessionConfiguration,
     TeamConfig,
 )
+from scenario_packs import DEFAULT_SCENARIO_ID, DEFAULT_SCENARIO_VERSION
 
-DB_PATH = os.environ.get("BIZSIMAI_DB_PATH", "data.db")
+DB_PATH = os.environ.get("PRACTENTURE_DB_PATH", "data.db")
+
+
+def get_db_path() -> str:
+    """Get the database path, reading environment variable at runtime."""
+    return os.environ.get("PRACTENTURE_DB_PATH", "data.db")
 
 
 def _generate_code() -> str:
@@ -51,8 +57,9 @@ class Database:
 
     def _get_conn(self) -> sqlite3.Connection:
         if self._conn is None:
-            os.makedirs(os.path.dirname(DB_PATH) or ".", exist_ok=True)
-            self._conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+            db_path = get_db_path()
+            os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
+            self._conn = sqlite3.connect(db_path, check_same_thread=False)
             self._conn.row_factory = sqlite3.Row
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA foreign_keys=ON")
@@ -72,6 +79,13 @@ class Database:
                 provider TEXT DEFAULT 'password',
                 provider_uid TEXT,
                 must_change_password INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'active',
+                disabled_at TEXT,
+                disabled_by TEXT,
+                disable_reason TEXT,
+                last_login_at TEXT,
+                password_changed_at TEXT,
+                created_by TEXT,
                 created_at TEXT DEFAULT (datetime('now'))
             );
 
@@ -86,6 +100,8 @@ class Database:
                 max_human_teams INTEGER DEFAULT 30,
                 current_round INTEGER DEFAULT 0,
                 state TEXT DEFAULT 'creating',
+                scenario_id TEXT NOT NULL DEFAULT 'athletic-footwear-classic',
+                scenario_version TEXT NOT NULL DEFAULT '1.0.0',
                 created_at TEXT DEFAULT (datetime('now'))
             );
 
@@ -233,7 +249,111 @@ class Database:
                 created_at TEXT DEFAULT (datetime('now'))
             );
             CREATE INDEX IF NOT EXISTS idx_reset_user ON password_reset_tokens(user_id);
+
+            -- Professor invitations (SOTA Phase 1)
+            CREATE TABLE IF NOT EXISTS professor_invitations (
+                id TEXT PRIMARY KEY,
+                secret_hash TEXT NOT NULL,
+                masked_code TEXT NOT NULL,
+                organization_id TEXT NOT NULL,
+                intended_email TEXT NOT NULL,
+                status TEXT DEFAULT 'active',
+                expires_at TEXT NOT NULL,
+                max_uses INTEGER DEFAULT 1,
+                use_count INTEGER DEFAULT 0,
+                issued_by TEXT,
+                notes TEXT,
+                change_ticket TEXT,
+                revoked_at TEXT,
+                revoked_by TEXT,
+                created_at TEXT DEFAULT (datetime('now')),
+                last_used_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_inv_org ON professor_invitations(organization_id);
+            CREATE INDEX IF NOT EXISTS idx_inv_email ON professor_invitations(intended_email);
+
+            -- Audit events (SOTA Phase 2)
+            CREATE TABLE IF NOT EXISTS audit_events (
+                id TEXT PRIMARY KEY,
+                occurred_at TEXT NOT NULL,
+                actor_user_id TEXT,
+                actor_role TEXT NOT NULL,
+                action TEXT NOT NULL,
+                target_type TEXT,
+                target_id TEXT,
+                organization_id TEXT,
+                request_id TEXT NOT NULL,
+                idempotency_key TEXT,
+                source_ip TEXT,
+                user_agent TEXT,
+                reason TEXT,
+                outcome TEXT DEFAULT 'success',
+                before_json TEXT,
+                after_json TEXT,
+                metadata_json TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_events(actor_user_id);
+            CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_events(action);
+            CREATE INDEX IF NOT EXISTS idx_audit_target ON audit_events(target_type, target_id);
+            CREATE INDEX IF NOT EXISTS idx_audit_org ON audit_events(organization_id);
+            CREATE INDEX IF NOT EXISTS idx_audit_occurred_at ON audit_events(occurred_at);
+
+            -- Cleanup plans (SOTA Phase 3)
+            CREATE TABLE IF NOT EXISTS cleanup_plans (
+                id TEXT PRIMARY KEY,
+                selector_json TEXT NOT NULL,
+                plan_hash TEXT NOT NULL,
+                preview_counts TEXT NOT NULL,
+                total_rows INTEGER NOT NULL,
+                status TEXT DEFAULT 'pending',
+                created_by TEXT,
+                executed_by TEXT,
+                expires_at TEXT NOT NULL,
+                created_at TEXT DEFAULT (datetime('now')),
+                executed_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_cleanup_status ON cleanup_plans(status);
+
+            -- Backup runs (SOTA Phase 3)
+            CREATE TABLE IF NOT EXISTS backup_runs (
+                id TEXT PRIMARY KEY,
+                started_at TEXT NOT NULL,
+                ended_at TEXT,
+                status TEXT DEFAULT 'pending',
+                object_key TEXT,
+                checksum TEXT,
+                database_size INTEGER,
+                migration_version TEXT,
+                integrity_result TEXT DEFAULT 'ok'
+            );
+            CREATE INDEX IF NOT EXISTS idx_backup_started ON backup_runs(started_at);
+
+            -- Restore drills (SOTA Phase 3)
+            CREATE TABLE IF NOT EXISTS restore_drills (
+                id TEXT PRIMARY KEY,
+                backup_id TEXT NOT NULL,
+                started_at TEXT NOT NULL,
+                ended_at TEXT,
+                status TEXT DEFAULT 'pending',
+                error_message TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_drill_backup ON restore_drills(backup_id);
         """)
+        # CREATE TABLE IF NOT EXISTS does not evolve existing SQLite files.
+        # Keep direct application startup safe for legacy/pre-Alembic databases.
+        session_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()
+        }
+        if "scenario_id" not in session_columns:
+            conn.execute(
+                "ALTER TABLE sessions ADD COLUMN scenario_id TEXT NOT NULL "
+                f"DEFAULT '{DEFAULT_SCENARIO_ID}'"
+            )
+        if "scenario_version" not in session_columns:
+            conn.execute(
+                "ALTER TABLE sessions ADD COLUMN scenario_version TEXT NOT NULL "
+                f"DEFAULT '{DEFAULT_SCENARIO_VERSION}'"
+            )
         conn.commit()
 
     # ── Session CRUD ──────────────────────────────────────────────────────
@@ -246,6 +366,8 @@ class Database:
         max_human_teams: int = 30,
         professor_user_id: Optional[str] = None,
         class_id: Optional[str] = None,
+        scenario_id: str = DEFAULT_SCENARIO_ID,
+        scenario_version: str = DEFAULT_SCENARIO_VERSION,
     ) -> str:
         with self._lock:
             conn = self._get_conn()
@@ -258,9 +380,9 @@ class Database:
             teams_json = [t.model_dump() for t in teams]
 
             conn.execute(
-                """INSERT INTO sessions (code, session_id, config_json, teams_json, created_by, professor_user_id, class_id, max_human_teams)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (code, sid, config_json, json.dumps(teams_json), created_by, professor_user_id, class_id, max_human_teams),
+                """INSERT INTO sessions (code, session_id, config_json, teams_json, created_by, professor_user_id, class_id, max_human_teams, scenario_id, scenario_version)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (code, sid, config_json, json.dumps(teams_json), created_by, professor_user_id, class_id, max_human_teams, scenario_id, scenario_version),
             )
             conn.commit()
 
@@ -268,6 +390,7 @@ class Database:
             session = Session(
                 id=sid, code=code, config=config, teams=teams,
                 created_by=created_by, maxHumanTeams=max_human_teams,
+                scenarioId=scenario_id, scenarioVersion=scenario_version,
             )
             self.sessions[code] = session
             self.decisions[code] = {}
@@ -304,6 +427,8 @@ class Database:
             id=row["session_id"], code=code, config=config, teams=teams,
             created_by=row["created_by"], maxHumanTeams=row["max_human_teams"],
             currentRound=row["current_round"], state=row["state"],
+            scenarioId=row["scenario_id"] or DEFAULT_SCENARIO_ID,
+            scenarioVersion=row["scenario_version"] or DEFAULT_SCENARIO_VERSION,
         )
         self.sessions[code] = session
         return session
@@ -346,6 +471,8 @@ class Database:
                         id=row["session_id"], code=code, config=config, teams=teams,
                         created_by=row["created_by"], maxHumanTeams=row["max_human_teams"],
                         currentRound=row["current_round"], state=row["state"],
+                        scenarioId=row["scenario_id"] or DEFAULT_SCENARIO_ID,
+                        scenarioVersion=row["scenario_version"] or DEFAULT_SCENARIO_VERSION,
                     )
                     self.sessions[code] = session
 
@@ -395,6 +522,8 @@ class Database:
             id=row["session_id"], code=row["code"], config=config, teams=teams,
             created_by=row["created_by"], maxHumanTeams=row["max_human_teams"],
             currentRound=row["current_round"], state=row["state"],
+            scenarioId=row["scenario_id"] or DEFAULT_SCENARIO_ID,
+            scenarioVersion=row["scenario_version"] or DEFAULT_SCENARIO_VERSION,
         )
         self.sessions[row["code"]] = session
         return session

@@ -38,13 +38,13 @@ SAML_NS = {
 }
 
 # Entity ID for this SP (Service Provider)
-SP_ENTITY_ID = os.environ.get("BIZSIMAI_SP_ENTITY_ID", "https://bizsimai.com/saml/metadata")
-ACS_URL = os.environ.get("BIZSIMAI_SAML_ACS_URL", "https://bizsimai.com/api/saml/acs")
+SP_ENTITY_ID = os.environ.get("PRACTENTURE_SP_ENTITY_ID", "https://practenture.com/saml/metadata")
+ACS_URL = os.environ.get("PRACTENTURE_SAML_ACS_URL", "https://practenture.com/api/saml/acs")
 
 # IdP configuration (set via env vars)
-IDP_ENTITY_ID = os.environ.get("BIZSIMAI_IDP_ENTITY_ID", "")
-IDP_SSO_URL = os.environ.get("BIZSIMAI_IDP_SSO_URL", "")
-IDP_CERT = os.environ.get("BIZSIMAI_IDP_CERT", "")  # PEM format X.509 cert
+IDP_ENTITY_ID = os.environ.get("PRACTENTURE_IDP_ENTITY_ID", "")
+IDP_SSO_URL = os.environ.get("PRACTENTURE_IDP_SSO_URL", "")
+IDP_CERT = os.environ.get("PRACTENTURE_IDP_CERT", "")  # PEM format X.509 cert
 
 
 # ── In-memory relay state store (production: use Redis) ────────────────────
@@ -83,7 +83,7 @@ async def saml_login(return_to: str = "/"):
     Returns the IdP SSO URL and a relay state token for callback tracking.
     """
     if not IDP_SSO_URL:
-        raise HTTPException(status_code=503, detail="SAML IdP not configured. Set BIZSIMAI_IDP_SSO_URL.")
+        raise HTTPException(status_code=503, detail="SAML IdP not configured. Set PRACTENTURE_IDP_SSO_URL.")
 
     request_id = secrets.token_urlsafe(16)
     relay_state = _store_relay_state({

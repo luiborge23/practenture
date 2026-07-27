@@ -115,6 +115,8 @@ async def process_round_endpoint(code: str, user=Depends(verify_professor)):
         decisions=decisions,
         round_num=current_round,
         team_states=team_states,
+        scenario_id=session.scenarioId,
+        scenario_version=session.scenarioVersion,
     )
 
     # Store results

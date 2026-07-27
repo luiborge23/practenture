@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Practenture Owner Console - Business Simulation Management</title>
+    <meta name="description" content="Owner Console for Practenture business simulation platform - manage professors, invitations, organizations, and system health.">
+    <meta name="keywords" content="owner console, business simulation, professor management, invitations, analytics">
+    <link rel="stylesheet" href="/static/owner/owner.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Navigation -->
+        <nav class="owner-nav">
+            <div class="logo">Practenture Owner</div>
+            <ul class="nav-links">
+                <li><a href="#/overview" data-nav="overview">Overview</a></li>
+                <li><a href="#/professors" data-nav="professors">Professors</a></li>
+                <li><a href="#/invitations" data-nav="invitations">Invitations</a></li>
+                <li><a href="#/organizations" data-nav="organizations">Organizations</a></li>
+                <li><a href="#/system-health" data-nav="system-health">System Health</a></li>
+                <li><a href="#/audit" data-nav="audit">Audit</a></li>
+                <li><a href="#/cleanup" data-nav="cleanup">Cleanup</a></li>
+            </ul>
+            <div class="user-info">
+                <span id="current-user">Owner</span>
+                <button id="logout-btn" class="btn btn-secondary">Logout</button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="owner-content">
+            <!-- Overview Section -->
+            <section id="overview" class="view active">
+                <h1>Owner Overview</h1>
+                
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <h3>Total Professors</h3>
+                        <p id="total-professors">0</p>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>Total Sessions</h3>
+                        <p id="total-sessions">0</p>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>Active Invitations</h3>
+                        <p id="active-invitations">0</p>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>Database Health</h3>
+                        <p id="database-health">Checking...</p>
+                    </div>
+                </div>
+
+                <h2>Recent Activity</h2>
+                <div id="recent-activity" class="activity-list">
+                    <!-- Activity items will be populated here -->
+                </div>
+            </section>
+
+            <!-- Professors Section -->
+            <section id="professors" class="view">
+                <h1>Professor Management</h1>
+                
+                <div class="actions-bar">
+                    <button id="create-professor-btn" class="btn btn-primary">Pre-create Professor</button>
+                </div>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Status</th>
+                            <th>Created By</th>
+                            <th>Last Login</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="professors-list">
+                        <!-- Professor rows will be populated here -->
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- Invitations Section -->
+            <section id="invitations" class="view">
+                <h1>Professor Invitations</h1>
+                
+                <div class="actions-bar">
+                    <button id="create-invitation-btn" class="btn btn-primary">Create Invitation</button>
+                </div>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Email</th>
+                            <th>Status</th>
+                            <th>Expires At</th>
+                            <th>Uses</th>
+                            <th>Issued By</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="invitations-list">
+                        <!-- Invitation rows will be populated here -->
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- Organizations Section -->
+            <section id="organizations" class="view">
+                <h1>Organizations</h1>
+                
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>University</th>
+                            <th>Created By</th>
+                            <th>Created At</th>
+                        </tr>
+                    </thead>
+                    <tbody id="organizations-list">
+                        <!-- Organization rows will be populated here -->
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- System Health Section -->
+            <section id="system-health" class="view">
+                <h1>System Health</h1>
+                
+                <div id="health-report" class="health-card">
+                    <!-- Health report will be populated here -->
+                </div>
+
+                <h2>Backup Status</h2>
+                <div id="backup-status" class="health-card">
+                    <!-- Backup status will be populated here -->
+                </div>
+            </section>
+
+            <!-- Audit Section -->
+            <section id="audit" class="view">
+                <h1>Audit Log</h1>
+                
+                <div class="filters-bar">
+                    <input type="text" id="filter-action" placeholder="Filter by action...">
+                    <input type="text" id="filter-actor" placeholder="Filter by actor...">
+                </div>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Actor</th>
+                            <th>Action</th>
+                            <th>Target</th>
+                            <th>Outcome</th>
+                        </tr>
+                    </thead>
+                    <tbody id="audit-list">
+                        <!-- Audit events will be populated here -->
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- Cleanup Section -->
+            <section id="cleanup" class="view">
+                <h1>Scoped Cleanup</h1>
+                
+                <div class="cleanup-form">
+                    <label for="organization-select">Organization:</label>
+                    <select id="organization-select"></select>
+
+                    <label for="is-test-checkbox">
+                        <input type="checkbox" id="is-test-checkbox" checked>
+                        Test data only
+                    </label>
+
+                    <button id="create-cleanup-plan-btn" class="btn btn-warning">Preview Cleanup</button>
+                </div>
+
+                <div id="cleanup-preview" class="hidden">
+                    <h3>Cleanup Preview</h3>
+                    <p>Rows to be deleted:</p>
+                    <ul id="cleanup-preview-list"></ul>
+                    
+                    <div class="confirmation">
+                        <p>Type <strong>DELETE TEST DATA</strong> to confirm:</p>
+                        <input type="text" id="cleanup-confirmation">
+                        <button id="execute-cleanup-btn" class="btn btn-danger">Execute Cleanup</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Modals -->
+        <div id="modal-overlay" class="modal-overlay hidden"></div>
+        <div id="modal-content" class="modal-content hidden">
+            <!-- Modal content will be populated here -->
+        </div>
+    </div>
+
+    <script src="/static/owner/owner.js"></script>
+</body>
+</html>

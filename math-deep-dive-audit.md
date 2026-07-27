@@ -1,4 +1,4 @@
-# BizSimAI Math Deep Dive Audit
+# Practenture Math Deep Dive Audit
 
 **Date:** 2026-07-15
 **Scope:** All mathematical logic, calculations, and ratios in `SimulationEngine.swift` (iOS) vs `simulation_engine.py` (Python backend)

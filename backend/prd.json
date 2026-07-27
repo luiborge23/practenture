@@ -1,5 +1,5 @@
 {
-  "project": "BizSimAI Phase 5 Remaining",
+  "project": "Practenture Phase 5 Remaining",
   "description": "Complete Phase 5: Professor Web Dashboard, iOS Auth/WebSocket integration, production JWT config, Apple/Google token verification, integration tests",
   "stories": [
     {
@@ -9,16 +9,16 @@
       "depends_on": [],
       "user_story": "As a deployer, I want JWT secret/configurable via env var so I don't modify code",
       "acceptance_criteria": [
-        "BIZSIMAI_JWT_SECRET env var required, error if missing",
-        "BIZSIMAI_JWT_EXPIRY_HOURS env var (default 24)",
-        "BIZSIMAI_CORS_ORIGINS env var (default *)",
-        "BIZSIMAI_HOST env var (default localhost)",
-        "BIZSIMAI_PORT env var (default 8000)",
+        "PRACTENTURE_JWT_SECRET env var required, error if missing",
+        "PRACTENTURE_JWT_EXPIRY_HOURS env var (default 24)",
+        "PRACTENTURE_CORS_ORIGINS env var (default *)",
+        "PRACTENTURE_HOST env var (default localhost)",
+        "PRACTENTURE_PORT env var (default 8000)",
         "Health check reflects config values"
       ],
       "tasks": [
-        "Update auth.py to read JWT_SECRET from os.environ.get('BIZSIMAI_JWT_SECRET') with required validation",
-        "Update auth.py to read JWT_EXPIRY_HOURS from os.environ.get('BIZSIMAI_JWT_EXPIRY_HOURS', '24')",
+        "Update auth.py to read JWT_SECRET from os.environ.get('PRACTENTURE_JWT_SECRET') with required validation",
+        "Update auth.py to read JWT_EXPIRY_HOURS from os.environ.get('PRACTENTURE_JWT_EXPIRY_HOURS', '24')",
         "Update main.py to read CORS_ORIGINS, HOST, PORT from env vars",
         "Update health check to return config values",
         "Run existing tests to ensure nothing breaks",

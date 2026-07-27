@@ -138,7 +138,7 @@ def test_grade_export_exact_csv_contract_and_formatting():
     )
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/csv")
-    assert response.headers["content-disposition"] == f'attachment; filename="bizsimai_{code}_grades.csv"'
+    assert response.headers["content-disposition"] == f'attachment; filename="practenture_{code}_grades.csv"'
     rows = _rows(response)
     assert rows[0] == GRADES_HEADER
     assert len(rows) == 2
@@ -158,7 +158,7 @@ def test_leaderboard_export_ranks_and_preserves_latest_operating_values():
         f"/api/sessions/{code}/export/leaderboard", headers=_headers("prof-a", "professor")
     )
     assert response.status_code == 200
-    assert response.headers["content-disposition"] == f'attachment; filename="bizsimai_{code}_leaderboard.csv"'
+    assert response.headers["content-disposition"] == f'attachment; filename="practenture_{code}_leaderboard.csv"'
     rows = _rows(response)
     assert rows[0] == LEADERBOARD_HEADER
     assert [row[:2] for row in rows[1:]] == [["1", "First"], ["2", "Second"]]

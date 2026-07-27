@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Comprehensive E2E test suite for BizSimAI backend.
+Comprehensive E2E test suite for Practenture backend.
 Tests against production backend at http://18.215.180.58
 """
 
@@ -358,7 +358,7 @@ def check_metrics(r, category, test_name):
 
 def main():
     print("╔══════════════════════════════════════════════════════════╗")
-    print("║  BizSimAI Comprehensive E2E Test Suite                   ║")
+    print("║  Practenture Comprehensive E2E Test Suite                   ║")
     print("║  Target: http://18.215.180.58 (production)              ║")
     print(f"║  Started: {datetime.utcnow().isoformat()}               ║")
     print("╚══════════════════════════════════════════════════════════╝")
@@ -769,7 +769,7 @@ def main():
            sa.status_code == 403, f"status={sa.status_code}")
 
     # Professor send announcement → 200/201
-    pa = create_announcement(edge_code, prof_token, "Welcome to BizSimAI!")
+    pa = create_announcement(edge_code, prof_token, "Welcome to Practenture!")
     record("4. Edge Cases", "Professor send announcement → 200/201",
            pa.status_code in (200, 201), f"status={pa.status_code}")
 
@@ -964,7 +964,7 @@ def main():
 
     # ── Write markdown report ─────────────────────────────────────────────
     md_lines = []
-    md_lines.append("# BizSimAI Comprehensive E2E Test Results")
+    md_lines.append("# Practenture Comprehensive E2E Test Results")
     md_lines.append("")
     md_lines.append(f"**Date:** {datetime.utcnow().isoformat()}")
     md_lines.append(f"**Backend:** {BASE_URL}")
@@ -1021,7 +1021,7 @@ def main():
         md_lines.append("")
 
     md_content = "\n".join(md_lines)
-    output_path = "/Users/luisborges/2026/BizSimAI-ios/BizSimAI/docs/e2e-test-results.md"
+    output_path = "/Users/luisborges/2026/Practenture-ios/Practenture/docs/e2e-test-results.md"
     with open(output_path, "w") as f:
         f.write(md_content)
     print(f"\n📄 Results written to {output_path}")

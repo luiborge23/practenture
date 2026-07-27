@@ -5,17 +5,17 @@ plugins {
 }
 
 android {
-    namespace = "com.bizsimai.android"
+    namespace = "com.practenture.android"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.bizsimai.android"
+        applicationId = "com.practenture.android"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "BIZSIMAI_BASE_URL", "\"http://18.215.180.58/\"")
+        buildConfigField("String", "PRACTENTURE_BASE_URL", "\"http://18.215.180.58/\"")
     }
 
     buildFeatures { compose = true; buildConfig = true }

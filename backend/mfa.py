@@ -73,7 +73,7 @@ def verify_totp(secret: str, code: str, window: int = 1) -> bool:
     return False
 
 
-def get_totp_uri(secret: str, account_name: str, issuer: str = "BizSimAI") -> str:
+def get_totp_uri(secret: str, account_name: str, issuer: str = "Practenture") -> str:
     """Generate a otpauth:// URI for QR code generation (Google Authenticator compatible)."""
     from urllib.parse import quote
     label = quote(f"{issuer}:{account_name}", safe=":")

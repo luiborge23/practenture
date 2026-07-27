@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Owner Console Help</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #1f2937;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 24px;
+            background: #f9fafb;
+        }
+        .container { background: white; border-radius: 12px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        h1 { color: #111827; border-bottom: 2px solid #8b5cf6; padding-bottom: 12px; margin-bottom: 24px; }
+        h2 { color: #374151; margin-top: 32px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb; }
+        h3 { color: #4b5563; margin-top: 24px; margin-bottom: 12px; }
+        .section { margin-bottom: 32px; }
+        .card {
+            background: #fafafa;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 16px 0;
+        }
+        .card.warning { border-left: 4px solid #f59e0b; background: #fffbeb; }
+        .card.danger { border-left: 4px solid #ef4444; background: #fef2f2; }
+        .card.success { border-left: 4px solid #10b981; background: #f0fdf4; }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge-active { background: #dcfce7; color: #166534; }
+        .badge-suspended { background: #fee2e2; color: #991b1b; }
+        .badge-pending { background: #fef3c7; color: #92400e; }
+        .badge-disabled { background: #f3f4f6; color: #374151; }
+        .badge-redeemed { background: #dbeafe; color: #1e40af; }
+        .badge-expired { background: #f3f4f6; color: #6b7280; }
+        .badge-revoked { background: #fee2e2; color: #991b1b; }
+        table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+        th { background: #f9fafb; font-weight: 600; color: #374151; }
+        tr:hover { background: #f9fafb; }
+        code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-family: 'Monaco', 'Menlo', monospace; font-size: 13px; }
+        pre { background: #1f2937; color: #e5e7eb; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.5; }
+        pre code { background: none; padding: 0; color: inherit; }
+        .key { background: #e5e7eb; padding: 2px 8px; border-radius: 4px; font-family: monospace; font-size: 12px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin: 16px 0; }
+        .grid-item { background: #fafafa; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; }
+        .grid-item h4 { margin: 0 0 8px 0; color: #374151; }
+        .toc { background: #f3f4f6; border-radius: 8px; padding: 16px 24px; margin-bottom: 24px; }
+        .toc ul { margin: 0; padding-left: 20px; }
+        .toc li { margin: 8px 0; }
+        .toc a { color: #8b5cf6; text-decoration: none; }
+        .toc a:hover { text-decoration: underline; }
+        .footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ Owner Console Help</h1>
+        
+        <div class="toc">
+            <strong>Quick Navigation</strong>
+            <ul>
+                <li><a href="#getting-started">Getting Started</a></li>
+                <li><a href="#dashboard">Dashboard</a></li>
+                <li><a href="#professor-management">Professor Management</a></li>
+                <li><a href="#user-accounts">User Accounts</a></li>
+                <li><a href="#system-health">System Health</a></li>
+                <li><a href="#audit-log">Audit Log</a></li>
+                <li><a href="#backup-cleanup">Backup & Cleanup</a></li>
+                <li><a href="#security">Security Features</a></li>
+                <li><a href="#troubleshooting">Troubleshooting</a></li>
+            </ul>
+        </div>
+
+        <section id="getting-started" class="section">
+            <h2>🚀 Getting Started</h2>
+            <div class="grid">
+                <div class="grid-item">
+                    <h4>Access URL</h4>
+                    <code>https://practenture.com/owner</code>
+                </div>
+                <div class="grid-item">
+                    <h4>Requirements</h4>
+                    <ul>
+                        <li>Owner role account</li>
+                        <li>MFA enabled</li>
+                        <li>Recent auth (15 min)</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="card">
+                <strong>First Login:</strong> Sign in → Complete MFA → Redirected to Dashboard
+            </div>
+        </section>
+
+        <section id="dashboard" class="section">
+            <h2>📊 Dashboard</h2>
+            <div class="grid">
+                <div class="grid-item">
+                    <h4>Key Metrics</h4>
+                    <ul>
+                        <li>Total users by role</li>
+                        <li>Active sessions</li>
+                        <li>Recent invitations</li>
+                    </ul>
+                </div>
+                <div class="grid-item">
+                    <h4>System Status</h4>
+                    <ul>
+                        <li>Health indicator</li>
+                        <li>Last backup time</li>
+                        <li>Migration version</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <section id="professor-management" class="section">
+            <h2>👨‍🏫 Professor Management</h2>
+            
+            <h3>Create Invitation</h3>
+            <ol>
+                <li>Navigate: <kbd>P</kbd> → <strong>Create Invitation</strong></li>
+                <li>Fill form:
+                    <ul>
+                        <li><strong>Organization</strong> - Target org</li>
+                        <li><strong>Email</strong> - Professor's email</li>
+                        <li><strong>Expires In</strong> - 1-168 hours (default 48)</li>
+                        <li><strong>Max Uses</strong> - Usually 1</li>
+                        <li><strong>Notes</strong> - Internal tracking</li>
+                        <li><strong>Change Ticket</strong> - Optional CM reference</li>
+                    </ul>
+                </li>
+                <li>Click <strong>Create Invitation</strong></li>
+                <li>⚠️ <strong>COPY SECRET IMMEDIATELY</strong> - shown once only!</li>
+            </ol>
+
+            <div class="card warning">
+                <strong>Invitation Secret Format:</strong> <code>PROF-ABCD-EFGH</code><br>
+                Professor uses this during first signup. Secret is <em>never shown again</em>.
+            </div>
+
+            <h3>Pre-create Professor</h3>
+            <ol>
+                <li><kbd>P</kbd> → <strong>Pre-create Professor</strong></li>
+                <li>Enter: Email, Name, Organization, Temporary Password</li>
+                <li>Account created in <span class="badge badge-pending">pending</span> status</li>
+            </ol>
+
+            <h3>Managing Invitations</h3>
+            <table>
+                <thead><tr><th>Column</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr><td>Status</td><td><span class="badge badge-active">Active</span> <span class="badge badge-redeemed">Redeemed</span> <span class="badge badge-expired">Expired</span> <span class="badge badge-revoked">Revoked</span></td></tr>
+                    <tr><td>Email</td><td>Target professor email</td></tr>
+                    <tr><td>Organization</td><td>Associated org</td></tr>
+                    <tr><td>Created</td><td>Timestamp + creator</td></tr>
+                    <tr><td>Expires</td><td>Expiration date</td></tr>
+                    <tr><td>Uses</td><td>Current / Maximum</td></tr>
+                </tbody>
+            </table>
+            <strong>Actions:</strong> Revoke | Resend | View Details
+        </section>
+
+        <section id="user-accounts" class="section">
+            <h2>👥 User Accounts</h2>
+            
+            <h3>Filter & Search</h3>
+            <ul>
+                <li><strong>Role:</strong> Owner, Professor, Student</li>
+                <li><strong>Status:</strong> Active, Suspended, Pending, Disabled</li>
+                <li><strong>Organization:</strong> Filter by org</li>
+                <li><strong>Search:</strong> Name, email, student ID</li>
+            </ul>
+
+            <h3>Account Actions</h3>
+            <table>
+                <thead><tr><th>Action</th><th>Description</th><th>Requires</th></tr></thead>
+                <tbody>
+                    <tr><td>Suspend</td><td>Block login, preserve data</td><td>Recent auth + MFA</td></tr>
+                    <tr><td>Reactivate</td><td>Restore suspended account</td><td>Recent auth</td></tr>
+                    <tr><td>Force Password Reset</td><td>Require change on next login</td><td>Recent auth</td></tr>
+                    <tr><td>View Details</td><td>Profile, login history, audit</td><td>Read access</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Status Definitions</h3>
+            <table>
+                <thead><tr><th>Status</th><th>Login</th><th>Data</th><th>Badge</th></tr></thead>
+                <tbody>
+                    <tr><td><code>active</code></td><td>✅</td><td>✅</td><td><span class="badge badge-active">active</span></td></tr>
+                    <tr><td><code>suspended</code></td><td>❌</td><td>✅</td><td><span class="badge badge-suspended">suspended</span></td></tr>
+                    <tr><td><code>pending</code></td><td>✅ (first)</td><td>✅</td><td><span class="badge badge-pending">pending</span></td></tr>
+                    <tr><td><code>disabled</code></td><td>❌</td><td>✅ (archived)</td><td><span class="badge badge-disabled">disabled</span></td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section id="system-health" class="section">
+            <h2>🏥 System Health</h2>
+            
+            <p>Run comprehensive database health checks:</p>
+            <ol>
+                <li>Navigate: <kbd>H</kbd> → <strong>Run Full Check</strong></li>
+                <li>Wait 10-30 seconds</li>
+                <li>Review results</li>
+            </ol>
+
+            <h3>Health Checks</h3>
+            <table>
+                <thead><tr><th>Check</th><th>Validates</th></tr></thead>
+                <tbody>
+                    <tr><td><code>db_connectivity</code></td><td>Connection & query latency < 100ms</td></tr>
+                    <tr><td><code>foreign_keys</code></td><td>Zero FK violations</td></tr>
+                    <tr><td><code>unique_constraints</code></td><td>Zero duplicate key violations</td></tr>
+                    <tr><td><code>not_null</code></td><td>Required columns populated</td></tr>
+                    <tr><td><code>session_professor_link</code></td><td>All sessions have valid professor</td></tr>
+                    <tr><td><code>team_membership</code></td><td>Students in exactly 1 team/session</td></tr>
+                    <tr><td><code>decision_round_bounds</code></td><td>Decisions in valid round range</td></tr>
+                </tbody>
+            </table>
+
+            <div class="card success">
+                <strong>Results:</strong> ✅ Pass | ⚠️ Warning | ❌ Fail (critical)
+            </div>
+        </section>
+
+        <section id="audit-log" class="section">
+            <h2>📋 Audit Log</h2>
+            
+            <h3>Query Filters</h3>
+            <ul>
+                <li><strong>Actor</strong> - Owner who performed action</li>
+                <li><strong>Action</strong> - Operation type</li>
+                <li><strong>Target Type</strong> - user, invitation, cleanup_plan, etc.</li>
+                <li><strong>Date Range</strong> - Start/end timestamps</li>
+                <li><strong>Organization</strong> - Scope to org</li>
+            </ul>
+
+            <h3>Key Audit Actions</h3>
+            <table>
+                <thead><tr><th>Action</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr><td><code>invitation_created</code></td><td>New professor invitation</td></tr>
+                    <tr><td><code>invitation_revoked</code></td><td>Invitation disabled</td></tr>
+                    <tr><td><code>invitation_redeemed</code></td><td>Professor claimed invitation</td></tr>
+                    <tr><td><code>professor_precreated</code></td><td>Account created by Owner</td></tr>
+                    <tr><td><code>user_suspended</code></td><td>Account suspended</td></tr>
+                    <tr><td><code>user_reactivated</code></td><td>Account restored</td></tr>
+                    <tr><td><code>password_reset_forced</code></td><td>Password change required</td></tr>
+                    <tr><td><code>cleanup_plan_created</code></td><td>Cleanup plan defined</td></tr>
+                    <tr><td><code>cleanup_plan_executed</code></td><td>Cleanup run</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Event Details</h3>
+            <ul>
+                <li><strong>Before/After State</strong> - JSON diff (secrets redacted)</li>
+                <li><strong>Request Context</strong> - IP, user agent, request ID</li>
+                <li><strong>Idempotency Key</strong> - If provided</li>
+                <li><strong>Outcome</strong> - Success/failure with error</li>
+            </ul>
+            <p><strong>Export:</strong> Filter → <strong>Export CSV</strong> for compliance</p>
+        </section>
+
+        <section id="backup-cleanup" class="section">
+            <h2>💾 Backup & Cleanup</h2>
+            
+            <h3>Backup Status</h3>
+            <ul>
+                <li>Last backup timestamp & duration</li>
+                <li>File size & S3 location</li>
+                <li>Checksum verification status</li>
+                <li>Last restore drill result</li>
+            </ul>
+
+            <h3>Cleanup Plans ⚠️ DESTRUCTIVE</h3>
+            <div class="card danger">
+                <strong>⚠️ PERMANENTLY DELETES DATA</strong><br>
+                Only for test/demo data. Production data cleanup requires emergency DBA approval.
+            </div>
+
+            <h4>Create Plan</h4>
+            <ol>
+                <li><kbd>B</kbd> → <strong>Create Cleanup Plan</strong></li>
+                <li>Define scope (JSON selector):</li>
+            </ol>
+
+            <pre><code>{
+  "organizations": ["org-uuid-1"],
+  "sessionStatus": ["completed", "archived"],
+  "olderThanDays": 90,
+  "includeResults": true,
+  "includeDecisions": true,
+  "includeTeams": false
+}</code></pre>
+
+            <ol start="3">
+                <li>Click <strong>Preview</strong> → Review row counts per table</li>
+                <li>Click <strong>Create Plan</strong> → Generates plan with hash</li>
+            </ol>
+
+            <h4>Execute Plan</h4>
+            <ol>
+                <li>Select plan → <strong>Execute</strong></li>
+                <li>Type exact phrase: <code>DELETE TEST DATA PERMANENTLY</code></li>
+                <li>Requires: Recent auth + MFA</li>
+                <li>Monitor in Cleanup Plans table</li>
+            </ol>
+
+            <h3>Plan Status</h3>
+            <table>
+                <thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+                <tbody>
+                    <tr><td><code>pending</code></td><td>Created, not executed</td></tr>
+                    <tr><td><code>executing</code></td><td>Currently running</td></tr>
+                    <tr><td><code>completed</code></td><td>Finished successfully</td></tr>
+                    <tr><td><code>failed</code></td><td>Error (check audit log)</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section id="security" class="section">
+            <h2>🔒 Security Features</h2>
+            
+            <div class="grid">
+                <div class="grid-item">
+                    <h4>MFA Required</h4>
+                    <p>TOTP-based (Google Authenticator, Authy)</p>
+                </div>
+                <div class="grid-item">
+                    <h4>Recent Auth</h4>
+                    <p>15-minute window for sensitive ops</p>
+                </div>
+                <div class="grid-item">
+                    <h4>Idempotency Keys</h4>
+                    <p>Prevent duplicate mutations on retry</p>
+                </div>
+                <div class="grid-item">
+                    <h4>Rate Limiting</h4>
+                    <p>60 req/min API, 10/min auth, 1/hr cleanup</p>
+                </div>
+            </div>
+
+            <h3>Idempotency Key Usage</h3>
+            <pre><code>curl -X POST https://api.practenture.com/api/owner/users/123/suspend \
+  -H "Authorization: Bearer <token>" \
+  -H "Idempotency-Key: suspend-user-123-20260726-001"</code></pre>
+            <p>Key must be unique per operation. Stored 24 hours.</p>
+
+            <h3>Secrets Never Logged</h3>
+            <ul>
+                <li>Passwords & token hashes</li>
+                <li>Access/refresh tokens</li>
+                <li>MFA secrets</li>
+                <li>Invitation secrets</li>
+                <li>Database credentials</li>
+            </ul>
+        </section>
+
+        <section id="troubleshooting" class="section">
+            <h2>🔧 Troubleshooting</h2>
+            
+            <table>
+                <thead><tr><th>Issue</th><th>Resolution</th></tr></thead>
+                <tbody>
+                    <tr><td>"MFA required"</td><td>Enable MFA in profile settings</td></tr>
+                    <tr><td>"Recent auth required"</td><td>Sign out and sign back in</td></tr>
+                    <tr><td>"Idempotency key conflict"</td><td>Generate new unique key</td></tr>
+                    <tr><td>"Organization not found"</td><td>Verify org ID and permissions</td></tr>
+                    <tr><td>"Invitation already exists"</td><td>Revoke existing or use different email</td></tr>
+                    <tr><td>Health check fails</td><td>Check DB connectivity, run <code>alembic current</code></td></tr>
+                </tbody>
+            </table>
+
+            <h3>Getting Help</h3>
+            <ol>
+                <li>Check <strong>Audit Log</strong> for error details</li>
+                <li>Review <strong>System Health</strong> for infrastructure issues</li>
+                <li>Contact support with:
+                    <ul>
+                        <li>Request ID from failed operation</li>
+                        <li>Timestamp</li>
+                        <li>Steps to reproduce</li>
+                    </ul>
+                </li>
+            </ol>
+
+            <div class="card">
+                <strong>Support:</strong> platform-support@practenture.com<br>
+                <strong>Emergency:</strong> +1-XXX-XXX-XXXX (Owner escalation)
+            </div>
+        </section>
+
+        <div class="footer">
+            <p>Owner Console Help v1.0 | Last updated: 2026-07-26</p>
+            <p>Full documentation: <code>/docs/OWNER_CONSOLE_README.md</code></p>
+        </div>
+    </div>
+</body>
+</html>

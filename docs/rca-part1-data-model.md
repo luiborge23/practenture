@@ -3,9 +3,9 @@
 **Date:** 2026-07-16  
 **Scope:** Field-by-field mapping of `RoundResult` data flow: iOS Swift model → Backend Pydantic model → `restoreResultsFromBackend` conversion → computed properties → UI display.  
 **Files analyzed:**
-- `BizSimAI/Models/SimulationModels.swift` (1577 lines)
-- `BizSimAI/Services/NetworkService.swift` (1125 lines)
-- `BizSimAI/Models/SimulationSession.swift` (904 lines)
+- `Practenture/Models/SimulationModels.swift` (1577 lines)
+- `Practenture/Services/NetworkService.swift` (1125 lines)
+- `Practenture/Models/SimulationSession.swift` (904 lines)
 - `backend/models.py` (756 lines)
 - `backend/simulation_engine.py` (1260 lines)
 

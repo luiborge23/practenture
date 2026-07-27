@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Sequence, Union
 
 import httpx
 
@@ -82,106 +82,83 @@ def _find_key_by_kid(jwks: Dict[str, Any], kid: Optional[str]) -> Optional[Dict[
     return None
 
 
-def _verify_with_jwt(token: str, provider: str, expected_audience: Optional[str]) -> Optional[Dict[str, Any]]:
-    """Attempt verification using PyJWT with JWKS auto-fetch."""
-    try:
-        import jwt as _jwt_module
-    except ImportError:
-        # PyJWT not installed — fall through to unsigned token check
+def _normalize_audiences(
+    expected_audience: Optional[Union[str, Sequence[str]]],
+) -> list[str]:
+    """Normalize comma-separated client IDs or a sequence into an allowlist."""
+    if not expected_audience:
+        return []
+    raw = expected_audience.split(",") if isinstance(expected_audience, str) else expected_audience
+    return [value.strip() for value in raw if value and value.strip()]
+
+
+def _verify_with_jwt(
+    token: str,
+    provider: str,
+    expected_audience: Optional[Union[str, Sequence[str]]],
+) -> Optional[Dict[str, Any]]:
+    """Cryptographically verify an RS256 token against an audience allowlist."""
+    audiences = _normalize_audiences(expected_audience)
+    if not audiences:
         return None
 
     try:
-        config = _PROVIDER_CONFIGS[provider]
-        verify_aud = expected_audience if expected_audience else False
+        import jwt
+        from jwt.algorithms import RSAAlgorithm
 
-        payload = _jwt_module.decode(
+        header = jwt.get_unverified_header(token)
+        if header.get("alg") != "RS256" or not header.get("kid"):
+            return None
+
+        config = _PROVIDER_CONFIGS[provider]
+        jwks = _fetch_jwks(config["jwks_url"])
+        if not jwks:
+            return None
+        jwk = _find_key_by_kid(jwks, header["kid"])
+        if not jwk:
+            return None
+        key = RSAAlgorithm.from_jwk(json.dumps(jwk))
+
+        return jwt.decode(
             token,
+            key=key,
             algorithms=["RS256"],
+            issuer=config["issuer"],
+            audience=audiences,
             options={
+                "verify_signature": True,
                 "verify_exp": True,
                 "verify_iss": True,
-                "verify_aud": verify_aud,
+                "verify_aud": True,
                 "verify_iat": True,
             },
-            issuer=config["issuer"],
-            audience=expected_audience if expected_audience else None,
         )
-        return payload
-    except _jwt_module.exceptions.InvalidAudienceError:
-        # No audience configured — accept token without aud check
-        return None
-    except _jwt_module.exceptions.DecodeError:
-        # Token structure invalid or signature mismatch
-        return None
-    except _jwt_module.exceptions.ExpiredSignatureError:
-        # Token expired
-        return None
-    except Exception:
-        # Any other error — fall through to unsigned token check
-        return None
-
-
-def _decode_token_structure(token: str) -> Optional[Dict[str, Any]]:
-    """Best-effort token decoding without crypto verification.
-
-    Returns the payload if the token has valid JWT structure,
-    but does NOT verify the signature. Use only for development/testing.
-    """
-    import base64
-    import json
-
-    try:
-        parts = token.split(".")
-        if len(parts) != 3:
-            return None
-        # Decode payload (middle part)
-        payload_b = parts[1]
-        padding = 4 - len(payload_b) % 4
-        payload_b += "=" * padding
-        payload = json.loads(base64.urlsafe_b64decode(payload_b))
-        return payload
     except Exception:
         return None
 
 
-def verify_id_token(token: str, provider: str, expected_audience: Optional[str] = None) -> Optional[Dict[str, Any]]:
-    """Verify a provider ID token and return the decoded payload.
-
-    Priority:
-    1. PyJWT with JWKS auto-fetch (if PyJWT[crypto] installed)
-    2. Token structure validation only (development mode)
-
-    Args:
-        token: The raw ID token string from Apple/Google.
-        provider: "apple" or "google".
-        expected_audience: Your app's client ID (required in production).
-
-    Returns:
-        Decoded payload dict on success, None on failure.
-    """
+def verify_id_token(
+    token: str,
+    provider: str,
+    expected_audience: Optional[Union[str, Sequence[str]]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Return verified provider claims, or None. Never decode unsigned tokens."""
     if provider not in _PROVIDER_CONFIGS:
         return None
-
-    # Try PyJWT first (production path)
-    result = _verify_with_jwt(token, provider, expected_audience)
-    if result:
-        return result
-
-    # Fallback: token structure validation (development mode)
-    # WARNING: This does NOT verify the signature!
-    # In production, always install PyJWT[crypto] and set expected_audience.
-    payload = _decode_token_structure(token)
-    if payload:
-        return payload
-
-    return None
+    return _verify_with_jwt(token, provider, expected_audience)
 
 
-def verify_apple_id_token(token: str, expected_audience: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def verify_apple_id_token(
+    token: str,
+    expected_audience: Optional[Union[str, Sequence[str]]] = None,
+) -> Optional[Dict[str, Any]]:
     """Verify an Apple Sign In ID token."""
     return verify_id_token(token, "apple", expected_audience)
 
 
-def verify_google_id_token(token: str, expected_audience: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def verify_google_id_token(
+    token: str,
+    expected_audience: Optional[Union[str, Sequence[str]]] = None,
+) -> Optional[Dict[str, Any]]:
     """Verify a Google Sign In ID token."""
     return verify_id_token(token, "google", expected_audience)

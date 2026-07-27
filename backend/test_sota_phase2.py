@@ -23,10 +23,10 @@ if not OWNER_PASSWORD:
     try:
         import subprocess
         result = subprocess.run(
-            ["ssh", "-i", os.path.expanduser("~/.ssh/bizsimai"),
+            ["ssh", "-i", os.path.expanduser("~/.ssh/practenture"),
              "-o", "StrictHostKeyChecking=no",
              "ec2-user@18.215.180.58",
-             "docker exec bizsim-backend env | grep BIZSIMAI_OWNER_PASSWORD"],
+             "docker exec practenture-backend env | grep PRACTENTURE_OWNER_PASSWORD"],
             capture_output=True, text=True, timeout=10
         )
         for line in result.stdout.strip().split("\n"):
@@ -320,7 +320,7 @@ def test_postgres_rls():
         check("O", "O7. RLS has current_tenant_id function", "current_tenant_id" in rls_content, "")
         check("O", "O8. RLS has is_owner function", "is_owner" in rls_content, "")
         check("O", "O9. RLS creates all Phase 2 tables", all(t in rls_content for t in ["refresh_tokens", "mfa_secrets", "scim_users"]), "")
-        check("O", "O10. RLS has app role", "bizsimai_app" in rls_content, "")
+        check("O", "O10. RLS has app role", "practenture_app" in rls_content, "")
     else:
         for i in range(2, 11):
             check("O", f"O{i}. RLS content check", False, "file not found")
@@ -334,7 +334,7 @@ def test_postgres_rls():
 
 if __name__ == "__main__":
     print("=" * 78)
-    print("  BizSimAI SOTA Phase 2 Test Suite")
+    print("  Practenture SOTA Phase 2 Test Suite")
     print(f"  Target: {BASE_URL}")
     print("=" * 78)
 

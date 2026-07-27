@@ -1,12 +1,12 @@
 {
-  "project": "BizSimAI",
-  "branchName": "ralph/bizsimai-prd-implementation",
-  "description": "Implement BizSimAI real-time adaptive business simulation platform based on PRD requirements",
+  "project": "Practenture",
+  "branchName": "ralph/practenture-prd-implementation",
+  "description": "Implement Practenture real-time adaptive business simulation platform based on PRD requirements",
   "userStories": [
     {
       "id": "US-001",
       "title": "Setup development environment and project structure",
-      "description": "As a developer, I want to set up the BizSimAI development environment with all required dependencies so that I can begin implementation",
+      "description": "As a developer, I want to set up the Practenture development environment with all required dependencies so that I can begin implementation",
       "acceptanceCriteria": [
         "Create project directory structure",
         "Setup Python virtual environment",
@@ -43,7 +43,7 @@
       "description": "As a developer, I want to implement secure authentication and session management so that professors and students can securely access the platform",
       "acceptanceCriteria": [
         "Create auth.py with JWT-based authentication",
-        "Implement professor login with default credentials (professor/bizsimai2026)",
+        "Implement professor login with default credentials (professor/practenture2026)",
         "Implement student registration and team creation",
         "Create session management with unique session codes (BIZ-XXXXXX format)",
         "Add role-based access control (professor vs student)",
@@ -148,7 +148,7 @@
     {
       "id": "US-009",
       "title": "Implement iOS application",
-      "description": "As a developer, I want to create a native iOS application so that students and professors can access BizSimAI on mobile devices",
+      "description": "As a developer, I want to create a native iOS application so that students and professors can access Practenture on mobile devices",
       "acceptanceCriteria": [
         "Setup iOS project structure",
         "Implement API communication layer",
@@ -167,7 +167,7 @@
     {
       "id": "US-010",
       "title": "Implement Android application",
-      "description": "As a developer, I want to create a native Android application so that students and professors can access BizSimAI on mobile devices",
+      "description": "As a developer, I want to create a native Android application so that students and professors can access Practenture on mobile devices",
       "acceptanceCriteria": [
         "Setup Android project structure",
         "Implement API communication layer",
@@ -186,7 +186,7 @@
     {
       "id": "US-011",
       "title": "Implement LMS/LTI integration",
-      "description": "As a developer, I want to implement LMS integration so that BizSimAI can be used within existing learning management systems",
+      "description": "As a developer, I want to implement LMS integration so that Practenture can be used within existing learning management systems",
       "acceptanceCriteria": [
         "Implement LTI 1.3 launch functionality",
         "Add grade passback capabilities",
@@ -203,7 +203,7 @@
     {
       "id": "US-012",
       "title": "Create comprehensive test suite",
-      "description": "As a developer, I want to create a comprehensive test suite so that I can ensure the quality and reliability of BizSimAI",
+      "description": "As a developer, I want to create a comprehensive test suite so that I can ensure the quality and reliability of Practenture",
       "acceptanceCriteria": [
         "Create unit tests for all core components",
         "Create integration tests for API endpoints",
@@ -221,7 +221,7 @@
     {
       "id": "US-013",
       "title": "Deploy and document the system",
-      "description": "As a developer, I want to deploy BizSimAI and create documentation so that professors and students can use the platform",
+      "description": "As a developer, I want to deploy Practenture and create documentation so that professors and students can use the platform",
       "acceptanceCriteria": [
         "Create deployment instructions for different environments",
         "Setup production-ready configuration",

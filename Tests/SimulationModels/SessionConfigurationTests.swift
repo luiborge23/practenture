@@ -1,9 +1,9 @@
 // SessionConfigurationTests.swift
-// BizSimAI Tests
+// Practenture Tests
 // Unit tests for SessionConfiguration and templates
 
 import XCTest
-@testable import BizSimAI
+@testable import Practenture
 
 final class SessionConfigurationTests: XCTestCase {
 

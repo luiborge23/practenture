@@ -1,4 +1,4 @@
-# BizSimAI — User Journey Guide
+# Practenture — User Journey Guide
 
 ## Complete End-to-End User Experience
 
@@ -9,9 +9,9 @@
 ### Step 1: Authentication & Setup
 
 **Access the Platform**
-1. Open BizSimAI on iOS device or web dashboard
+1. Open Practenture on iOS device or web dashboard
 2. Select "Professor Login" mode
-3. Enter credentials (default: `professor` / `bizsimai2026`)
+3. Enter credentials (default: `professor` / `practenture2026`)
 4. Or use Apple/Google Sign-In for single-sign-on
 5. Token stored securely in iOS Keychain (24h expiry)
 6. App auto-redirects to Professor Dashboard
@@ -44,7 +44,7 @@
 ### Step 3: Student Onboarding
 
 **Student Registration**
-1. Students open BizSimAI on their device
+1. Students open Practenture on their device
 2. Select "Student Login" or "Student Register"
 3. Enter credentials:
    - Student ID (e.g., `S12345678`)
@@ -119,7 +119,7 @@
 ### Step 1: Registration & Login
 
 **First-Time Setup**
-1. Download BizSimAI from App Store
+1. Download Practenture from App Store
 2. Open app — LaunchView checks for stored token
 3. No token → LoginView displayed
 4. Select "Student Register"
@@ -400,4 +400,4 @@ S12345678,John Smith,Team Alpha,1,125000,15000,24.5,515000,72.3
 
 *Document created: 2026-06-09*  
 *Last updated: 2026-06-09*  
-*BizSimAI v1.0 — Business Simulation Platform for MBA Classrooms*
+*Practenture v1.0 — Business Simulation Platform for MBA Classrooms*

@@ -32,7 +32,21 @@
 		<true/>
 		<key>NSExceptionDomains</key>
 		<dict>
+			<key>api.practenture.com</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
 			<key>18.215.180.58</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
+			<key>54.211.79.208</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
 				<true/>
@@ -48,7 +62,13 @@
 	</dict>
 
 	<!-- ── Backend URL (configurable per scheme via xcconfig) ──────── -->
-	<key>BIZSIMAI_BACKEND_URL</key>
-	<string>http://18.215.180.58:80</string>
+	<key>PRACTENTURE_BACKEND_URL</key>
+	<string>https://api.practenture.com</string>
+
+	<!-- ── Encryption Exemption (App Store Connect Compliance) ─────── -->
+	<!-- App uses only HTTPS/TLS encryption provided by iOS system -->
+	<!-- No custom/proprietary encryption algorithms implemented -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

@@ -1,19 +1,19 @@
 -- SOTA Phase 2: PostgreSQL Row-Level Security (RLS) Migration
 -- ============================================================
--- This script migrates BizSimAI from SQLite to PostgreSQL and enables
+-- This script migrates Practenture from SQLite to PostgreSQL and enables
 -- Row-Level Security for multi-tenant isolation at the database level.
 --
 -- Usage:
---   psql -h localhost -U bizsimai -d bizsimai -f postgres_rls_migration.sql
+--   psql -h localhost -U practenture -d practenture -f postgres_rls_migration.sql
 --
 -- Prerequisites:
 --   1. PostgreSQL 14+ installed
---   2. CREATE DATABASE bizsimai;
---   3. CREATE USER bizsimai WITH PASSWORD 'changeme';
---   4. GRANT ALL ON DATABASE bizsimai TO bizsimai;
+--   2. CREATE DATABASE practenture;
+--   3. CREATE USER practenture WITH PASSWORD 'changeme';
+--   4. GRANT ALL ON DATABASE practenture TO practenture;
 --
 -- Architecture:
---   - App role (bizsimai_app): used by the FastAPI backend, has SELECT/INSERT/UPDATE/DELETE
+--   - App role (practenture_app): used by the FastAPI backend, has SELECT/INSERT/UPDATE/DELETE
 --   - Tenant isolation via RLS policies: professors can only see their own data
 --   - session.local_tenant_id() function: set per-request via SET LOCAL
 --   - JWT middleware sets the tenant context before each query
@@ -152,14 +152,14 @@ CREATE INDEX IF NOT EXISTS idx_memberships_org ON memberships(org_id);
 -- Create a dedicated app role (not superuser) for the backend
 DO $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'bizsimai_app') THEN
-        CREATE ROLE bizsimai_app LOGIN PASSWORD 'changeme_app_password';
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'practenture_app') THEN
+        CREATE ROLE practenture_app LOGIN PASSWORD 'changeme_app_password';
     END IF;
 END
 $$;
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO bizsimai_app;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO bizsimai_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO practenture_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO practenture_app;
 
 -- ── 4. Row-Level Security ─────────────────────────────────────────────────
 
@@ -182,7 +182,7 @@ ALTER TABLE refresh_tokens FORCE ROW LEVEL SECURITY;
 -- ── 5. Tenant Context Function ────────────────────────────────────────────
 
 -- This function retrieves the tenant ID set by the app per-request.
--- The app does: SET LOCAL bizsimai.tenant_id = 'org_123';
+-- The app does: SET LOCAL practenture.tenant_id = 'org_123';
 CREATE OR REPLACE FUNCTION current_tenant_id() RETURNS VARCHAR(64) AS $$
 BEGIN
     RETURN current_setting('app.tenant_id', true);

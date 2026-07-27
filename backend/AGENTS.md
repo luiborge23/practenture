@@ -1,7 +1,7 @@
-# BizSimAI Backend — AGENTS.md
+# Practenture Backend — AGENTS.md
 
 ## Project Overview
-BizSimAI backend is a FastAPI + SQLite application for running a business simulation with real-time updates.
+Practenture backend is a FastAPI + SQLite application for running a business simulation with real-time updates.
 
 ## Architecture
 - **Framework:** FastAPI (async)
@@ -92,7 +92,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 - `SECRET_KEY` — JWT signing key (auto-generated if not set)
 - `DATABASE_URL` — SQLite path (default: data.db)
 - `PROFESSOR_USERNAME` — Default professor username (default: professor)
-- `PROFESSOR_PASSWORD` — Default professor password (default: bizsimai2026)
+- `PROFESSOR_PASSWORD` — Default professor password (default: practenture2026)
 
 ## iOS Integration Notes
 - All API endpoints use `/api/` prefix

@@ -1,4 +1,4 @@
-"""BizSimAI AI Service — Amazon Bedrock integration via boto3.
+"""Practenture AI Service — Amazon Bedrock integration via boto3.
 
 Provides Claude Sonnet 4 inference for:
 - AI-generated business scenarios (professor-facing)
@@ -21,13 +21,13 @@ logger = logging.getLogger(__name__)
 
 # ── Configuration ────────────────────────────────────────────────────────────
 
-BEDROCK_REGION = os.environ.get("BIZSIMAI_BEDROCK_REGION", "us-east-1")
+BEDROCK_REGION = os.environ.get("PRACTENTURE_BEDROCK_REGION", "us-east-1")
 BEDROCK_MODEL = os.environ.get(
-    "BIZSIMAI_BEDROCK_MODEL", "anthropic.claude-sonnet-4-6"
+    "PRACTENTURE_BEDROCK_MODEL", "anthropic.claude-sonnet-4-6"
 )
-BEDROCK_MAX_TOKENS = int(os.environ.get("BIZSIMAI_BEDROCK_MAX_TOKENS", "2048"))
-BEDROCK_TEMPERATURE = float(os.environ.get("BIZSIMAI_BEDROCK_TEMPERATURE", "0.7"))
-BEDROCK_ENABLED = os.environ.get("BIZSIMAI_BEDROCK_ENABLED", "true").lower() in (
+BEDROCK_MAX_TOKENS = int(os.environ.get("PRACTENTURE_BEDROCK_MAX_TOKENS", "2048"))
+BEDROCK_TEMPERATURE = float(os.environ.get("PRACTENTURE_BEDROCK_TEMPERATURE", "0.7"))
+BEDROCK_ENABLED = os.environ.get("PRACTENTURE_BEDROCK_ENABLED", "true").lower() in (
     "true",
     "1",
     "yes",
@@ -40,8 +40,8 @@ except ImportError:
     BEDROCK_ENABLED = False
 
 # Retry settings
-BEDROCK_MAX_RETRIES = int(os.environ.get("BIZSIMAI_BEDROCK_MAX_RETRIES", "3"))
-BEDROCK_RETRY_BASE_DELAY = float(os.environ.get("BIZSIMAI_BEDROCK_RETRY_BASE_DELAY", "1.0"))
+BEDROCK_MAX_RETRIES = int(os.environ.get("PRACTENTURE_BEDROCK_MAX_RETRIES", "3"))
+BEDROCK_RETRY_BASE_DELAY = float(os.environ.get("PRACTENTURE_BEDROCK_RETRY_BASE_DELAY", "1.0"))
 
 
 def _get_bedrock_client():
@@ -52,9 +52,9 @@ def _get_bedrock_client():
 
 
 def _build_system_prompt(context: str = "") -> str:
-    """Build the system prompt for Claude in BizSimAI context."""
+    """Build the system prompt for Claude in Practenture context."""
     base = (
-        "You are an expert business simulation advisor for BizSimAI, a classroom business simulation platform. "
+        "You are an expert business simulation advisor for Practenture, a classroom business simulation platform. "
         "Students make decisions about pricing, marketing, production, HR, and strategy for a simulated company. "
         "You provide clear, educational feedback that helps students learn business concepts.\n\n"
     )

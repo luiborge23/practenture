@@ -1,5 +1,5 @@
 """
-BizSimAI Simulation Engine
+Practenture Simulation Engine
 
 Pure Python simulation engine — deterministic, mirrors the Swift implementation.
 All random noise uses a seeded RNG for reproducibility.
@@ -350,7 +350,8 @@ def compute_production_cost(
     # Workforce costs
     workers_needed = max(1, quantity // 10)
     wage_cost = base_wage * workers_needed / 1000.0
-    incentive_cost = incentive_pay * quantity
+    # incentivePay is per-worker, not per-unit
+    incentive_cost = incentive_pay * workers_needed
     training_cost = training_hours * 50.0 * workers_needed / 1000.0
     workforce_cost = wage_cost + incentive_cost + training_cost
 
@@ -557,113 +558,113 @@ def generate_ai_decision(
     rng = random.Random(seed + round_num * 1000 + hash(team_id) % 10000)
 
     if strategy == "aggressive":
-        wholesale_price = 22.0 + rng.uniform(0, 3)
-        internet_price = 24.0 + rng.uniform(0, 3)
-        amazon_price = 26.0 + rng.uniform(0, 3)
+        wholesale_price = 42.0 + rng.uniform(0, 5)
+        internet_price = 45.0 + rng.uniform(0, 5)
+        amazon_price = 48.0 + rng.uniform(0, 5)
         materials_quality = MaterialsQuality.standard
-        styling_budget = 100000 + rng.uniform(0, 50000)
+        styling_budget = 15000 + rng.uniform(0, 8000)
         models_offered = 4 + int(rng.uniform(0, 3))
-        tqm_investment = 50000 + rng.uniform(0, 100000)
-        best_practices_investment = rng.uniform(0, 2000)
-        training_hours = rng.uniform(0, 20)
+        tqm_investment = 8000 + rng.uniform(0, 12000)
+        best_practices_investment = rng.uniform(200, 1000)
+        training_hours = rng.uniform(5, 20)
         base_wage = 22000 + rng.uniform(0, 3000)
-        advertising_budget = 150000 + rng.uniform(0, 100000)
+        advertising_budget = 20000 + rng.uniform(0, 15000)
         retail_outlets = int(rng.uniform(0, 10))
         celebrity_endorsement = CelebrityEndorsement.local
         delivery_time = DeliveryTime.standard
         influencer_tier = InfluencerTier.micro
-        social_media_budget = rng.uniform(0, 30000)
-        tiktok_budget = rng.uniform(0, 15000)
-        instagram_budget = rng.uniform(0, 15000)
-        youtube_budget = rng.uniform(0, 10000)
-        amazon_ad_budget = rng.uniform(0, 5000)
-        private_label_bid_price = 12.0 + rng.uniform(0, 3)
-        private_label_max_units = int(rng.uniform(500, 2000))
+        social_media_budget = rng.uniform(3000, 10000)
+        tiktok_budget = rng.uniform(0, 5000)
+        instagram_budget = rng.uniform(0, 5000)
+        youtube_budget = rng.uniform(0, 3000)
+        amazon_ad_budget = rng.uniform(0, 2000)
+        private_label_bid_price = 22.0 + rng.uniform(0, 4)
+        private_label_max_units = int(rng.uniform(200, 800))
         free_shipping_threshold = rng.uniform(75, 125)
     elif strategy == "quality":
-        wholesale_price = 32.0 + rng.uniform(0, 5)
-        internet_price = 35.0 + rng.uniform(0, 5)
-        amazon_price = 38.0 + rng.uniform(0, 5)
+        wholesale_price = 55.0 + rng.uniform(0, 8)
+        internet_price = 60.0 + rng.uniform(0, 8)
+        amazon_price = 65.0 + rng.uniform(0, 8)
         materials_quality = MaterialsQuality.superior
-        styling_budget = 300000 + rng.uniform(0, 200000)
-        models_offered = 8 + int(rng.uniform(0, 5))
-        tqm_investment = 150000 + rng.uniform(0, 100000)
-        best_practices_investment = rng.uniform(2000, 5000)
-        training_hours = rng.uniform(30, 80)
+        styling_budget = 20000 + rng.uniform(0, 10000)
+        models_offered = 6 + int(rng.uniform(0, 3))
+        tqm_investment = 10000 + rng.uniform(0, 8000)
+        best_practices_investment = rng.uniform(500, 1500)
+        training_hours = rng.uniform(15, 40)
         base_wage = 28000 + rng.uniform(0, 3000)
-        advertising_budget = 100000 + rng.uniform(0, 50000)
-        retail_outlets = int(rng.uniform(5, 15))
+        advertising_budget = 15000 + rng.uniform(0, 10000)
+        retail_outlets = int(rng.uniform(3, 10))
         celebrity_endorsement = CelebrityEndorsement.national
-        delivery_time = DeliveryTime.rush
+        delivery_time = DeliveryTime.standard
         influencer_tier = InfluencerTier.macro
-        social_media_budget = rng.uniform(20000, 50000)
-        tiktok_budget = rng.uniform(5000, 20000)
-        instagram_budget = rng.uniform(10000, 30000)
-        youtube_budget = rng.uniform(5000, 20000)
-        amazon_ad_budget = rng.uniform(5000, 15000)
-        private_label_bid_price = 18.0 + rng.uniform(0, 4)
-        private_label_max_units = int(rng.uniform(1000, 3000))
+        social_media_budget = rng.uniform(5000, 12000)
+        tiktok_budget = rng.uniform(1000, 5000)
+        instagram_budget = rng.uniform(2000, 6000)
+        youtube_budget = rng.uniform(1000, 5000)
+        amazon_ad_budget = rng.uniform(1000, 4000)
+        private_label_bid_price = 28.0 + rng.uniform(0, 5)
+        private_label_max_units = int(rng.uniform(200, 600))
         free_shipping_threshold = rng.uniform(50, 100)
     elif strategy == "lowcost":
-        wholesale_price = 18.0 + rng.uniform(0, 3)
-        internet_price = 20.0 + rng.uniform(0, 3)
-        amazon_price = 22.0 + rng.uniform(0, 3)
+        wholesale_price = 35.0 + rng.uniform(0, 5)
+        internet_price = 38.0 + rng.uniform(0, 5)
+        amazon_price = 40.0 + rng.uniform(0, 5)
         materials_quality = MaterialsQuality.standard
-        styling_budget = rng.uniform(0, 50000)
+        styling_budget = rng.uniform(3000, 12000)
         models_offered = int(rng.uniform(2, 5))
-        tqm_investment = rng.uniform(0, 80000)
-        best_practices_investment = rng.uniform(0, 1000)
+        tqm_investment = rng.uniform(1000, 15000)
+        best_practices_investment = rng.uniform(0, 800)
         training_hours = rng.uniform(0, 15)
         base_wage = 18000 + rng.uniform(0, 3000)
-        advertising_budget = 50000 + rng.uniform(0, 50000)
+        advertising_budget = 10000 + rng.uniform(0, 10000)
         retail_outlets = int(rng.uniform(0, 8))
         celebrity_endorsement = CelebrityEndorsement.none
         delivery_time = DeliveryTime.standard
         influencer_tier = InfluencerTier.none
-        social_media_budget = rng.uniform(0, 15000)
-        tiktok_budget = rng.uniform(0, 8000)
-        instagram_budget = rng.uniform(0, 5000)
-        youtube_budget = rng.uniform(0, 3000)
-        amazon_ad_budget = rng.uniform(0, 2000)
-        private_label_bid_price = 10.0 + rng.uniform(0, 2)
-        private_label_max_units = int(rng.uniform(1000, 3000))
+        social_media_budget = rng.uniform(0, 5000)
+        tiktok_budget = rng.uniform(0, 3000)
+        instagram_budget = rng.uniform(0, 2000)
+        youtube_budget = rng.uniform(0, 1500)
+        amazon_ad_budget = rng.uniform(0, 1500)
+        private_label_bid_price = 18.0 + rng.uniform(0, 3)
+        private_label_max_units = int(rng.uniform(500, 1500))
         free_shipping_threshold = rng.uniform(100, 150)
     elif strategy == "premium":
-        wholesale_price = 45.0 + rng.uniform(0, 5)
-        internet_price = 50.0 + rng.uniform(0, 5)
-        amazon_price = 55.0 + rng.uniform(0, 5)
+        wholesale_price = 65.0 + rng.uniform(0, 8)
+        internet_price = 72.0 + rng.uniform(0, 8)
+        amazon_price = 78.0 + rng.uniform(0, 8)
         materials_quality = MaterialsQuality.superior
-        styling_budget = 400000 + rng.uniform(0, 200000)
+        styling_budget = 50000 + rng.uniform(0, 25000)
         models_offered = 10 + int(rng.uniform(0, 5))
-        tqm_investment = 200000 + rng.uniform(0, 100000)
-        best_practices_investment = rng.uniform(3000, 6000)
-        training_hours = rng.uniform(50, 100)
+        tqm_investment = 30000 + rng.uniform(0, 20000)
+        best_practices_investment = rng.uniform(1500, 4000)
+        training_hours = rng.uniform(40, 80)
         base_wage = 30000 + rng.uniform(0, 4000)
-        advertising_budget = 120000 + rng.uniform(0, 50000)
+        advertising_budget = 30000 + rng.uniform(0, 15000)
         retail_outlets = int(rng.uniform(8, 20))
         celebrity_endorsement = CelebrityEndorsement.global_
         delivery_time = DeliveryTime.rush
         influencer_tier = InfluencerTier.mega
-        social_media_budget = rng.uniform(30000, 60000)
-        tiktok_budget = rng.uniform(10000, 25000)
-        instagram_budget = rng.uniform(15000, 35000)
-        youtube_budget = rng.uniform(10000, 25000)
-        amazon_ad_budget = rng.uniform(10000, 25000)
-        private_label_bid_price = 20.0 + rng.uniform(0, 5)
-        private_label_max_units = int(rng.uniform(500, 2000))
+        social_media_budget = rng.uniform(10000, 25000)
+        tiktok_budget = rng.uniform(3000, 10000)
+        instagram_budget = rng.uniform(5000, 12000)
+        youtube_budget = rng.uniform(3000, 10000)
+        amazon_ad_budget = rng.uniform(3000, 8000)
+        private_label_bid_price = 30.0 + rng.uniform(0, 6)
+        private_label_max_units = int(rng.uniform(200, 800))
         free_shipping_threshold = rng.uniform(30, 80)
     else:  # balanced
-        wholesale_price = 28.0 + rng.uniform(0, 4)
-        internet_price = 30.0 + rng.uniform(0, 4)
-        amazon_price = 32.0 + rng.uniform(0, 4)
+        wholesale_price = 45.0 + rng.uniform(0, 6)
+        internet_price = 48.0 + rng.uniform(0, 6)
+        amazon_price = 52.0 + rng.uniform(0, 6)
         materials_quality = MaterialsQuality.standard
-        styling_budget = 200000 + rng.uniform(0, 150000)
+        styling_budget = 25000 + rng.uniform(0, 15000)
         models_offered = 6 + int(rng.uniform(0, 4))
-        tqm_investment = 80000 + rng.uniform(0, 70000)
-        best_practices_investment = rng.uniform(1000, 3000)
-        training_hours = rng.uniform(15, 50)
+        tqm_investment = 15000 + rng.uniform(0, 12000)
+        best_practices_investment = rng.uniform(500, 2000)
+        training_hours = rng.uniform(10, 40)
         base_wage = 25000 + rng.uniform(0, 2000)
-        advertising_budget = 80000 + rng.uniform(0, 50000)
+        advertising_budget = 18000 + rng.uniform(0, 12000)
         retail_outlets = int(rng.uniform(3, 12))
         celebrity_endorsement = rng.choice([
             CelebrityEndorsement.none,
@@ -676,25 +677,25 @@ def generate_ai_decision(
             InfluencerTier.nano,
             InfluencerTier.micro,
         ])
-        social_media_budget = rng.uniform(5000, 30000)
-        tiktok_budget = rng.uniform(0, 15000)
-        instagram_budget = rng.uniform(0, 15000)
-        youtube_budget = rng.uniform(0, 12000)
-        amazon_ad_budget = rng.uniform(0, 8000)
-        private_label_bid_price = 15.0 + rng.uniform(0, 4)
-        private_label_max_units = int(rng.uniform(800, 2500))
+        social_media_budget = rng.uniform(2000, 12000)
+        tiktok_budget = rng.uniform(0, 5000)
+        instagram_budget = rng.uniform(0, 5000)
+        youtube_budget = rng.uniform(0, 4000)
+        amazon_ad_budget = rng.uniform(0, 3000)
+        private_label_bid_price = 20.0 + rng.uniform(0, 4)
+        private_label_max_units = int(rng.uniform(300, 1000))
         free_shipping_threshold = rng.uniform(60, 120)
 
-    incentive_pay = rng.uniform(0, 2000)
-    training_budget = rng.uniform(0, 80000)
-    production_quantity = int(rng.uniform(5000, 15000))
-    overtime_percent = int(rng.uniform(0, 25))
-    csr_investment = rng.uniform(0, 50000)
-    dividends_per_share = rng.uniform(0, 2.0)
-    new_loan_amount = rng.uniform(0, 100000)
-    shares_buyback = int(rng.uniform(0, 1000))
-    shares_issued = int(rng.uniform(0, 500))
-    mail_in_rebate = rng.uniform(0, 3)
+    incentive_pay = rng.uniform(0, 5)
+    training_budget = rng.uniform(0, 20000)
+    production_quantity = int(rng.uniform(1000, 3000))
+    overtime_percent = int(rng.uniform(0, 20))
+    csr_investment = rng.uniform(0, 10000)
+    dividends_per_share = rng.uniform(0, 1.0)
+    new_loan_amount = rng.uniform(0, 20000)
+    shares_buyback = int(rng.uniform(0, 500))
+    shares_issued = int(rng.uniform(0, 200))
+    mail_in_rebate = rng.uniform(0, 2)
 
     return PlayerDecision(
         wholesalePrice=round(wholesale_price, 2),
@@ -740,6 +741,8 @@ def process_round(
     round_num: int,
     team_states: Dict[str, Dict[str, Any]],
     rng: Any = None,
+    scenario_id: str = "athletic-footwear-classic",
+    scenario_version: str = "1.0.0",
 ) -> Tuple[List[RoundResult], Dict[str, Dict[str, Any]]]:
     """
     Process one round of the simulation for all teams.
@@ -1005,7 +1008,8 @@ def process_round(
 
         # Workforce costs (iOS lines 334-338)
         wage_cost = d.baseWage * workers_needed / 1000.0
-        incentive_cost = d.incentivePay * gross_production
+        # incentivePay is per-worker, not per-unit
+        incentive_cost = d.incentivePay * workers_needed
         training_cost = d.trainingHours * 50.0 * workers_needed / 1000.0
         workforce_costs = wage_cost + incentive_cost + training_cost
 
@@ -1118,11 +1122,14 @@ def process_round(
         new_cash = cash + cash_change
 
         # Debt and equity (iOS lines 406-407)
+        # Allow equity to go negative (reflects real insolvency) but clamp at 0
+        # for debt-to-equity ratio calculation to avoid division issues
         new_debt = max(0, debt + d.newLoanAmount)
-        new_equity = max(1, equity + profit)
+        new_equity = equity + profit
+        equity_for_ratio = max(new_equity, 1.0)
 
         # Swift derives the ending rating from post-profit financials.
-        debt_to_equity = new_debt / new_equity if new_equity > 0 else 10
+        debt_to_equity = new_debt / equity_for_ratio if equity_for_ratio > 0 else 10
         interest_coverage = max(0, profit + interest_expense) / interest_expense if interest_expense > 0 else 20
         cash_ratio = new_cash / new_debt if new_debt > 0 else 5
         credit_rating = compute_credit_rating(debt_to_equity, interest_coverage, cash_ratio)
@@ -1165,8 +1172,12 @@ def process_round(
         )
 
         # EPS and ROE (iOS lines 421-422)
+        # ROE denominator = previous equity (not clamped new_equity)
+        # Use max(previous equity, 10% of initial equity) as floor to prevent
+        # absurd ROE values when equity is near zero after heavy losses
+        roe_denominator = max(equity, config.initialEquity * 0.1) if equity > 0 else config.initialEquity * 0.1
         eps = profit / new_shares
-        roe = profit / new_equity
+        roe = profit / roe_denominator
 
         # Stock price (iOS lines 450-464)
         stock_price = compute_stock_price(

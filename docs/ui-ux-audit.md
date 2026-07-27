@@ -1,4 +1,4 @@
-# UI/UX String Audit — BizSimAI iOS
+# UI/UX String Audit — Practenture iOS
 
 **Date:** 2026-07-16  
 **Scope:** All files in `Views/Components/DecisionInput/`, `DecisionInputViewModel.swift`, `TeamDashboardView.swift`, `PerformanceHistoryView.swift`, `AboutView.swift`, and all files in `Views/Professor/`.  
@@ -116,9 +116,9 @@ The AboutView "Decision Guide" card titles don't match the tab labels or section
 
 | # | File | Line | Current Text | Issue | Suggested Fix |
 |---|------|------|-------------|-------|---------------|
-| 14 | `AboutView.swift` | 22 | `"About BizSim AI"` | App name with space: "BizSim AI". | Pick one: "BizSim AI" (with space) or "BizSimAI" (no space). The Xcode project name and file headers use "BizSimAI" (no space). If the user-facing brand is "BizSim AI", update all internal references; otherwise, remove the space. |
-| 14 | `AboutView.swift` | 37 | `Text("BizSim AI")` | Same inconsistency. | — |
-| 14 | `AboutView.swift` | 69 | `"BizSim AI is a marketplace simulation..."` | Same inconsistency. | — |
+| 14 | `AboutView.swift` | 22 | `"About practenture AI"` | App name with space: "practenture AI". | Pick one: "practenture AI" (with space) or "Practenture" (no space). The Xcode project name and file headers use "Practenture" (no space). If the user-facing brand is "practenture AI", update all internal references; otherwise, remove the space. |
+| 14 | `AboutView.swift` | 37 | `Text("practenture AI")` | Same inconsistency. | — |
+| 14 | `AboutView.swift` | 69 | `"practenture AI is a marketplace simulation..."` | Same inconsistency. | — |
 | 14 | `AboutView.swift` | 270 | `"AI Coaching powered by Claude"` | Uses "AI" separately. Not directly inconsistent but worth noting the brand name should be standardized. | — |
 
 ---

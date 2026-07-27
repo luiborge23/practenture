@@ -1,4 +1,4 @@
-"""Pydantic models for BizSimAI — mirroring iOS SimulationModels.swift."""
+"""Pydantic models for Practenture — mirroring iOS SimulationModels.swift."""
 
 from __future__ import annotations
 
@@ -7,6 +7,12 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, model_validator
+
+from scenario_packs import (
+    DEFAULT_SCENARIO_ID,
+    DEFAULT_SCENARIO_VERSION,
+    get_scenario_pack,
+)
 
 
 # ── Enums ──────────────────────────────────────────────────────────────────
@@ -360,7 +366,7 @@ class PlayerDecision(BaseModel):
 
     # ── Workforce (WorkforceDecision) ───────────────────────────────────
     baseWage: float = Field(default=25000.0, ge=0)
-    incentivePay: float = Field(default=0.50, ge=0)  # per-unit incentive
+    incentivePay: float = Field(default=0.50, ge=0)  # per-worker incentive
     trainingHours: float = Field(default=20.0, ge=0)  # hours per worker
     bestPracticesInvestment: float = Field(default=1000.0, ge=0)
 
@@ -470,6 +476,13 @@ class Session(BaseModel):
     created_by: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
     maxHumanTeams: int = 30
+    scenarioId: str = DEFAULT_SCENARIO_ID
+    scenarioVersion: str = DEFAULT_SCENARIO_VERSION
+
+    @model_validator(mode="after")
+    def validate_scenario_pack(self) -> "Session":
+        get_scenario_pack(self.scenarioId, self.scenarioVersion)
+        return self
 
 
 # ── Announcements ──────────────────────────────────────────────────────────
@@ -519,6 +532,13 @@ class CreateSessionRequest(BaseModel):
     classId: Optional[str] = None
     # Convenience: num_rounds overrides config.totalRounds if provided
     num_rounds: Optional[int] = None
+    scenarioId: str = DEFAULT_SCENARIO_ID
+    scenarioVersion: str = DEFAULT_SCENARIO_VERSION
+
+    @model_validator(mode="after")
+    def validate_scenario_pack(self) -> "CreateSessionRequest":
+        get_scenario_pack(self.scenarioId, self.scenarioVersion)
+        return self
 
 
 class CreateSessionResponse(BaseModel):

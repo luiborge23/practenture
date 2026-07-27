@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-BizSimAI Login Permutation Tests
+Practenture Login Permutation Tests
 Tests all login/auth permutations for professor and student roles against live EC2 backend.
 """
 import requests
@@ -68,7 +68,7 @@ def auth_header(token):
 
 def main():
     print("=" * 80)
-    print("BizSimAI Login Permutation Tests")
+    print("Practenture Login Permutation Tests")
     print(f"Backend: {BASE_URL}")
     print("=" * 80)
 

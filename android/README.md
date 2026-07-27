@@ -1,4 +1,4 @@
-# BizSimAI Android
+# Practenture Android
 
 Thin Kotlin/Jetpack Compose client for the FastAPI backend. Online simulation formulas live only in the backend.
 

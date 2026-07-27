@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Practenture - System Health</title>
+    <link rel="stylesheet" href="/static/owner/owner.css">
+</head>
+<body>
+    <div class="container">
+        <h1>System Health Report</h1>
+        
+        <div id="health-report" class="health-card">
+            <h2>Database Health</h2>
+            <div id="database-health"></div>
+        </div>
+
+        <div class="health-card">
+            <h2>Backup Status</h2>
+            <div id="backup-status"></div>
+        </div>
+
+        <div class="health-card">
+            <h2>Foreign Key Integrity</h2>
+            <div id="foreign-key-integrity"></div>
+        </div>
+
+        <div class="health-card">
+            <h2>Domain Invariants</h2>
+            <div id="domain-invariants"></div>
+        </div>
+
+        <button class="btn btn-primary" onclick="refreshHealth()">Refresh Report</button>
+    </div>
+
+    <script src="/static/owner/health.js"></script>
+</body>
+</html>

@@ -1,5 +1,0 @@
-// Staging.xcconfig
-// BizSimAI — Staging environment configuration
-
-BIZSIMAI_BACKEND_URL = https://staging.bizsim.ai
-BIZSIMAI_ENVIRONMENT = Staging

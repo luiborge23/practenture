@@ -1,176 +1,167 @@
-# BizSimAI - GitHub Actions CI/CD Pipeline
-# Automated testing, building, and deployment
-
-name: BizSimAI CI/CD
+name: Practenture Quality Gates
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: practenture-quality-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
-  BIZSIMAI_JWT_SECRET: ${{ secrets.BIZSIMAI_JWT_SECRET || 'dev-secret-key-for-ci-testing-only' }}
-  PYTHON_VERSION: '3.11'
-  XCODE_VERSION: '15.4'
+  PYTHON_VERSION: "3.11"
+  PRACTENTURE_JWT_SECRET: "ci-only-secret-never-use-in-production"
+  SECRET_KEY: "ci-only-secret-never-use-in-production"
+  DATABASE_URL: "sqlite:////tmp/practenture-ci.db"
 
 jobs:
-  # ─── Backend Tests ───────────────────────────────────────────────
-  backend-test:
-    name: Backend Tests
+  backend-contracts:
+    name: Backend contracts, scenarios, and parity
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: BizSimAI/backend
+        working-directory: backend
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest pytest-cov httpx
-      
-      - name: Run unit tests
+      - name: Compile Python
+        run: python -m compileall -q .
+      - name: Contract and simulation gates
+        env:
+          PYTHONPATH: ${{ github.workspace }}/backend
         run: |
-          python -m pytest test_backend.py -v --cov=app --cov-report=xml
-      
-      - name: Run Phase 5 tests
-        run: |
-          python -m pytest test_phase5.py -v --cov=app --cov-report=xml
-      
-      - name: Run E2E tests
-        run: |
-          python -m pytest test_e2e.py -v
-      
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
+          set -euo pipefail
+          rm -f /tmp/practenture-ci.db
+          pytest -q \
+            tests/contracts \
+            tests/unit \
+            test_simulation_formula_parity.py \
+            test_simulation_invariants.py \
+            tests/test_simulation_golden_parity.py \
+            tests/test_migrations.py \
+            --junitxml=pytest-contracts.xml \
+            --cov=. --cov-report=xml:coverage.xml
+      - name: Upload backend evidence
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          file: ./backend/coverage.xml
-          flags: backend
+          name: backend-contract-evidence
+          path: |
+            backend/pytest-contracts.xml
+            backend/coverage.xml
 
-  # ─── iOS Build & Test ────────────────────────────────────────────
-  ios-build:
-    name: iOS Build
-    runs-on: macos-latest
-    needs: backend-test
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Select Xcode version
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: ${{ env.XCODE_VERSION }}
-      
-      - name: Resolve Swift Package Dependencies
-        run: |
-          xcodebuild -resolvePackageDependencies \
-            -project BizSimAI/BizSimAI.xcodeproj \
-            -scheme BizSimAI
-      
-      - name: Build for iPhone 17 Pro Simulator
-        run: |
-          xcodebuild build \
-            -project BizSimAI/BizSimAI.xcodeproj \
-            -scheme BizSimAI \
-            -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-            -configuration Debug \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            | xcpretty
-      
-      - name: Run iOS Unit Tests
-        run: |
-          xcodebuild test \
-            -project BizSimAI/BizSimAI.xcodeproj \
-            -scheme BizSimAI \
-            -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-            -configuration Debug \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            | xcpretty
-
-  # ─── Lint & Static Analysis ──────────────────────────────────────
-  lint:
-    name: Lint & Analysis
+  backend-regression:
+    name: Backend regression and 20-student simulation
+    needs: backend-contracts
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      
-      - name: Install linters
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: |
+          pip install -r requirements.txt
+          pip install pytest httpx
+      - name: Regression suite (includes 20-student E2E)
+        env:
+          PYTHONPATH: ${{ github.workspace }}/backend
         run: |
-          pip install ruff flake8 pylint
-      
-      - name: Run Ruff linter
-        run: |
-          ruff check BizSimAI/backend/
-      
-      - name: Run Flake8
-        run: |
-          flake8 BizSimAI/backend/ --max-line-length=120 --extend-ignore=E501
-
-  # ─── Docker Build (Production) ───────────────────────────────────
-  docker-build:
-    name: Docker Build
-    runs-on: ubuntu-latest
-    needs: [backend-test, ios-build]
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
+          set -euo pipefail
+          rm -f /tmp/practenture-ci.db
+          pytest -q \
+            test_backend.py \
+            test_phase5.py \
+            test_player_decision_contract.py \
+            test_simulation.py \
+            test_auth_comprehensive.py \
+            test_auth_enrollment.py \
+            test_auth_provider_security.py \
+            test_multi_tenant.py \
+            test_sota_phase2.py \
+            test_ai.py \
+            test_login_permutations.py \
+            --junitxml=pytest-regression.xml
+      - if: always()
+        uses: actions/upload-artifact@v4
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-      
-      - name: Build and push
-        uses: docker/build-push-action@v5
+          name: backend-regression-evidence
+          path: backend/pytest-regression.xml
+
+  ios-build-and-test:
+    name: iOS build-for-testing and tests
+    needs: backend-contracts
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select an available iPhone simulator
+        id: simulator
+        run: |
+          set -euo pipefail
+          UDID=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; rows=[x for runtime in d.values() for x in runtime if x.get("isAvailable") and x["name"].startswith("iPhone")]; print(rows[-1]["udid"] if rows else "")')
+          test -n "$UDID"
+          echo "destination=platform=iOS Simulator,id=$UDID" >> "$GITHUB_OUTPUT"
+      - name: Build for testing
+        run: |
+          set -euo pipefail
+          xcodebuild build-for-testing \
+            -project Practenture.xcodeproj \
+            -scheme Practenture \
+            -destination '${{ steps.simulator.outputs.destination }}' \
+            -derivedDataPath "$RUNNER_TEMP/PractentureDerivedData" \
+            CODE_SIGNING_ALLOWED=NO | tee "$RUNNER_TEMP/ios-build.log"
+      - name: Test without rebuilding
+        run: |
+          set -euo pipefail
+          xcodebuild test-without-building \
+            -project Practenture.xcodeproj \
+            -scheme Practenture \
+            -destination '${{ steps.simulator.outputs.destination }}' \
+            -derivedDataPath "$RUNNER_TEMP/PractentureDerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            -resultBundlePath "$RUNNER_TEMP/PractentureTests.xcresult" | tee "$RUNNER_TEMP/ios-test.log"
+      - name: Upload iOS evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-evidence
+          path: |
+            ${{ runner.temp }}/ios-build.log
+            ${{ runner.temp }}/ios-test.log
+            ${{ runner.temp }}/PractentureTests.xcresult
+
+  docker-build:
+    name: Reproducible backend image
+    needs: [backend-regression, ios-build-and-test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build without publishing
+        uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./BizSimAI/Dockerfile
-          push: true
-          tags: |
-            luisborges/bizsimai:latest
-            luisborges/bizsimai:${{ github.sha }}
+          file: Practenture/Dockerfile
+          push: false
+          tags: practenture:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  # ─── Deploy to Heroku (Production) ───────────────────────────────
-  deploy:
-    name: Deploy to Heroku
-    runs-on: ubuntu-latest
-    needs: docker-build
-    if: github.ref == 'refs/heads/main'
-    environment: production
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Deploy to Heroku
-        uses: akhileshns/heroku-deploy@v3.12.12
-        with:
-          heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
-          heroku_app_name: ${{ secrets.HEROKU_APP_NAME }}
-          heroku_email: ${{ secrets.HEROKU_EMAIL }}
-          usedocker: true

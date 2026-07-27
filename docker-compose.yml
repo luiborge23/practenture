@@ -1,29 +1,29 @@
 services:
-  bizsim-backend:
+  practenture-backend:
     build:
-      context: .
-      dockerfile: Dockerfile
-    image: bizsimai-backend:${BIZSIMAI_IMAGE_TAG:-stable}
-    container_name: bizsim-backend
+      context: ./backend
+      dockerfile: ../Dockerfile
+    image: practenture-backend:${PRACTENTURE_IMAGE_TAG:-stable}
+    container_name: practenture-backend
     restart: unless-stopped
     ports:
       # nginx is the only public entry point; retain loopback access for host diagnostics.
-      - "127.0.0.1:8005:8005"
+      - "127.0.0.1:8000:8000"
     volumes:
       - db-data:/data
     environment:
-      - BIZSIMAI_DB_PATH=/data/bizsim.db
-      - BIZSIMAI_JWT_SECRET=${BIZSIMAI_JWT_SECRET:-your-secret-key-change-in-production}
-      - BIZSIMAI_OWNER_USERNAME=${BIZSIMAI_OWNER_USERNAME:-owner}
-      - BIZSIMAI_OWNER_PASSWORD=${BIZSIMAI_OWNER_PASSWORD:-}
-      - BIZSIMAI_PROFESSOR_USERNAME=${BIZSIMAI_PROFESSOR_USERNAME:-professor}
-      - BIZSIMAI_PROFESSOR_PASSWORD=${BIZSIMAI_PROFESSOR_PASSWORD:-bizsimai2026}
-      - BIZSIMAI_JWT_EXPIRY_HOURS=${BIZSIMAI_JWT_EXPIRY_HOURS:-24}
-      - BIZSIMAI_APPLE_AUDIENCE=${BIZSIMAI_APPLE_AUDIENCE:-}
-      - BIZSIMAI_GOOGLE_AUDIENCE=${BIZSIMAI_GOOGLE_AUDIENCE:-}
-      - BIZSIMAI_CORS_ORIGINS=${BIZSIMAI_CORS_ORIGINS:-*}
+      - PRACTENTURE_DB_PATH=/data/practenture.db
+      - PRACTENTURE_JWT_SECRET=${PRACTENTURE_JWT_SECRET:-your-secret-key-change-in-production}
+      - PRACTENTURE_OWNER_USERNAME=${PRACTENTURE_OWNER_USERNAME:-owner}
+      - PRACTENTURE_OWNER_PASSWORD=${PRACTENTURE_OWNER_PASSWORD:-}
+      - PRACTENTURE_PROFESSOR_USERNAME=${PRACTENTURE_PROFESSOR_USERNAME:-professor}
+      - PRACTENTURE_PROFESSOR_PASSWORD=${PRACTENTURE_PROFESSOR_PASSWORD:-practenture2026}
+      - PRACTENTURE_JWT_EXPIRY_HOURS=${PRACTENTURE_JWT_EXPIRY_HOURS:-24}
+      - PRACTENTURE_APPLE_AUDIENCE=${PRACTENTURE_APPLE_AUDIENCE:-}
+      - PRACTENTURE_GOOGLE_AUDIENCE=${PRACTENTURE_GOOGLE_AUDIENCE:-}
+      - PRACTENTURE_CORS_ORIGINS=${PRACTENTURE_CORS_ORIGINS:-*}
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8005/api/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -31,14 +31,15 @@ services:
 
   nginx:
     image: nginx:alpine
-    container_name: bizsim-nginx
+    container_name: practenture-nginx
     restart: unless-stopped
     ports:
       - "80:80"
     volumes:
-      - ./nginx-bizsim.conf:/etc/nginx/conf.d/bizsim.conf:ro
+      - ./nginx-practenture.conf:/etc/nginx/conf.d/practenture.conf:ro
+      - /dev/null:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      bizsim-backend:
+      practenture-backend:
         condition: service_healthy
 
 volumes:

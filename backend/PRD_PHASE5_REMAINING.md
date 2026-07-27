@@ -1,4 +1,4 @@
-# BizSimAI Phase 5 Remaining — PRD
+# Practenture Phase 5 Remaining — PRD
 
 **Date:** 2026-05-07
 **Status:** Ready for Ralph Execution
@@ -106,11 +106,11 @@ Phase 5 core (Auth + WebSocket) is complete. The following items remain before c
 **So that** I don't have to modify code to change secrets.
 
 **Acceptance Criteria:**
-- `BIZSIMAI_JWT_SECRET` env var for JWT signing key (required, error if missing)
-- `BIZSIMAI_JWT_EXPIRY_HOURS` env var for token expiry (default: 24)
-- `BIZSIMAI_CORS_ORIGINS` env var for CORS (default: `*`)
-- `BIZSIMAI_HOST` env var for WebSocket host (default: `localhost`)
-- `BIZSIMAI_PORT` env var for server port (default: `8000`)
+- `PRACTENTURE_JWT_SECRET` env var for JWT signing key (required, error if missing)
+- `PRACTENTURE_JWT_EXPIRY_HOURS` env var for token expiry (default: 24)
+- `PRACTENTURE_CORS_ORIGINS` env var for CORS (default: `*`)
+- `PRACTENTURE_HOST` env var for WebSocket host (default: `localhost`)
+- `PRACTENTURE_PORT` env var for server port (default: `8000`)
 - Health check reflects config values
 
 **Technical Notes:**

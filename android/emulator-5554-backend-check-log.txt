@@ -1,5 +1,5 @@
 --------- beginning of main
-07-16 08:47:42.343  1172  1663 D ImsResolver: maybeAddedImsService, packageName: com.bizsimai.android
+07-16 08:47:42.343  1172  1663 D ImsResolver: maybeAddedImsService, packageName: com.practenture.android
 07-16 08:47:42.343  1248  1248 D StatsLog: LAUNCHER_ALLAPPS_COUNT
 07-16 08:47:42.359  1248  1248 D SearchTargetUtil: query= size=15
 07-16 08:47:42.359  1248  1248 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=social security 2027 cola estimate,input_query=android.app.search.Query@952608a,group_id=web1423789,response_id=b3b0c917-4f95-42a4-abb5-f6229a6ddeee,support_query_builder=false,} searchAction=social security 2027 cola estimate searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 51566015-400b-4a43-9729-e222e73f2323
@@ -18,16 +18,16 @@
 07-16 08:47:42.359  1248  1248 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=nyc legionnaires disease outbreak,input_query=android.app.search.Query@952608a,group_id=web1423789,response_id=b3b0c917-4f95-42a4-abb5-f6229a6ddeee,support_query_builder=false,} searchAction=nyc legionnaires disease outbreak searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: e3e80f98-a4be-44cc-887b-d98a74001d5c
 07-16 08:47:42.359  1248  1248 D SearchTargetUtil: layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=vaibhav bhaskar 11.99 gpa florida,input_query=android.app.search.Query@952608a,group_id=web1423789,response_id=b3b0c917-4f95-42a4-abb5-f6229a6ddeee,support_query_builder=false,} searchAction=vaibhav bhaskar 11.99 gpa florida searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 458fbc25-5477-4f9d-a784-15bca33b3959
 07-16 08:47:42.372   984   989 W ndroid.systemui: Reducing the number of considered missed Gc histogram windows from 139 to 100
-07-16 08:47:42.374   984   991 W ndroid.systemui: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~zSsUKoH3f4S0dJFi7EH4iA==/com.bizsimai.android-_Dz2cpfyaeznJY9xB6L6ig==/base.apk' with 2 weak references
+07-16 08:47:42.374   984   991 W ndroid.systemui: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~zSsUKoH3f4S0dJFi7EH4iA==/com.practenture.android-_Dz2cpfyaeznJY9xB6L6ig==/base.apk' with 2 weak references
 --------- beginning of system
 07-16 08:47:42.374   577   604 I DropBoxManagerService: add tag=system_app_strictmode isTagEnabled=true flags=0x2
-07-16 08:47:42.445   577  1904 I ActivityManager: Force stopping com.bizsimai.android appid=10207 user=0: from pid 4744
-07-16 08:47:42.445   577  1904 I WindowManager:   Force removing ActivityRecord{a1665eb u0 com.bizsimai.android/.MainActivity t9 f} isExiting}
-07-16 08:47:42.445   577  1904 W WindowManager: removeAppToken: Attempted to remove non-existing token: Token{51141e1 ActivityRecord{a1665eb u0 com.bizsimai.android/.MainActivity t9 f} isExiting}}
-07-16 08:47:42.447  1172  1172 D CarrierSvcBindHelper: onHandleForceStop: [com.bizsimai.android]
+07-16 08:47:42.445   577  1904 I ActivityManager: Force stopping com.practenture.android appid=10207 user=0: from pid 4744
+07-16 08:47:42.445   577  1904 I WindowManager:   Force removing ActivityRecord{a1665eb u0 com.practenture.android/.MainActivity t9 f} isExiting}
+07-16 08:47:42.445   577  1904 W WindowManager: removeAppToken: Attempted to remove non-existing token: Token{51141e1 ActivityRecord{a1665eb u0 com.practenture.android/.MainActivity t9 f} isExiting}}
+07-16 08:47:42.447  1172  1172 D CarrierSvcBindHelper: onHandleForceStop: [com.practenture.android]
 07-16 08:47:42.447  1172  1172 D CarrierSvcBindHelper: No carrier app for: 0
 07-16 08:47:42.447   577   932 I AppWidgetServiceImpl: Received broadcast: android.intent.action.PACKAGE_RESTARTED on user 0
-07-16 08:47:42.447   577   932 I AppWidgetServiceImpl: Updating package stopped masked state for uid 10207 package com.bizsimai.android isStopped true
+07-16 08:47:42.447   577   932 I AppWidgetServiceImpl: Updating package stopped masked state for uid 10207 package com.practenture.android isStopped true
 07-16 08:47:42.465   577  1904 W ActivityTaskManager: callingPackage for (uid=2000, pid=4749) has no WPC
 07-16 08:47:42.466   577  1904 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_USER_ASPECT_RATIO_OVERRIDE
 07-16 08:47:42.466   577  1904 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_USER_ASPECT_RATIO_FULLSCREEN_OVERRIDE
@@ -35,11 +35,11 @@
 07-16 08:47:42.466   577  1904 V GrammaticalInflectionUtils: AttributionSource: AttributionSource { uid = 10207, packageName = null, attributionTag = null, token = android.os.Binder@d6b3a30, deviceId = 0, next = null } does not have READ_SYSTEM_GRAMMATICAL_GENDER permission.
 07-16 08:47:42.466   577  1904 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_RESIZEABLE_ACTIVITY_OVERRIDES
 07-16 08:47:42.466   577  1904 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_MIN_ASPECT_RATIO_OVERRIDE
-07-16 08:47:42.467   577  1904 V SplashScreenExceptionList: SplashScreen checking exception for package com.bizsimai.android (target sdk:35) -> false
-07-16 08:47:42.468   577  1904 I ActivityTaskManager: Add Task{d592f48 #9 type=standard A=10207:com.bizsimai.android} to hidden list because adding Task{c7adc9e #10 type=standard A=10207:com.bizsimai.android}
-07-16 08:47:42.468   984  1042 V WindowManagerShell: Transition requested (#30): android.os.BinderProxy@c64f727 TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=10 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.bizsimai.android/.MainActivity } baseActivity=ComponentInfo{com.bizsimai.android/com.bizsimai.android.MainActivity} topActivity=ComponentInfo{com.bizsimai.android/com.bizsimai.android.MainActivity} origActivity=null realActivity=ComponentInfo{com.bizsimai.android/com.bizsimai.android.MainActivity} numActivities=1 lastActiveTime=1424015 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@9754dd4} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 132 - 0, 0) topActivityInfo=ActivityInfo{aa0eb7d com.bizsimai.android.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= falseisLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false topActivityEligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=1080 topActivityLetterboxHeight=2400 isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false cameraCompatTaskInfo=CameraCompatTaskInfo { cameraCompatControlState=hidden freeformCameraCompatMode=inactive}}}, pipTask = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 30 }
+07-16 08:47:42.467   577  1904 V SplashScreenExceptionList: SplashScreen checking exception for package com.practenture.android (target sdk:35) -> false
+07-16 08:47:42.468   577  1904 I ActivityTaskManager: Add Task{d592f48 #9 type=standard A=10207:com.practenture.android} to hidden list because adding Task{c7adc9e #10 type=standard A=10207:com.practenture.android}
+07-16 08:47:42.468   984  1042 V WindowManagerShell: Transition requested (#30): android.os.BinderProxy@c64f727 TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=10 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.practenture.android/.MainActivity } baseActivity=ComponentInfo{com.practenture.android/com.practenture.android.MainActivity} topActivity=ComponentInfo{com.practenture.android/com.practenture.android.MainActivity} origActivity=null realActivity=ComponentInfo{com.practenture.android/com.practenture.android.MainActivity} numActivities=1 lastActiveTime=1424015 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@9754dd4} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 132 - 0, 0) topActivityInfo=ActivityInfo{aa0eb7d com.practenture.android.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= falseisLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false topActivityEligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=1080 topActivityLetterboxHeight=2400 isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false cameraCompatTaskInfo=CameraCompatTaskInfo { cameraCompatControlState=hidden freeformCameraCompatMode=inactive}}}, pipTask = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 30 }
 07-16 08:47:42.469   577  2245 D CompatChangeReporter: Compat change id reported: 309578419; UID 10207; state: ENABLED
-07-16 08:47:42.469   577  1904 I ActivityTaskManager: START u0 {flg=0x10000000 cmp=com.bizsimai.android/.MainActivity} with LAUNCH_MULTIPLE from uid 2000 (BAL_ALLOW_PERMISSION) result code=0
+07-16 08:47:42.469   577  1904 I ActivityTaskManager: START u0 {flg=0x10000000 cmp=com.practenture.android/.MainActivity} with LAUNCH_MULTIPLE from uid 2000 (BAL_ALLOW_PERMISSION) result code=0
 07-16 08:47:42.470   577   605 V GrammaticalInflectionUtils: AttributionSource: AttributionSource { uid = 10207, packageName = null, attributionTag = null, token = android.os.Binder@d6b3a30, deviceId = 0, next = null } does not have READ_SYSTEM_GRAMMATICAL_GENDER permission.
 07-16 08:47:42.472  1248  1248 W SplitSelectStateCtor: Missing session instanceIds
 07-16 08:47:42.472  1248  1248 D StatsLog: LAUNCHER_SPLIT_SELECTION_EXIT_INTERRUPTED
@@ -47,19 +47,19 @@
 07-16 08:47:42.474   984  1068 D SplashScreenView: Build android.window.SplashScreenView{6e70d35 V.E...... ......ID 0,0-0,0}
 07-16 08:47:42.474   984  1068 D SplashScreenView: Icon: view: android.widget.ImageView{264f5ca V.ED..... ......I. 0,0-0,0 #1020504 android:id/splashscreen_icon_view} drawable: com.android.wm.shell.startingsurface.SplashscreenIconDrawableFactory$ImmobileIconDrawable@c1c633b size: 420
 07-16 08:47:42.474   984  1068 D SplashScreenView: Branding: view: android.view.View{8f46a58 G.ED..... ......I. 0,0-0,0 #1020503 android:id/splashscreen_branding_view} drawable: null size w: 0 h: 0
-07-16 08:47:42.475   577   613 I ActivityManager: Start proc 4752:com.bizsimai.android/u0a207 for next-top-activity {com.bizsimai.android/com.bizsimai.android.MainActivity}
+07-16 08:47:42.475   577   613 I ActivityManager: Start proc 4752:com.practenture.android/u0a207 for next-top-activity {com.practenture.android/com.practenture.android.MainActivity}
 07-16 08:47:42.476   984  1042 D WindowManagerShell: setLauncherKeepClearAreaHeight: visible=false, height=527
-07-16 08:47:42.476  1248  1248 I TopTaskTracker: onTaskMovedToFront: (moved taskInfo to front) taskId=10, baseIntent=Intent { flg=0x10000000 cmp=com.bizsimai.android/.MainActivity }
+07-16 08:47:42.476  1248  1248 I TopTaskTracker: onTaskMovedToFront: (moved taskInfo to front) taskId=10, baseIntent=Intent { flg=0x10000000 cmp=com.practenture.android/.MainActivity }
 07-16 08:47:42.476   577   932 I AppWidgetServiceImpl: Received broadcast: android.intent.action.PACKAGE_UNSTOPPED on user 0
-07-16 08:47:42.476   577   932 I AppWidgetServiceImpl: Updating package stopped masked state for uid 10207 package com.bizsimai.android isStopped false
+07-16 08:47:42.476   577   932 I AppWidgetServiceImpl: Updating package stopped masked state for uid 10207 package com.practenture.android isStopped false
 07-16 08:47:42.479  1539  1769 I AssistantForeground: (REDACTED) Get launcher package: %s
-07-16 08:47:42.487   577  1095 D CoreBackPreview: Window{e5b989b u0 Splash Screen com.bizsimai.android}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@4508250, mPriority=0, mIsAnimationCallback=false}
+07-16 08:47:42.487   577  1095 D CoreBackPreview: Window{e5b989b u0 Splash Screen com.practenture.android}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@4508250, mPriority=0, mIsAnimationCallback=false}
 07-16 08:47:42.491  4752  4752 I izsimai.android: Late-enabling -Xcheck:jni
 07-16 08:47:42.493   984  1087 V WindowManagerShell: onTransitionReady(transaction=2478196130509)
-07-16 08:47:42.493   577   602 V WindowManager: Sent Transition (#30) createdAt=07-16 08:47:42.466 via request=TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=10 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.bizsimai.android/.MainActivity } baseActivity=ComponentInfo{com.bizsimai.android/com.bizsimai.android.MainActivity} topActivity=ComponentInfo{com.bizsimai.android/com.bizsimai.android.MainActivity} origActivity=null realActivity=ComponentInfo{com.bizsimai.android/com.bizsimai.android.MainActivity} numActivities=1 lastActiveTime=1424015 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{4b30a6f Task{c7adc9e #10 type=standard A=10207:com.bizsimai.android}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 132 - 0, 0) topActivityInfo=ActivityInfo{e43737c com.bizsimai.android.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= falseisLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false topActivityEligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=1080 topActivityLetterboxHeight=2400 isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false cameraCompatTaskInfo=CameraCompatTaskInfo { cameraCompatControlState=hidden freeformCameraCompatMode=inactive}}}, pipTask = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 30 }
+07-16 08:47:42.493   577   602 V WindowManager: Sent Transition (#30) createdAt=07-16 08:47:42.466 via request=TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=10 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.practenture.android/.MainActivity } baseActivity=ComponentInfo{com.practenture.android/com.practenture.android.MainActivity} topActivity=ComponentInfo{com.practenture.android/com.practenture.android.MainActivity} origActivity=null realActivity=ComponentInfo{com.practenture.android/com.practenture.android.MainActivity} numActivities=1 lastActiveTime=1424015 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{4b30a6f Task{c7adc9e #10 type=standard A=10207:com.practenture.android}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 132 - 0, 0) topActivityInfo=ActivityInfo{e43737c com.practenture.android.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= falseisLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false topActivityEligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=1080 topActivityLetterboxHeight=2400 isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false cameraCompatTaskInfo=CameraCompatTaskInfo { cameraCompatControlState=hidden freeformCameraCompatMode=inactive}}}, pipTask = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 30 }
 07-16 08:47:42.493   577   602 V WindowManager:     startWCT=WindowContainerTransaction { changes = {} hops = [] errorCallbackToken=null taskFragmentOrganizer=null }
 07-16 08:47:42.493   577   602 V WindowManager:     info={id=30 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[
-07-16 08:47:42.493   577   602 V WindowManager:         {WCT{RemoteToken{4b30a6f Task{c7adc9e #10 type=standard A=10207:com.bizsimai.android}}} m=OPEN f=NONE leash=Surface(name=Task=10)/@0x7dc0c49 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},
+07-16 08:47:42.493   577   602 V WindowManager:         {WCT{RemoteToken{4b30a6f Task{c7adc9e #10 type=standard A=10207:com.practenture.android}}} m=OPEN f=NONE leash=Surface(name=Task=10)/@0x7dc0c49 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},
 07-16 08:47:42.493   577   602 V WindowManager:         {WCT{RemoteToken{f5620cd Task{4777284 #1 type=home}}} m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0x1e39936 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1}
 07-16 08:47:42.493   577   602 V WindowManager:     ]}
 07-16 08:47:42.494   984  1042 V WindowManagerShell: onTransitionReady (#30) android.os.BinderProxy@c64f727: {id=30 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{WCT{android.window.IWindowContainerToken$Stub$Proxy@a77d30f} m=OPEN f=NONE leash=Surface(name=Task=10)/@0x33a2c70 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},{WCT{android.window.IWindowContainerToken$Stub$Proxy@3ed9f9c} m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0x7ef3be9 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1}]}
@@ -72,7 +72,7 @@
 07-16 08:47:42.495   577   602 V WindowManager: Finish Transition (#29): created at 07-16 08:47:42.229 collect-started=0.014ms request-sent=0.079ms started=12.498ms ready=64.949ms sent=65.915ms finished=265.43ms
 --------- beginning of kernel
 07-16 08:47:42.495  1095  1095 I binder  : 1095:577 cannot find target node
-07-16 08:47:42.497   577  1095 W WindowManager: Exception thrown during dispatchAppVisibility Window{192456b u0 com.bizsimai.android/com.bizsimai.android.MainActivity EXITING}
+07-16 08:47:42.497   577  1095 W WindowManager: Exception thrown during dispatchAppVisibility Window{192456b u0 com.practenture.android/com.practenture.android.MainActivity EXITING}
 07-16 08:47:42.497   577  1095 W WindowManager: android.os.DeadObjectException
 07-16 08:47:42.497   577  1095 W WindowManager: 	at android.os.BinderProxy.transactNative(Native Method)
 07-16 08:47:42.497   577  1095 W WindowManager: 	at android.os.BinderProxy.transact(BinderProxy.java:586)
@@ -118,12 +118,12 @@
 07-16 08:47:42.506   577  1095 W UserManagerService: Requested status bar icon for non-badged user 0
 07-16 08:47:42.506   577  1860 W UserManagerService: Requested status bar icon for non-badged user 0
 07-16 08:47:42.508   984  1093 D EGL_emulation: app_time_stats: avg=20443.64ms min=20443.64ms max=20443.64ms count=1
-07-16 08:47:42.516  4752  4752 W ziparchive: Unable to open '/data/app/~~B5lpckB7gMiueJJjmWYmDw==/com.bizsimai.android-CPuesIll12CMo5LJ32BJlA==/base.dm': No such file or directory
-07-16 08:47:42.516  4752  4752 W ziparchive: Unable to open '/data/app/~~B5lpckB7gMiueJJjmWYmDw==/com.bizsimai.android-CPuesIll12CMo5LJ32BJlA==/base.dm': No such file or directory
+07-16 08:47:42.516  4752  4752 W ziparchive: Unable to open '/data/app/~~B5lpckB7gMiueJJjmWYmDw==/com.practenture.android-CPuesIll12CMo5LJ32BJlA==/base.dm': No such file or directory
+07-16 08:47:42.516  4752  4752 W ziparchive: Unable to open '/data/app/~~B5lpckB7gMiueJJjmWYmDw==/com.practenture.android-CPuesIll12CMo5LJ32BJlA==/base.dm': No such file or directory
 07-16 08:47:42.535   409   409 E BpTransactionCompletedListener: Failed to transact (-32)
 07-16 08:47:42.535   387   474 I RanchuHwc: logCompositionFallbackIfChanged: layer 28 CompositionType fallback from 2 to 1
 07-16 08:47:42.596   409   512 W VsyncModulator: setTransactionSchedule: Unexpected EarlyEnd
-07-16 08:47:42.697  4752  4752 D nativeloader: Configuring clns-7 for other apk /data/app/~~B5lpckB7gMiueJJjmWYmDw==/com.bizsimai.android-CPuesIll12CMo5LJ32BJlA==/base.apk. target_sdk_version=35, uses_libraries=, library_path=/data/app/~~B5lpckB7gMiueJJjmWYmDw==/com.bizsimai.android-CPuesIll12CMo5LJ32BJlA==/lib/arm64:/data/app/~~B5lpckB7gMiueJJjmWYmDw==/com.bizsimai.android-CPuesIll12CMo5LJ32BJlA==/base.apk!/lib/arm64-v8a, permitted_path=/data:/mnt/expand:/data/user/0/com.bizsimai.android
+07-16 08:47:42.697  4752  4752 D nativeloader: Configuring clns-7 for other apk /data/app/~~B5lpckB7gMiueJJjmWYmDw==/com.practenture.android-CPuesIll12CMo5LJ32BJlA==/base.apk. target_sdk_version=35, uses_libraries=, library_path=/data/app/~~B5lpckB7gMiueJJjmWYmDw==/com.practenture.android-CPuesIll12CMo5LJ32BJlA==/lib/arm64:/data/app/~~B5lpckB7gMiueJJjmWYmDw==/com.practenture.android-CPuesIll12CMo5LJ32BJlA==/base.apk!/lib/arm64-v8a, permitted_path=/data:/mnt/expand:/data/user/0/com.practenture.android
 07-16 08:47:42.698  4752  4752 D CompatChangeReporter: Compat change id reported: 202956589; UID 10207; state: ENABLED
 07-16 08:47:42.703  4752  4752 V GraphicsEnvironment: Currently set values for:
 07-16 08:47:42.703  4752  4752 V GraphicsEnvironment:   angle_gl_driver_selection_pkgs=[]
@@ -195,8 +195,8 @@
 07-16 08:47:42.785  1319  4791 I Fitness : FitCleanupIntentOperation received Intent android.intent.action.PACKAGE_REMOVED [CONTEXT service_id=17 ]
 07-16 08:47:42.785   984  1042 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#30) android.os.BinderProxy@c64f727@0
 07-16 08:47:42.788   577   602 V WindowManager: Finish Transition (#30): created at 07-16 08:47:42.466 collect-started=0.01ms request-sent=2.063ms started=3.636ms ready=26.414ms sent=26.961ms finished=320.193ms
-07-16 08:47:42.788  1319  4790 I ProximityAuth: [RecentAppsMediator] Package added: (user=UserHandle{0}) com.bizsimai.android
-07-16 08:47:42.790  1319  4777 I FontLog : Package com.bizsimai.android has no metadata [CONTEXT service_id=132 ]
+07-16 08:47:42.788  1319  4790 I ProximityAuth: [RecentAppsMediator] Package added: (user=UserHandle{0}) com.practenture.android
+07-16 08:47:42.790  1319  4777 I FontLog : Package com.practenture.android has no metadata [CONTEXT service_id=132 ]
 07-16 08:47:42.792   984  1042 V WindowManagerShell: Track 0 became idle
 07-16 08:47:42.792   984  1042 V WindowManagerShell: All active transition animations finished
 07-16 08:47:42.792   577  1098 W UserManagerService: Requested status bar icon for non-badged user 0
@@ -211,7 +211,7 @@
 07-16 08:47:42.806  1248  1248 D VRI[NexusLauncherActivity]: visibilityChanged oldVisibility=true newVisibility=false
 07-16 08:47:42.806  1525  1531 W ogle.android.as: Reducing the number of considered missed Gc histogram windows from 138 to 100
 07-16 08:47:42.806  1248  1248 D NexusLauncherModelDelegate: notifySmartspaceEvent: SmartspaceTargetEvent{mSmartspaceTarget=null, mSmartspaceActionId='null', mEventType=7}
-07-16 08:47:42.809  1552  4780 W SQLiteLog: (28) double-quoted string literal: "com.bizsimai.android"
+07-16 08:47:42.809  1552  4780 W SQLiteLog: (28) double-quoted string literal: "com.practenture.android"
 07-16 08:47:42.828  1552  4611 I Icing   : IndexChimeraService.getServiceInterface callingPackage=com.google.android.gms componentName=AppsCorpus serviceId=36
 07-16 08:47:42.829  1552  1552 D BoundBrokerSvc: onBind: Intent { act=com.google.android.gms.feedback.internal.IFeedbackService dat=chimera-action:/... cmp=com.google.android.gms/.chimera.GmsBoundBrokerService }
 07-16 08:47:42.829  1552  1552 D BoundBrokerSvc: Loading bound service for intent: Intent { act=com.google.android.gms.feedback.internal.IFeedbackService dat=chimera-action:/... cmp=com.google.android.gms/.chimera.GmsBoundBrokerService }
@@ -317,7 +317,7 @@
 07-16 08:47:42.902  1248  1248 D SsBaseTemplateCard: Passed-in item info is null
 07-16 08:47:42.902  1248  1248 I SsBaseTemplateCard: Secondary card pane is null
 07-16 08:47:42.976  4752  4757 I izsimai.android: Compiler allocated 5250KB to compile void android.view.ViewRootImpl.performTraversals()
-07-16 08:47:43.042   577  1098 D CoreBackPreview: Window{8225de0 u0 com.bizsimai.android/com.bizsimai.android.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@2952bba, mPriority=0, mIsAnimationCallback=false}
+07-16 08:47:43.042   577  1098 D CoreBackPreview: Window{8225de0 u0 com.practenture.android/com.practenture.android.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@2952bba, mPriority=0, mIsAnimationCallback=false}
 07-16 08:47:43.060  4752  4768 I EGL_emulation: Opening libGLESv1_CM_emulation.so
 07-16 08:47:43.061  4752  4768 I EGL_emulation: Opening libGLESv2_emulation.so
 07-16 08:47:43.065  4752  4768 W HWUI    : Failed to choose config with EGL_SWAP_BEHAVIOR_PRESERVED, retrying without...
@@ -325,8 +325,8 @@
 07-16 08:47:43.075   161   161 I hwservicemanager: getTransport: Cannot find entry android.hardware.graphics.mapper@4.0::IMapper/default in either framework or device VINTF manifest.
 07-16 08:47:43.075  4752  4768 I Gralloc4: mapper 4.x is not supported
 07-16 08:47:43.075   160   160 I servicemanager: Caller(pid=4752,uid=10207,sid=u:r:untrusted_app:s0:c207,c256,c512,c768) Could not find android.hardware.graphics.allocator.IAllocator/default in the VINTF manifest. No alternative instances declared in VINTF.
-07-16 08:47:43.098   577   602 W ziparchive: Unable to open '/data/app/~~B5lpckB7gMiueJJjmWYmDw==/com.bizsimai.android-CPuesIll12CMo5LJ32BJlA==/base.dm': No such file or directory
-07-16 08:47:43.098   577   602 I ActivityTaskManager: Displayed com.bizsimai.android/.MainActivity for user 0: +632ms
+07-16 08:47:43.098   577   602 W ziparchive: Unable to open '/data/app/~~B5lpckB7gMiueJJjmWYmDw==/com.practenture.android-CPuesIll12CMo5LJ32BJlA==/base.dm': No such file or directory
+07-16 08:47:43.098   577   602 I ActivityTaskManager: Displayed com.practenture.android/.MainActivity for user 0: +632ms
 07-16 08:47:43.106  1248  1248 D BaseDepthController: setSurface:
 07-16 08:47:43.106  1248  1248 D BaseDepthController: 	mWaitingOnSurfaceValidity: false
 07-16 08:47:43.106  1248  1248 D BaseDepthController: 	mSurface: null
@@ -340,14 +340,14 @@
 07-16 08:47:43.108  1248  2035 D OneSearchSuggestProvider: Shut down the binder channel
 07-16 08:47:43.108  1248  1248 D StatsLog: LAUNCHER_GOOGLE_SEARCH_RESTORE_LIST_SIZE_AFTER_ACTIVITY_RESTART
 07-16 08:47:43.108  1248  1260 I IPCThreadState: oneway function results for code 2 on binder at 0xb400007afaf710c0 will be dropped but finished with status UNKNOWN_TRANSACTION
-07-16 08:47:43.122   577   707 I ImeTracker: com.bizsimai.android:7f5d3ce: onRequestHide at ORIGIN_SERVER reason HIDE_UNSPECIFIED_WINDOW fromUser false
-07-16 08:47:43.122   577   707 I ImeTracker: com.bizsimai.android:7f5d3ce: onCancelled at PHASE_SERVER_SHOULD_HIDE
+07-16 08:47:43.122   577   707 I ImeTracker: com.practenture.android:7f5d3ce: onRequestHide at ORIGIN_SERVER reason HIDE_UNSPECIFIED_WINDOW fromUser false
+07-16 08:47:43.122   577   707 I ImeTracker: com.practenture.android:7f5d3ce: onCancelled at PHASE_SERVER_SHOULD_HIDE
 07-16 08:47:43.123  1476  1476 I GoogleInputMethodService: GoogleInputMethodService.onFinishInput():3157 
 07-16 08:47:43.123  1476  1476 I GoogleInputMethodService: GoogleInputMethodService.updateDeviceLockedStatus():2248 repeatCheckTimes = 0, locked = false
-07-16 08:47:43.123  1476  1476 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1986 onStartInput(EditorInfo{EditorInfo{packageName=com.bizsimai.android, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, false)
+07-16 08:47:43.123  1476  1476 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1986 onStartInput(EditorInfo{EditorInfo{packageName=com.practenture.android, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, false)
 07-16 08:47:43.123  1476  1476 I GoogleInputMethodService: GoogleInputMethodService.updateDeviceLockedStatus():2248 repeatCheckTimes = 1, locked = false
 07-16 08:47:43.123  1476  1476 I AndroidIME: InputBundleManager.loadActiveInputBundleId():450 loadActiveInputBundleId: und-Latn-x-password, password
-07-16 08:47:43.123   577  1904 W PackageConfigPersister: App-specific configuration not found for packageName: com.bizsimai.android and userId: 0
+07-16 08:47:43.123   577  1904 W PackageConfigPersister: App-specific configuration not found for packageName: com.practenture.android and userId: 0
 07-16 08:47:43.275  1319  2304 I FontLog : Received query Noto Color Emoji Compat, URI content://com.google.android.gms.fonts [CONTEXT service_id=132 ]
 07-16 08:47:43.275  1319  2304 I FontLog : Query [emojicompat-emoji-font] resolved to {Noto Color Emoji Compat, wdth 100.0, wght 400, ital 0.0, bestEffort false} [CONTEXT service_id=132 ]
 07-16 08:47:43.275  1319  2304 I FontLog : Fetch {Noto Color Emoji Compat, wdth 100.0, wght 400, ital 0.0, bestEffort false} end status Status{statusCode=SUCCESS, resolution=null} [CONTEXT service_id=132 ]
@@ -355,8 +355,8 @@
 07-16 08:47:43.280  1319  2304 I FontLog : Pulling font file for id = 8, cache size = 7 [CONTEXT service_id=132 ]
 07-16 08:47:43.294   365   365 I netd    : tetherGetStats() -> {[]} <0.32ms>
 07-16 08:47:43.455   984  1067 W WindowOnBackDispatcher: sendCancelIfRunning: isInProgress=false callback=android.view.ViewRootImpl$$ExternalSyntheticLambda11@6e3f817
-07-16 08:47:43.455   577  1098 W InputManager-JNI: Input channel object 'e5b989b Splash Screen com.bizsimai.android (client)' was disposed without first being removed with the input manager!
-07-16 08:47:43.456   577  1863 D CoreBackPreview: Window{e5b989b u0 Splash Screen com.bizsimai.android EXITING}: Setting back callback null
+07-16 08:47:43.455   577  1098 W InputManager-JNI: Input channel object 'e5b989b Splash Screen com.practenture.android (client)' was disposed without first being removed with the input manager!
+07-16 08:47:43.456   577  1863 D CoreBackPreview: Window{e5b989b u0 Splash Screen com.practenture.android EXITING}: Setting back callback null
 07-16 08:47:43.505   984  1067 W FrameTracker: Missed SF frame:PREDICTION_ERROR, 16631, 2766079, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
 07-16 08:47:43.506   984  1067 W FrameTracker: Missed SF frame:PREDICTION_ERROR, 16727, 2444541, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
 07-16 08:47:43.506   984  1067 W FrameTracker: Missed SF frame:PREDICTION_ERROR, 16806, 3140755, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
@@ -369,7 +369,7 @@
 07-16 08:47:48.206   161   161 I hwservicemanager: getTransport: Cannot find entry android.hardware.graphics.mapper@4.0::IMapper/default in either framework or device VINTF manifest.
 07-16 08:47:48.206  4816  4817 I Gralloc4: mapper 4.x is not supported
 07-16 08:47:48.207   160   160 I servicemanager: Caller(pid=4816,uid=2000,sid=u:r:shell:s0) Could not find android.hardware.graphics.allocator.IAllocator/default in the VINTF manifest. No alternative instances declared in VINTF.
-07-16 08:47:48.731  4752  4821 D ProfileInstaller: Installing profile for com.bizsimai.android
+07-16 08:47:48.731  4752  4821 D ProfileInstaller: Installing profile for com.practenture.android
 07-16 08:47:48.918   365   365 I netd    : tetherGetStats() -> {[]} <0.37ms>
 07-16 08:47:50.481  1689  1689 I wpa_supplicant: wlan0: CTRL-EVENT-BEACON-LOSS 
 07-16 08:47:52.281   577   687 D ActivityManager: freezing 3310 com.google.android.apps.messaging

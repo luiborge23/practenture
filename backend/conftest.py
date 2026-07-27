@@ -15,14 +15,14 @@ from pathlib import Path
 import pytest
 
 
-_TEST_DB_DIR = Path(tempfile.mkdtemp(prefix="bizsimai-pytest-"))
-os.environ["BIZSIMAI_DB_PATH"] = str(_TEST_DB_DIR / "test.db")
+_TEST_DB_DIR = Path(tempfile.mkdtemp(prefix="practenture-pytest-"))
+os.environ["PRACTENTURE_DB_PATH"] = str(_TEST_DB_DIR / "test.db")
 # Legacy auth tests exercise real password verification. These credentials are
 # scoped to the pytest process and never become production defaults.
-os.environ["BIZSIMAI_PROFESSOR_USERNAME"] = "professor"
-os.environ["BIZSIMAI_PROFESSOR_PASSWORD"] = "bizsimai2026"
-os.environ["BIZSIMAI_OWNER_USERNAME"] = "owner"
-os.environ["BIZSIMAI_OWNER_PASSWORD"] = "bizsimai2026"
+os.environ["PRACTENTURE_PROFESSOR_USERNAME"] = "professor"
+os.environ["PRACTENTURE_PROFESSOR_PASSWORD"] = "practenture2026"
+os.environ["PRACTENTURE_OWNER_USERNAME"] = "owner"
+os.environ["PRACTENTURE_OWNER_PASSWORD"] = "practenture2026"
 
 
 @pytest.fixture(scope="session")
@@ -30,7 +30,7 @@ def _bootstrap_password_hash() -> str:
     """Compute the deliberately slow test password hash only once."""
     from security import hash_password
 
-    return hash_password("bizsimai2026")
+    return hash_password("practenture2026")
 
 
 @pytest.fixture(autouse=True)

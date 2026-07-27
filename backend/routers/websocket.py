@@ -1,4 +1,4 @@
-"""WebSocket endpoint for BizSimAI real-time updates."""
+"""WebSocket endpoint for Practenture real-time updates."""
 
 import json
 

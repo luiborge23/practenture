@@ -52,14 +52,14 @@ Run against local, staging, and EC2 before client E2E:
 
 ```bash
 export BASE_URL='https://<staging-or-production-host>'
-curl --fail --silent --show-error "$BASE_URL/openapi.json" -o /tmp/bizsim-openapi.json
-jq -e '.paths["/api/sessions/{code}/submit_decision"].post' /tmp/bizsim-openapi.json
-jq -e '.paths["/api/sessions/{code}/process_round"].post' /tmp/bizsim-openapi.json
-jq -e '.paths["/api/sessions/{code}/status"].get' /tmp/bizsim-openapi.json
-jq -e '.paths["/api/sessions/{code}/results"].get' /tmp/bizsim-openapi.json
-jq -e '.paths["/api/sessions/{code}/leaderboard"].get' /tmp/bizsim-openapi.json
-jq -e '.components.schemas.SubmitDecisionRequest' /tmp/bizsim-openapi.json
-jq -e '.components.schemas.ProcessRoundResponse' /tmp/bizsim-openapi.json
+curl --fail --silent --show-error "$BASE_URL/openapi.json" -o /tmp/practenture-openapi.json
+jq -e '.paths["/api/sessions/{code}/submit_decision"].post' /tmp/practenture-openapi.json
+jq -e '.paths["/api/sessions/{code}/process_round"].post' /tmp/practenture-openapi.json
+jq -e '.paths["/api/sessions/{code}/status"].get' /tmp/practenture-openapi.json
+jq -e '.paths["/api/sessions/{code}/results"].get' /tmp/practenture-openapi.json
+jq -e '.paths["/api/sessions/{code}/leaderboard"].get' /tmp/practenture-openapi.json
+jq -e '.components.schemas.SubmitDecisionRequest' /tmp/practenture-openapi.json
+jq -e '.components.schemas.ProcessRoundResponse' /tmp/practenture-openapi.json
 ```
 
 Add a repository script that validates required paths, methods, security declarations, request fields, response fields, numeric types, enum values, and nullability. Store the fetched OpenAPI SHA-256 in every E2E report. Fail CI when generated Swift/Kotlin DTO assumptions drift from live OpenAPI.
@@ -72,7 +72,7 @@ Create this module when an Android repository is available:
 
 ```text
 app/src/main/java/.../network/
-  BizSimApi.kt
+  practentureApi.kt
   SessionDtos.kt
   DecisionDtos.kt
   ResultDtos.kt
@@ -86,7 +86,7 @@ app/src/androidTest/java/.../
 Retrofit contract:
 
 ```kotlin
-interface BizSimApi {
+interface practentureApi {
   @PUT("api/sessions/{code}/join") suspend fun join(...): JoinSessionResponse
   @POST("api/sessions/{code}/submit_decision") suspend fun submit(...): Response<Unit>
   @POST("api/sessions/{code}/process_round") suspend fun processRound(...): ProcessRoundResponse
@@ -104,7 +104,7 @@ Android rules:
 - Do not port simulation formulas into the online client.
 - Use `kotlinx.serialization` with explicit backend names and strict enum/required-field tests.
 - Use MockWebServer to assert method, path, auth header, body, one process call, zero advance calls, and status/result application.
-- Add a staging instrumentation smoke controlled by `BIZSIMAI_BASE_URL`, professor token, and student token environment variables.
+- Add a staging instrumentation smoke controlled by `PRACTENTURE_BASE_URL`, professor token, and student token environment variables.
 
 Android completion gate: generated/manual DTOs pass schema fixtures from the same OpenAPI SHA used by iOS and API E2E. Until a repository exists, this section is the handoff contract, not a claim that Android is implemented.
 
@@ -113,12 +113,12 @@ Android completion gate: generated/manual DTOs pass schema fixtures from the sam
 Create `backend/e2e/test_backend_authoritative_flow.py` and run it only against an isolated database or disposable test namespace. Parameterize:
 
 ```bash
-export BIZSIMAI_BASE_URL='http://127.0.0.1:8000'
-export BIZSIMAI_PROFESSOR_EMAIL='e2e-professor@example.invalid'
-export BIZSIMAI_PROFESSOR_PASSWORD='<secret>'
-export BIZSIMAI_STUDENT_TOKEN='<test-token-if-required>'
+export PRACTENTURE_BASE_URL='http://127.0.0.1:8000'
+export PRACTENTURE_PROFESSOR_EMAIL='e2e-professor@example.invalid'
+export PRACTENTURE_PROFESSOR_PASSWORD='<secret>'
+export PRACTENTURE_STUDENT_TOKEN='<test-token-if-required>'
 python -m pytest -q backend/e2e/test_backend_authoritative_flow.py \
-  --students=20 --rounds=8 --report=/tmp/bizsim-e2e-report.json
+  --students=20 --rounds=8 --report=/tmp/practenture-e2e-report.json
 ```
 
 ### Test lifecycle
@@ -172,7 +172,7 @@ python -m pytest -q e2e/test_backend_authoritative_flow.py --students=20 --round
 
 # iOS
 cd ..
-xcodebuild -project BizSimAI.xcodeproj -scheme BizSimAI \
+xcodebuild -project Practenture.xcodeproj -scheme Practenture \
   -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build test
 ```
 
@@ -209,17 +209,17 @@ Rollback immediately on schema mismatch, migration failure, authorization regres
 
 ## 8. Real-device iOS test matrix
 
-Prerequisites: physical unlocked iPhone, trusted Mac, valid signing/provisioning, EC2 HTTPS URL in `BIZSIMAI_BACKEND_URL`, professor and student test accounts, and access to server/nginx logs.
+Prerequisites: physical unlocked iPhone, trusted Mac, valid signing/provisioning, EC2 HTTPS URL in `PRACTENTURE_BACKEND_URL`, professor and student test accounts, and access to server/nginx logs.
 
 Build/install evidence commands:
 
 ```bash
 xcrun xctrace list devices
-xcodebuild -project BizSimAI.xcodeproj -scheme BizSimAI \
+xcodebuild -project Practenture.xcodeproj -scheme Practenture \
   -destination 'platform=iOS,id=<DEVICE_UDID>' \
-  -configuration Debug -derivedDataPath /tmp/BizSimAIDerivedData build
+  -configuration Debug -derivedDataPath /tmp/PractentureDerivedData build
 xcrun devicectl device install app --device <DEVICE_UDID> \
-  /tmp/BizSimAIDerivedData/Build/Products/Debug-iphoneos/BizSimAI.app
+  /tmp/PractentureDerivedData/Build/Products/Debug-iphoneos/Practenture.app
 xcrun devicectl device process launch --device <DEVICE_UDID> <bundle-id>
 ```
 

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Practenture - Pre-create Professor</title>
+    <link rel="stylesheet" href="/static/owner/owner.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Pre-create Professor Account</h1>
+        
+        <form id="precreate-form" class="form-card">
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" required pattern="[a-zA-Z0-9_-]+" placeholder="prof_john_doe">
+                <small>Letters, numbers, underscores, and hyphens only</small>
+            </div>
+
+            <div class="form-group">
+                <label for="name">Full Name:</label>
+                <input type="text" id="name" required placeholder="John Doe">
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" required placeholder="prof@university.edu">
+            </div>
+
+            <div class="form-group">
+                <label for="organization">Organization:</label>
+                <select id="organization" required>
+                    <!-- Organizations will be populated here -->
+                </select>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Pre-create Account</button>
+                <a href="#/professors" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+
+        <div id="result" class="hidden">
+            <h2>Account Pre-created</h2>
+            <div class="result-card">
+                <p><strong>Username:</strong> <code id="precreated_username"></code></p>
+                <p><strong>Name:</strong> <span id="precreated_name"></span></p>
+                <p><strong>Email:</strong> <code id="precreated_email"></code></p>
+                <p>The professor will receive an invitation to complete registration.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/owner/precreate.js"></script>
+</body>
+</html>

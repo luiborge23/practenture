@@ -1,6 +1,6 @@
-# BizSimAI Backend
+# Practenture Backend
 
-FastAPI backend for BizSimAI real-time business simulation platform.
+FastAPI backend for Practenture real-time business simulation platform.
 
 ## Setup
 

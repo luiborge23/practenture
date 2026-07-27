@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-BizSimAI Multi-Tenant Combinatorial Test Suite
+Practenture Multi-Tenant Combinatorial Test Suite
 ==============================================
 
 Tests ALL combinations of the multi-tenant system on EC2:
@@ -158,7 +158,7 @@ def group_A_bootstrap():
     state["owner_token"] = token
     
     # A3: Default professor login (backward compat)
-    token, role, must_change = login("password", "professor", "bizsimai2026")
+    token, role, must_change = login("password", "professor", "practenture2026")
     check("A", "A3. Default professor login", token is not None and role == "professor", f"role={role}")
     state["default_prof_token"] = token
     
@@ -682,7 +682,7 @@ def main():
     global OWNER_PASSWORD
     
     print("=" * 70)
-    print("  BizSimAI Multi-Tenant Combinatorial Test Suite")
+    print("  Practenture Multi-Tenant Combinatorial Test Suite")
     print(f"  Target: {BASE_URL}")
     print("=" * 70)
     
@@ -692,17 +692,17 @@ def main():
         import subprocess
         try:
             result = subprocess.run(
-                ["ssh", "-i", os.path.expanduser("~/.ssh/bizsimai"),
+                ["ssh", "-i", os.path.expanduser("~/.ssh/practenture"),
                  "-o", "StrictHostKeyChecking=no",
                  "ec2-user@18.215.180.58",
-                 "docker exec bizsim-backend env | grep BIZSIMAI_OWNER_PASSWORD"],
+                 "docker exec practenture-backend env | grep PRACTENTURE_OWNER_PASSWORD"],
                 capture_output=True, text=True, timeout=10
             )
-            if result.returncode == 0 and "BIZSIMAI_OWNER_PASSWORD=" in result.stdout:
+            if result.returncode == 0 and "PRACTENTURE_OWNER_PASSWORD=" in result.stdout:
                 OWNER_PASSWORD = result.stdout.strip().split("=")[1]
                 print(f"  ✅ Found owner password: {OWNER_PASSWORD[:4]}****")
             else:
-                print("  ❌ Could not fetch owner password. Run: ssh -i ~/.ssh/bizsimai ec2-user@18.215.180.58 'docker exec bizsim-backend env | grep OWNER_PASS'")
+                print("  ❌ Could not fetch owner password. Run: ssh -i ~/.ssh/practenture ec2-user@18.215.180.58 'docker exec practenture-backend env | grep OWNER_PASS'")
                 sys.exit(1)
         except Exception as e:
             print(f"  ❌ SSH failed: {e}")

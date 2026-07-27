@@ -24,9 +24,10 @@ def run() -> tuple[list[dict], dict]:
     python_output = BUILD / "python-output.json"
     subprocess.run([
         "swiftc",
-        str(ROOT / "BizSimAI/Models/SimulationModels.swift"),
-        str(ROOT / "BizSimAI/Engine/SimulationSnapshot.swift"),
-        str(ROOT / "BizSimAI/Engine/SimulationEngine.swift"),
+        str(ROOT / "Practenture/Models/ScenarioLibrary.swift"),
+        str(ROOT / "Practenture/Models/SimulationModels.swift"),
+        str(ROOT / "Practenture/Engine/SimulationSnapshot.swift"),
+        str(ROOT / "Practenture/Engine/SimulationEngine.swift"),
         str(HERE / "SwiftGoldenRunner.swift"), "-o", str(swift_bin),
     ], check=True, cwd=ROOT)
     subprocess.run([str(swift_bin), str(FIXTURE), str(swift_output)], check=True, cwd=ROOT)

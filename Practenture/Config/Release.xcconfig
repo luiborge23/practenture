@@ -1,0 +1,12 @@
+// Release.xcconfig
+// Practenture — Production environment configuration
+
+PRACTENTURE_BACKEND_URL = https://practenture.com
+PRACTENTURE_ENVIRONMENT = Release
+
+// Production optimization and hardening
+STRIP_SWIFT_SYMBOLS = YES
+SWIFT_OPTIMIZATION_LEVEL = -O
+DEAD_CODE_STRIPPING = YES
+ENABLE_NS_ASSERTIONS = NO
+VALIDATE_PRODUCT = YES

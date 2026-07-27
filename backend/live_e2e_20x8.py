@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Destructive-safe live HTTP QA: unique 20-team, 8-round session, then cleanup."""
 import json, os, sys, time, urllib.error, urllib.request
-BASE=os.environ.get("BIZSIMAI_E2E_BASE_URL","http://127.0.0.1") .rstrip("/")
+BASE=os.environ.get("PRACTENTURE_E2E_BASE_URL","http://127.0.0.1") .rstrip("/")
 
 def request(method,path,payload=None,token=None,expected=(200,)):
     data=None if payload is None else json.dumps(payload).encode()
@@ -42,8 +42,8 @@ def decision(i,r):
     }
 
 def main():
-    user=os.environ.get("BIZSIMAI_PROFESSOR_USERNAME","professor")
-    password=os.environ["BIZSIMAI_PROFESSOR_PASSWORD"]
+    user=os.environ.get("PRACTENTURE_PROFESSOR_USERNAME","professor")
+    password=os.environ["PRACTENTURE_PROFESSOR_PASSWORD"]
     login=request("POST","/api/auth/login",{"username":user,"password":password,"provider":"password"})
     token=login.get("accessToken") or login.get("access_token")
     assert token, "login response missing token"

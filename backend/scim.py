@@ -232,7 +232,7 @@ def _verify_scim_token(token: str) -> bool:
         return False
 
     import os
-    scim_token = os.environ.get("BIZSIMAI_SCIM_TOKEN")
+    scim_token = os.environ.get("PRACTENTURE_SCIM_TOKEN")
     if scim_token and hmac.compare_digest(token, scim_token):
         return True
 

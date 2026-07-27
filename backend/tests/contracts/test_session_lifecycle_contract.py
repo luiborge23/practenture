@@ -36,7 +36,7 @@ def test_create_exact_response_ai_generation_and_stored_tenant():
     r=client.get(f"/api/sessions/{code}",headers=H("prof-a","professor"))
     assert r.status_code==200
     body=r.json()
-    assert set(body)=={"id","code","config","teams","currentRound","state","results","created_by","created_at","maxHumanTeams"}
+    assert set(body)=={"id","code","config","teams","currentRound","state","results","created_by","created_at","maxHumanTeams","scenarioId","scenarioVersion"}
     assert re.fullmatch(r"BIZ-[A-Z0-9]{4}",code)
     assert [t["teamName"] for t in body["teams"]]==["AI-Aggressive-1","AI-Quality-2","AI-Lowcost-3"]
     assert all(t["isAI"] for t in body["teams"])

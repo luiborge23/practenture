@@ -68,9 +68,9 @@ owner_password = None
 try:
     import subprocess
     result = subprocess.run(
-        ["ssh", "-i", "~/.ssh/bizsimai", "-o", "StrictHostKeyChecking=no",
+        ["ssh", "-i", "~/.ssh/practenture", "-o", "StrictHostKeyChecking=no",
          "ec2-user@18.215.180.58",
-         "docker exec bizsim-backend env | grep BIZSIMAI_OWNER_PASSWORD"],
+         "docker exec practenture-backend env | grep PRACTENTURE_OWNER_PASSWORD"],
         capture_output=True, text=True, timeout=10
     )
     for line in result.stdout.strip().split("\n"):
@@ -94,7 +94,7 @@ print(f"{'='*70}\n")
 
 # ── Test 1: Professor login WITHOUT MFA (baseline) ──
 print("┌─ Test 1: Professor Login (no MFA, baseline) ───────────────")
-prof_password = "bizsimai2026"
+prof_password = "practenture2026"
 status, body = login("password", username="professor", password=prof_password)
 check("T1", "Login returns 200", status == 200, f"got {status}, body: {body}")
 check("T1", "Has accessToken", status == 200 and bool(body.get("accessToken")), f"body: {body}")

@@ -9,6 +9,8 @@ from pydantic import BaseModel
 
 from auth import get_current_user, verify_professor
 from database import db
+from scenario_packs import SCENARIO_PACKS
+
 from models import (
     CreateSessionRequest,
     CreateSessionResponse,
@@ -47,6 +49,17 @@ class CreateSessionRequestWithClass(BaseModel):
     maxHumanTeams: int = 30
     classId: Optional[str] = None
 
+
+
+
+@router.get("/scenarios")
+def list_scenario_packs():
+    """List selectable, production-backed scenario packs.
+
+    Research-only scenarios are intentionally excluded until their formulas and
+    calibration gates pass.
+    """
+    return {"scenarios": [pack.to_dict() for pack in SCENARIO_PACKS.list()]}
 
 @router.post("", response_model=CreateSessionResponse, status_code=201)
 async def create_session(req: CreateSessionRequest, user=Depends(verify_professor)):
@@ -88,6 +101,8 @@ async def create_session(req: CreateSessionRequest, user=Depends(verify_professo
         max_human_teams=req.maxHumanTeams,
         professor_user_id=user["sub"],
         class_id=req.classId,
+        scenario_id=req.scenarioId,
+        scenario_version=req.scenarioVersion,
     )
     return CreateSessionResponse(sessionId=db.sessions[code].id, code=code)
 

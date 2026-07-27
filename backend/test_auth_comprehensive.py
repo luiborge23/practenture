@@ -1,4 +1,4 @@
-"""Comprehensive auth permutation tests for BizSimAI.
+"""Comprehensive auth permutation tests for Practenture.
 
 Covers ALL authentication flows:
 1. Password auth (professor, student, owner)
@@ -32,6 +32,23 @@ from auth import (
 )
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def mock_provider_verification(monkeypatch):
+    """Decode test tokens only after the production verifier boundary is replaced."""
+    def verified_claims(token, expected_audience=None):
+        try:
+            parts = token.split(".")
+            if len(parts) != 3:
+                return None
+            padded = parts[1] + "=" * (-len(parts[1]) % 4)
+            return json.loads(base64.urlsafe_b64decode(padded).decode())
+        except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
+            return None
+
+    monkeypatch.setattr("auth.verify_apple_id_token", verified_claims)
+    monkeypatch.setattr("auth.verify_google_id_token", verified_claims)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
@@ -91,7 +108,7 @@ class TestPasswordAuthProfessor:
 
     def test_p1_professor_login_success(self):
         """P1: Professor logs in with correct password."""
-        resp = login("password", username="professor", password="bizsimai2026")
+        resp = login("password", username="professor", password="practenture2026")
         assert resp.status_code == 200
         data = resp.json()
         assert data["role"] == "professor"
@@ -114,17 +131,17 @@ class TestPasswordAuthProfessor:
 
     def test_p4_professor_missing_username(self):
         """P4: Missing username returns 400."""
-        resp = login("password", password="bizsimai2026")
+        resp = login("password", password="practenture2026")
         assert resp.status_code == 400
 
     def test_p5_professor_nonexistent_user(self):
         """P5: Non-existent professor returns 401."""
-        resp = login("password", username="fakeprof", password="bizsimai2026")
+        resp = login("password", username="fakeprof", password="practenture2026")
         assert resp.status_code == 401
 
     def test_p6_professor_token_contains_role(self):
         """P6: JWT payload contains correct role."""
-        resp = login("password", username="professor", password="bizsimai2026")
+        resp = login("password", username="professor", password="practenture2026")
         token = resp.json()["accessToken"]
         payload = _verify_token(token)
         assert payload is not None
@@ -132,7 +149,7 @@ class TestPasswordAuthProfessor:
 
     def test_p7_professor_token_expiry_set(self):
         """P7: JWT has reasonable expiry (15 min SOTA)."""
-        resp = login("password", username="professor", password="bizsimai2026")
+        resp = login("password", username="professor", password="practenture2026")
         token = resp.json()["accessToken"]
         payload = _verify_token(token)
         assert payload is not None
@@ -143,7 +160,7 @@ class TestPasswordAuthProfessor:
 
     def test_p8_professor_verify_endpoint(self):
         """P8: Verified token works on /verify endpoint."""
-        resp = login("password", username="professor", password="bizsimai2026")
+        resp = login("password", username="professor", password="practenture2026")
         token = resp.json()["accessToken"]
         vresp = client.post("/api/auth/verify",
                             headers={"Authorization": f"Bearer {token}"})
@@ -153,7 +170,7 @@ class TestPasswordAuthProfessor:
 
     def test_p9_professor_professor_only_endpoint(self):
         """P9: Professor can access professor-only endpoint."""
-        resp = login("password", username="professor", password="bizsimai2026")
+        resp = login("password", username="professor", password="practenture2026")
         token = resp.json()["accessToken"]
         vresp = client.post("/api/auth/professor-only",
                             headers={"Authorization": f"Bearer {token}"})
@@ -161,7 +178,7 @@ class TestPasswordAuthProfessor:
 
     def test_p10_professor_student_or_professor_endpoint(self):
         """P10: Professor can access student-or-professor endpoint."""
-        resp = login("password", username="professor", password="bizsimai2026")
+        resp = login("password", username="professor", password="practenture2026")
         token = resp.json()["accessToken"]
         vresp = client.post("/api/auth/student-or-professor",
                             headers={"Authorization": f"Bearer {token}"})
@@ -293,13 +310,13 @@ class TestPasswordAuthOwner:
         """O1: Owner logs in with correct password."""
         # Get owner credentials from environment or use defaults
         import os
-        username = os.environ.get("BIZSIMAI_OWNER_USERNAME", "owner")
-        password = os.environ.get("BIZSIMAI_OWNER_PASSWORD")
+        username = os.environ.get("PRACTENTURE_OWNER_USERNAME", "owner")
+        password = os.environ.get("PRACTENTURE_OWNER_PASSWORD")
         if not password:
             # Try default
-            resp = login("password", username="owner", password="bizsimai2026")
+            resp = login("password", username="owner", password="practenture2026")
             if resp.status_code == 200:
-                password = "bizsimai2026"
+                password = "practenture2026"
             else:
                 pytest.skip("Owner account not configured")
         resp = login("password", username=username, password=password)
@@ -310,8 +327,8 @@ class TestPasswordAuthOwner:
     def test_o2_owner_token_role(self):
         """O2: Owner JWT has correct role."""
         import os
-        username = os.environ.get("BIZSIMAI_OWNER_USERNAME", "owner")
-        password = os.environ.get("BIZSIMAI_OWNER_PASSWORD", "bizsimai2026")
+        username = os.environ.get("PRACTENTURE_OWNER_USERNAME", "owner")
+        password = os.environ.get("PRACTENTURE_OWNER_PASSWORD", "practenture2026")
         resp = login("password", username=username, password=password)
         if resp.status_code != 200:
             pytest.skip("Owner not available")
@@ -322,8 +339,8 @@ class TestPasswordAuthOwner:
     def test_o3_owner_verify_endpoint(self):
         """O3: Owner token works on /verify."""
         import os
-        username = os.environ.get("BIZSIMAI_OWNER_USERNAME", "owner")
-        password = os.environ.get("BIZSIMAI_OWNER_PASSWORD", "bizsimai2026")
+        username = os.environ.get("PRACTENTURE_OWNER_USERNAME", "owner")
+        password = os.environ.get("PRACTENTURE_OWNER_PASSWORD", "practenture2026")
         resp = login("password", username=username, password=password)
         if resp.status_code != 200:
             pytest.skip("Owner not available")
@@ -347,7 +364,7 @@ class TestAppleSignIn:
         data = resp.json()
         assert data.get('professorCodeRequired') is True
         assert data['accessToken'] == ''
-        assert data['role'] == 'student'
+        assert data['role'] == 'professor'
 
     def test_a2_apple_new_user_with_valid_prof_code(self):
         """A2: New Apple user with PROF-code creates professor account."""
@@ -356,7 +373,7 @@ class TestAppleSignIn:
         token = make_fake_oauth_token('apple_user_new_2', 'new2@apple.com', 'New Apple User 2')
         resp = login('apple', id_token=token, professor_code='PROF-TEST-0001')
         # Should either succeed (code valid) or fail with invalid code message
-        assert resp.status_code in (200, 401)
+        assert resp.status_code in (200, 409)
         data = resp.json()
         if resp.status_code == 200:
             assert 'accessToken' in data and len(data['accessToken']) > 0
@@ -377,9 +394,10 @@ class TestAppleSignIn:
         resp = login('apple', id_token=token)
         assert resp.status_code == 200
         data = resp.json()
-        # Should return the existing role (student)
-        assert data['role'] == 'student'
-        assert 'accessToken' in data
+        # Stable provider identity is not linked to a password account by username/email.
+        assert data['role'] == 'professor'
+        assert data['professorCodeRequired'] is True
+        assert data['accessToken'] == ''
 
     def test_a4_apple_missing_id_token(self):
         """A4: Apple login without id_token returns 400."""
@@ -417,7 +435,7 @@ class TestGoogleSignIn:
         """G2: New Google user with PROF-code creates professor account."""
         token = make_fake_oauth_token('google_user_new_2', 'new2@google.com', 'New Google User 2')
         resp = login('google', id_token=token, professor_code='PROF-TEST-0002')
-        assert resp.status_code in (200, 401)
+        assert resp.status_code in (200, 409)
 
     def test_g3_google_returning_user(self):
         """G3: Returning Google user logs in with existing role."""
@@ -431,7 +449,10 @@ class TestGoogleSignIn:
         resp = login('google', id_token=token)
         assert resp.status_code == 200
         data = resp.json()
-        assert data['role'] == 'student'
+        # Do not merge an unlinked Google identity into a password account.
+        assert data['role'] == 'professor'
+        assert data['professorCodeRequired'] is True
+        assert data['accessToken'] == ''
 
     def test_g4_google_missing_id_token(self):
         """G4: Google login without id_token returns 400."""
@@ -458,7 +479,7 @@ class TestTokenRefresh:
     def test_r1_refresh_with_valid_token(self):
         """R1: Valid refresh token returns new access + refresh pair."""
         # Login to get a refresh token
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         assert resp.status_code == 200
         refresh_token = resp.json().get('refreshToken')
         assert refresh_token is not None
@@ -486,7 +507,7 @@ class TestTokenRefresh:
 
     def test_r4_refresh_token_rotation_once(self):
         """R4: Old refresh token is revoked after use (can't reuse)."""
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         old_refresh = resp.json().get('refreshToken')
 
         # First refresh - should work
@@ -499,7 +520,7 @@ class TestTokenRefresh:
 
     def test_r5_new_refresh_token_can_be_used(self):
         """R5: New refresh token from rotation works."""
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         refresh_token = resp.json().get('refreshToken')
 
         # Refresh once
@@ -513,7 +534,7 @@ class TestTokenRefresh:
 
     def test_r6_refresh_returns_token_type(self):
         """R6: Refresh response includes tokenType."""
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         refresh_token = resp.json().get('refreshToken')
         rresp = refresh(refresh_token)
         assert rresp.status_code == 200
@@ -529,7 +550,7 @@ class TestMFAFlow:
     def test_m1_mfa_setup_returns_secret(self):
         """M1: MFA setup returns secret and backup codes."""
         # Login as professor first
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         token = resp.json()['accessToken']
 
         mresp = client.post('/api/auth/mfa/setup',
@@ -542,7 +563,7 @@ class TestMFAFlow:
 
     def test_m2_mfa_verify_with_wrong_code(self):
         """M2: MFA verify with wrong code returns 400."""
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         token = resp.json()['accessToken']
 
         # Setup MFA first
@@ -556,7 +577,7 @@ class TestMFAFlow:
 
     def test_m3_mfa_status_check(self):
         """M3: MFA status check works."""
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         token = resp.json()['accessToken']
 
         sresp = client.post('/api/auth/mfa/setup',
@@ -601,7 +622,7 @@ class TestMFAFlow:
 
     def test_m5_disable_mfa(self):
         """M5: MFA can be disabled."""
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         token = resp.json()['accessToken']
 
         # Setup MFA first
@@ -644,7 +665,7 @@ class TestEdgeCases:
 
     def test_e4_tampered_token(self):
         """E4: Tampered JWT signature returns 401."""
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         token = resp.json()['accessToken']
         # Tamper with the signature (last part)
         parts = token.split('.')
@@ -673,7 +694,7 @@ class TestEdgeCases:
 
     def test_e7_login_response_has_all_fields(self):
         """E7: Login response has all required fields."""
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         data = resp.json()
         required_fields = ['accessToken', 'tokenType', 'role', 'userId']
         for field in required_fields:
@@ -688,7 +709,7 @@ class TestEdgeCases:
 
     def test_e9_mfa_code_field_accepted(self):
         """E9: mfa_code field accepted in login request."""
-        resp = login('password', username='professor', password='bizsimai2026',
+        resp = login('password', username='professor', password='practenture2026',
                      mfa_code='123456')
         # Should not return 422 (validation error)
         assert resp.status_code != 422
@@ -718,7 +739,7 @@ class TestCrossFlowPermutations:
 
     def test_x2_login_then_refresh_then_verify(self):
         """X2: Login -> Refresh -> Verify new token chain."""
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         refresh_token = resp.json()['refreshToken']
 
         rresp = refresh(refresh_token)
@@ -732,8 +753,8 @@ class TestCrossFlowPermutations:
 
     def test_x3_multiple_logins_same_user(self):
         """X3: Multiple logins for same user each get unique tokens."""
-        resp1 = login('password', username='professor', password='bizsimai2026')
-        resp2 = login('password', username='professor', password='bizsimai2026')
+        resp1 = login('password', username='professor', password='practenture2026')
+        resp2 = login('password', username='professor', password='practenture2026')
         assert resp1.json()['accessToken'] != resp2.json()['accessToken']
 
     def test_x4_student_register_professor_login(self):
@@ -745,7 +766,7 @@ class TestCrossFlowPermutations:
             'password': 'TestPass123!',
         })
         # Professor login should still work independently
-        prof_resp = login('password', username='professor', password='bizsimai2026')
+        prof_resp = login('password', username='professor', password='practenture2026')
         assert prof_resp.status_code == 200
         assert prof_resp.json()['role'] == 'professor'
 
@@ -768,7 +789,7 @@ class TestCrossFlowPermutations:
         token = make_fake_oauth_token(unique_uid, f'{unique_uid}@google.com')
         resp = login('google', id_token=token, professor_code='PROF-TEST-9999')
         # Either succeeds (code valid) or fails with invalid code message
-        assert resp.status_code in (200, 401)
+        assert resp.status_code in (200, 409)
 
 
 # ── Test Group 10: Auth Provider Verification ───────────────────────
@@ -832,7 +853,7 @@ class TestRateLimiting:
     def test_rl2_successful_login_resets_counter(self):
         """RL2: Successful login resets failure counter."""
         # Login successfully
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         assert resp.status_code == 200
 
 
@@ -843,7 +864,7 @@ class TestResponseFormat:
 
     def test_f1_login_response_alias_fields(self):
         """F1: Login response uses camelCase aliases."""
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         data = resp.json()
         assert 'accessToken' in data  # camelCase, not access_token
         assert 'tokenType' in data
@@ -851,7 +872,7 @@ class TestResponseFormat:
 
     def test_f2_refresh_response_alias_fields(self):
         """F2: Refresh response uses camelCase aliases."""
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         refresh_token = resp.json()['refreshToken']
         rresp = refresh(refresh_token)
         data = rresp.json()
@@ -873,7 +894,7 @@ class TestResponseFormat:
 
     def test_f4_verify_response_format(self):
         """F4: Verify response has correct format."""
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         token = resp.json()['accessToken']
         vresp = client.post('/api/auth/verify',
                            headers={'Authorization': f'Bearer {token}'})
@@ -884,7 +905,7 @@ class TestResponseFormat:
 
     def test_f5_professor_only_response_format(self):
         """F5: Professor-only response has correct format."""
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         token = resp.json()['accessToken']
         vresp = client.post('/api/auth/professor-only',
                            headers={'Authorization': f'Bearer {token}'})
@@ -895,7 +916,7 @@ class TestResponseFormat:
 
     def test_f6_student_or_professor_response_format(self):
         """F6: Student-or-professor response has correct format."""
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         token = resp.json()['accessToken']
         vresp = client.post('/api/auth/student-or-professor',
                            headers={'Authorization': f'Bearer {token}'})
@@ -906,7 +927,7 @@ class TestResponseFormat:
 
     def test_f7_mfa_setup_response_format(self):
         """F7: MFA setup response has correct format."""
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         token = resp.json()['accessToken']
         mresp = client.post('/api/auth/mfa/setup',
                            headers={'Authorization': f'Bearer {token}'})
@@ -917,7 +938,7 @@ class TestResponseFormat:
 
     def test_f8_mfa_status_response_format(self):
         """F8: MFA status response has correct format."""
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         token = resp.json()['accessToken']
         sresp = client.get('/api/auth/mfa/status',
                           headers={'Authorization': f'Bearer {token}'})
@@ -926,12 +947,12 @@ class TestResponseFormat:
 
     def test_f9_login_response_mfa_required_field(self):
         """F9: Login response always includes mfaRequired field."""
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         data = resp.json()
         assert 'mfaRequired' in data
 
     def test_f10_login_response_professor_code_required_field(self):
         """F10: Login response always includes professorCodeRequired field."""
-        resp = login('password', username='professor', password='bizsimai2026')
+        resp = login('password', username='professor', password='practenture2026')
         data = resp.json()
         assert 'professorCodeRequired' in data

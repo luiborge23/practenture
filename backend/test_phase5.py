@@ -1,5 +1,6 @@
 """Tests for Phase 5 features: Auth, WebSocket, Grade Export."""
 
+import os
 import pytest
 from fastapi.testclient import TestClient
 
@@ -18,7 +19,7 @@ def auth_headers(token):
 @pytest.fixture(autouse=True)
 def clean_phase5_auth_state(monkeypatch):
     """Give each auth-contract test a known professor and isolated users."""
-    monkeypatch.setenv("BIZSIMAI_PROFESSOR_PASSWORD", "bizsimai2026")
+    monkeypatch.setenv("PRACTENTURE_PROFESSOR_PASSWORD", "practenture2026")
     conn = db._get_conn()
     conn.execute("DELETE FROM class_enrollments")
     conn.execute("DELETE FROM classes")
@@ -38,7 +39,7 @@ def test_login_professor():
     resp = client.post("/api/auth/login", json={
         "provider": "password",
         "username": "professor",
-        "password": "bizsimai2026",
+        "password": "practenture2026",
     })
     assert resp.status_code == 200
     data = resp.json()
@@ -120,7 +121,7 @@ def test_verify_token():
     resp = client.post("/api/auth/login", json={
         "provider": "password",
         "username": "professor",
-        "password": "bizsimai2026",
+        "password": "practenture2026",
     })
     token = resp.json()["accessToken"]
 
@@ -142,7 +143,7 @@ def test_professor_only_endpoint():
     resp = client.post("/api/auth/login", json={
         "provider": "password",
         "username": "professor",
-        "password": "bizsimai2026",
+        "password": "practenture2026",
     })
     token = resp.json()["accessToken"]
 
@@ -167,6 +168,10 @@ def test_websocket_connect_no_token():
             pass
 
 
+@pytest.mark.skipif(
+    os.environ.get("CI") or not os.environ.get("APPLE_AUDIENCE"),
+    reason="Requires Apple JWKS network access and APPLE_AUDIENCE configured",
+)
 def test_websocket_student_login_provider():
     """Apple/Google login provider works with valid-structure token."""
     import base64, json, hmac, hashlib
@@ -195,7 +200,7 @@ def test_end_session_returns_results():
     """Ending a session returns final results for grade export."""
     # Login as professor
     resp = client.post("/api/auth/login", json={
-        "provider": "password", "username": "professor", "password": "bizsimai2026",
+        "provider": "password", "username": "professor", "password": "practenture2026",
     })
     token = resp.json()["accessToken"]
 

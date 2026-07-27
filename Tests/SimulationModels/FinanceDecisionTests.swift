@@ -1,9 +1,9 @@
 // FinanceDecisionTests.swift
-// BizSimAI Tests
+// Practenture Tests
 // Unit tests for FinanceDecision data model
 
 import XCTest
-@testable import BizSimAI
+@testable import Practenture
 
 final class FinanceDecisionTests: XCTestCase {
 

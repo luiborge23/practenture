@@ -1,4 +1,4 @@
-"""BizSimAI FastAPI application."""
+"""Practenture FastAPI application."""
 
 import os
 import sys
@@ -29,13 +29,14 @@ from models import (
 )
 from auth import get_current_user, verify_professor
 from routers import ai, announcements, auth, classes, dashboard, decisions, grades, leaderboard, professor, sessions, websocket
+from routers import owner_admin, owner_audit
 from simulation_engine import process_round
 
 
 # ── Production configuration ──────────────────────────────────────────────
 
-HOST = os.environ.get("BIZSIMAI_HOST", "0.0.0.0")
-PORT = int(os.environ.get("BIZSIMAI_PORT", "8000"))
+HOST = os.environ.get("PRACTENTURE_HOST", "0.0.0.0")
+PORT = int(os.environ.get("PRACTENTURE_PORT", "8000"))
 
 
 @asynccontextmanager
@@ -47,17 +48,17 @@ async def lifespan(app: FastAPI):
     ensure_professor()
 
     # Startup logging
-    print(f"[BizSimAI] Starting on {HOST}:{PORT}")
-    print(f"[BizSimAI] CORS origins: {CORS_ORIGINS}")
-    print(f"[BizSimAI] JWT_SECRET configured: {'yes' if os.environ.get('BIZSIMAI_JWT_SECRET') else 'no'}")
-    print(f"[BizSimAI] JWT expiry: {os.environ.get('BIZSIMAI_JWT_EXPIRY_HOURS', '24')} hours")
+    print(f"[Practenture] Starting on {HOST}:{PORT}")
+    print(f"[Practenture] CORS origins: {CORS_ORIGINS}")
+    print(f"[Practenture] JWT_SECRET configured: {'yes' if os.environ.get('PRACTENTURE_JWT_SECRET') else 'no'}")
+    print(f"[Practenture] JWT expiry: {os.environ.get('PRACTENTURE_JWT_EXPIRY_HOURS', '24')} hours")
     yield
     # Shutdown
-    print("[BizSimAI] Shutting down")
+    print("[Practenture] Shutting down")
 
 
 app = FastAPI(
-    title="BizSimAI Backend",
+    title="Practenture Backend",
     description="Real-time business simulation platform for classrooms",
     version="1.0.0",
     lifespan=lifespan,
@@ -68,7 +69,7 @@ app = FastAPI(
 _DEFAULT_CORS = "http://localhost,http://localhost:8080,capacitor://,http://localhost"
 CORS_ORIGINS = [
     origin.strip()
-    for origin in os.environ.get("BIZSIMAI_CORS_ORIGINS", _DEFAULT_CORS).split(",")
+    for origin in os.environ.get("PRACTENTURE_CORS_ORIGINS", _DEFAULT_CORS).split(",")
 ]
 app.add_middleware(
     CORSMiddleware,
@@ -77,6 +78,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Static files for Owner Console
+from fastapi.staticfiles import StaticFiles
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 # ── Global error handlers ──────────────────────────────────────────────────
@@ -138,13 +144,13 @@ async def add_security_headers(request: Request, call_next):
 async def health_check():
     return {
         "status": "healthy",
-        "service": "bizsimai-backend",
+        "service": "practenture-backend",
         "config": {
             "host": HOST,
             "port": PORT,
             "cors_origins": CORS_ORIGINS,
-            "jwt_secret_configured": bool(os.environ.get("BIZSIMAI_JWT_SECRET")),
-            "jwt_expiry_hours": os.environ.get("BIZSIMAI_JWT_EXPIRY_HOURS", "24"),
+            "jwt_secret_configured": bool(os.environ.get("PRACTENTURE_JWT_SECRET")),
+            "jwt_expiry_hours": os.environ.get("PRACTENTURE_JWT_EXPIRY_HOURS", "24"),
         },
     }
 
@@ -162,6 +168,10 @@ app.include_router(grades.router)
 app.include_router(leaderboard.router)
 app.include_router(classes.router)
 app.include_router(professor.router)
+
+# Owner Administration
+app.include_router(owner_admin.router, prefix="/owner")
+app.include_router(owner_audit.router, prefix="/owner")
 
 # SOTA Phase 2: SAML SSO + SCIM 2.0 user provisioning
 import saml as saml_router_mod

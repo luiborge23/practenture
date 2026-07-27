@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Practenture - Backup & Cleanup</title>
+    <link rel="stylesheet" href="/static/owner/owner.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Backup & Cleanup</h1>
+        
+        <!-- Backup Section -->
+        <div class="section-card">
+            <h2>Backup</h2>
+            
+            <button id="create-backup-btn" class="btn btn-primary">Create Backup</button>
+            
+            <h3>Backup History</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Started At</th>
+                        <th>Status</th>
+                        <th>Object Key</th>
+                    </tr>
+                </thead>
+                <tbody id="backup-history"></tbody>
+            </table>
+        </div>
+
+        <!-- Cleanup Section -->
+        <div class="section-card">
+            <h2>Scoped Cleanup</h2>
+            
+            <form id="cleanup-form" class="cleanup-form">
+                <div class="form-group">
+                    <label for="organization-select">Organization:</label>
+                    <select id="organization-select"></select>
+                </div>
+
+                <div class="form-group">
+                    <label for="is-test-checkbox">
+                        <input type="checkbox" id="is-test-checkbox" checked>
+                        Test data only
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn-warning">Preview Cleanup</button>
+            </form>
+
+            <div id="cleanup-preview" class="hidden">
+                <h3>Cleanup Preview</h3>
+                <p>Rows to be deleted:</p>
+                <ul id="cleanup-preview-list"></ul>
+                
+                <div class="confirmation">
+                    <p>Type <strong>DELETE TEST DATA</strong> to confirm:</p>
+                    <input type="text" id="cleanup-confirmation">
+                    <button id="execute-cleanup-btn" class="btn btn-danger">Execute Cleanup</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Restore Drills Section -->
+        <div class="section-card">
+            <h2>Restore Drills</h2>
+            
+            <button id="run-restore-drill-btn" class="btn btn-primary">Run Restore Drill</button>
+            
+            <h3>Recent Drills</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Backup ID</th>
+                        <th>Status</th>
+                        <th>Error Message</th>
+                    </tr>
+                </thead>
+                <tbody id="restore-drill-history"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="/static/owner/backup.js"></script>
+</body>
+</html>

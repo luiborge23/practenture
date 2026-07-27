@@ -1,4 +1,4 @@
-"""Authentication endpoints for BizSimAI backend."""
+"""Authentication endpoints for Practenture backend."""
 
 import os
 from typing import Optional
@@ -9,12 +9,14 @@ from pydantic import BaseModel
 from auth import (
     LoginRequest,
     LoginResponse,
+    ProfessorActivationRequest,
     RefreshTokenRequest,
     RefreshTokenResponse,
     RegisterRequest,
     RegisterResponse,
     get_current_user,
     login,
+    activate_password_professor,
     refresh_access_token,
     register,
     verify_professor,
@@ -79,6 +81,12 @@ async def login_endpoint(req: LoginRequest):
     - google: Google Sign-In ID token (student)
     """
     return login(req)
+
+
+@router.post("/password/activate-professor", response_model=LoginResponse, status_code=201)
+async def activate_professor_endpoint(req: ProfessorActivationRequest):
+    """Create a new password professor by atomically consuming a one-time invitation."""
+    return activate_password_professor(req)
 
 
 @router.post("/register", response_model=RegisterResponse, status_code=201)
@@ -281,7 +289,7 @@ async def setup_mfa(user=Depends(get_current_user)):
     db.set_mfa_secret(user_id, secret)
     backup = generate_backup_codes()
     # Store backup codes (not yet enabled — only on verify)
-    qr_url = get_totp_uri(secret, user_id, "BizSimAI")
+    qr_url = get_totp_uri(secret, user_id, "Practenture")
     return MFASetupResponse(secret=secret, qr_code_url=qr_url, backup_codes=backup)
 
 

@@ -101,7 +101,7 @@ async def export_grades(code: str, user=Depends(verify_professor)):
         content=csv_content,
         media_type="text/csv",
         headers={
-            "Content-Disposition": f'attachment; filename="bizsimai_{code}_grades.csv"'
+            "Content-Disposition": f'attachment; filename="practenture_{code}_grades.csv"'
         },
     )
 
@@ -187,6 +187,6 @@ async def export_leaderboard(code: str, user=Depends(verify_professor)):
         content=csv_content,
         media_type="text/csv",
         headers={
-            "Content-Disposition": f'attachment; filename="bizsimai_{code}_leaderboard.csv"'
+            "Content-Disposition": f'attachment; filename="practenture_{code}_leaderboard.csv"'
         },
     )

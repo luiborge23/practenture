@@ -1,12 +1,12 @@
 """
 Create STU001-STU020 student accounts for 20-student testing.
-Run inside the bizsim-backend container: docker exec bizsim-backend python3 /app/create_20_students.py
+Run inside the practenture-backend container: docker exec practenture-backend python3 /app/create_20_students.py
 """
 import sqlite3
 import bcrypt
 import sys
 
-DB_PATH = "/data/bizsim.db"
+DB_PATH = "/data/practenture.db"
 
 def hash_password(password):
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')

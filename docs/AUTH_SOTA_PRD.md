@@ -1,4 +1,4 @@
-# PRD: BizSimAI Auth Modernization — SOTA Multi-Tenant Authentication
+# PRD: Practenture Auth Modernization — SOTA Multi-Tenant Authentication
 
 **Date:** 2026-07-11  
 **Research basis:** RALPH 13-step methodology, SOTA analysis of 8 major auth platforms (Descope, Auth0, WorkOS, Frontegg, Ory, Keycloak, Cognito, SuperTokens) + LMS multi-tenancy patterns
@@ -193,7 +193,7 @@
 **Acceptance Criteria:**
 - [ ] Replace `allow_origins=["*"]` with configured list
 - [ ] Default: `["http://localhost:*", "capacitor://*", "http://localhost"]` for iOS
-- [ ] Configurable via `BIZSIMAI_CORS_ORIGINS` env var
+- [ ] Configurable via `PRACTENTURE_CORS_ORIGINS` env var
 - [ ] Add test: request from unknown origin → CORS rejected
 - [ ] All 83 existing tests pass
 

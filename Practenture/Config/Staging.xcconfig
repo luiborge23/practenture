@@ -1,0 +1,5 @@
+// Staging.xcconfig
+// Practenture — Staging environment configuration
+
+PRACTENTURE_BACKEND_URL = https://staging.practenture.ai
+PRACTENTURE_ENVIRONMENT = Staging

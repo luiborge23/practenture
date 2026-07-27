@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────────
-# BizSimAI — AWS EC2 One-Command Deployment
+# Practenture — AWS EC2 One-Command Deployment
 # Usage: ./ec2-deploy.sh [provision|deploy|destroy]
 #
 # Prerequisites:
 #   - AWS CLI configured (aws configure)
-#   - SSH key pair named "bizsimai" in us-east-1 (or change REGION)
+#   - SSH key pair named "practenture" in us-east-1 (or change REGION)
 #   - jq installed (brew install jq)
 # ──────────────────────────────────────────────────────────────────
 set -euo pipefail
@@ -17,9 +17,9 @@ STATE_FILE="$SCRIPT_DIR/.ec2-state.json"
 # ── Config (change these) ────────────────────────────────────────
 REGION="${AWS_REGION:-us-east-1}"
 INSTANCE_TYPE="${EC2_INSTANCE_TYPE:-t3.micro}"  # t3.micro = free tier, t3.medium for production
-KEY_NAME="${EC2_KEY_NAME:-bizsimai}"
-SECURITY_GROUP_NAME="bizsimai-sg"
-INSTANCE_NAME="bizsimai-backend"
+KEY_NAME="${EC2_KEY_NAME:-practenture}"
+SECURITY_GROUP_NAME="practenture-sg"
+INSTANCE_NAME="practenture-backend"
 
 # ── Helpers ──────────────────────────────────────────────────────
 info()  { echo -e "\033[1;34m[INFO]\033[0m  $*"; }
@@ -32,7 +32,7 @@ load_state() { [ -f "$STATE_FILE" ] && cat "$STATE_FILE" || echo "{}"; }
 
 # ── Provision EC2 Instance ───────────────────────────────────────
 cmd_provision() {
-    info "=== BizSimAI EC2 Provisioning ==="
+    info "=== Practenture EC2 Provisioning ==="
 
     # Check AWS CLI
     if ! command -v aws &>/dev/null; then
@@ -88,7 +88,7 @@ print('OK')
         SG_ID=$(aws ec2 create-security-group \
             --region "$REGION" \
             --group-name "$SECURITY_GROUP_NAME" \
-            --description "BizSimAI backend security group" \
+            --description "Practenture backend security group" \
             --query "GroupId" --output text)
         ok "Security group created: $SG_ID"
 
@@ -191,7 +191,7 @@ EOF
 
     ok "=== Provisioning Complete ==="
     echo ""
-    info "Your BizSimAI backend is at: http://$PUBLIC_IP"
+    info "Your Practenture backend is at: http://$PUBLIC_IP"
     info "SSH: ssh -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP"
     echo ""
     info "Next step: ./ec2-deploy.sh deploy"
@@ -208,20 +208,20 @@ cmd_deploy() {
         error "No EC2 state found. Run ./ec2-deploy.sh provision first."
     fi
 
-    info "=== Deploying BizSimAI to EC2 ($PUBLIC_IP) ==="
+    info "=== Deploying Practenture to EC2 ($PUBLIC_IP) ==="
 
     # Stable .env — only generate if missing; never rotate on re-deploy
     # Loads existing .env if present so JWT_SECRET + PROFESSOR_PASSWORD persist
     local JWT_SECRET PROF_PASSWORD OWNER_USER OWNER_PASS OWNER_USERNAME
-    OWNER_USERNAME="${BIZSIMAI_OWNER_USERNAME:-owner}"
+    OWNER_USERNAME="${PRACTENTURE_OWNER_USERNAME:-owner}"
 
     if [ -f "$SCRIPT_DIR/.env" ]; then
         # Source existing env (ignore errors)
         set -a; . "$SCRIPT_DIR/.env" 2>/dev/null || true; set +a
-        JWT_SECRET="${BIZSIMAI_JWT_SECRET:-}"
-        PROF_PASSWORD="${BIZSIMAI_PROFESSOR_PASSWORD:-}"
-        OWNER_USER="${BIZSIMAI_OWNER_USERNAME:-owner}"
-        OWNER_PASS="${BIZSIMAI_OWNER_PASSWORD:-}"
+        JWT_SECRET="${PRACTENTURE_JWT_SECRET:-}"
+        PROF_PASSWORD="${PRACTENTURE_PROFESSOR_PASSWORD:-}"
+        OWNER_USER="${PRACTENTURE_OWNER_USERNAME:-owner}"
+        OWNER_PASS="${PRACTENTURE_OWNER_PASSWORD:-}"
     fi
 
     if [ -z "${JWT_SECRET:-}" ]; then
@@ -232,37 +232,37 @@ cmd_deploy() {
     fi
 
     if [ -z "${PROF_PASSWORD:-}" ]; then
-        PROF_PASSWORD="${BIZSIMAI_PROFESSOR_PASSWORD:-$(python3 -c "import secrets; print(secrets.token_urlsafe(16))")}"
+        PROF_PASSWORD="${PRACTENTURE_PROFESSOR_PASSWORD:-$(python3 -c "import secrets; print(secrets.token_urlsafe(16))")}"
         info "Generated new professor password"
     else
         ok "Reusing existing professor password (stable)"
     fi
 
     if [ -z "${OWNER_PASS:-}" ]; then
-        OWNER_PASS="${BIZSIMAI_OWNER_PASSWORD:-$(python3 -c "import secrets; print(secrets.token_urlsafe(16))")}"
+        OWNER_PASS="${PRACTENTURE_OWNER_PASSWORD:-$(python3 -c "import secrets; print(secrets.token_urlsafe(16))")}"
         info "Generated new owner password"
     else
         ok "Reusing existing owner password (stable)"
     fi
 
     cat > "$SCRIPT_DIR/.env" <<EOF
-BIZSIMAI_JWT_SECRET=$JWT_SECRET
-BIZSIMAI_OWNER_USERNAME=${OWNER_USER}
-BIZSIMAI_OWNER_PASSWORD=$OWNER_PASS
-BIZSIMAI_PROFESSOR_USERNAME=${BIZSIMAI_PROFESSOR_USERNAME:-professor}
-BIZSIMAI_PROFESSOR_PASSWORD=$PROF_PASSWORD
-BIZSIMAI_JWT_EXPIRY_HOURS=${BIZSIMAI_JWT_EXPIRY_HOURS:-24}
+PRACTENTURE_JWT_SECRET=$JWT_SECRET
+PRACTENTURE_OWNER_USERNAME=${OWNER_USER}
+PRACTENTURE_OWNER_PASSWORD=$OWNER_PASS
+PRACTENTURE_PROFESSOR_USERNAME=${PRACTENTURE_PROFESSOR_USERNAME:-professor}
+PRACTENTURE_PROFESSOR_PASSWORD=$PROF_PASSWORD
+PRACTENTURE_JWT_EXPIRY_HOURS=${PRACTENTURE_JWT_EXPIRY_HOURS:-24}
 NGINX_HTTP_PORT=${NGINX_HTTP_PORT:-80}
 NGINX_HTTPS_PORT=${NGINX_HTTPS_PORT:-443}
-BIZSIMAI_APPLE_AUDIENCE=${BIZSIMAI_APPLE_AUDIENCE:-}
-BIZSIMAI_GOOGLE_AUDIENCE=${BIZSIMAI_GOOGLE_AUDIENCE:-}
+PRACTENTURE_APPLE_AUDIENCE=${PRACTENTURE_APPLE_AUDIENCE:-}
+PRACTENTURE_GOOGLE_AUDIENCE=${PRACTENTURE_GOOGLE_AUDIENCE:-}
 EOF
 
     ok "Wrote stable .env (JWT + owner + professor preserved)"
 
     # Upload files to EC2
     info "Uploading application to EC2..."
-    ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP "mkdir -p ~/bizsimai"
+    ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP "mkdir -p ~/practenture"
 
     # rsync the backend directory (excluding venv, __pycache__, .git)
     rsync -avz --delete \
@@ -272,7 +272,7 @@ EOF
         --exclude='.ec2-state.json' \
         --exclude='data.db' \
         -e "ssh -i ~/.ssh/$KEY_NAME" \
-        "$SCRIPT_DIR/" ec2-user@$PUBLIC_IP:~/bizsimai/
+        "$SCRIPT_DIR/" ec2-user@$PUBLIC_IP:~/practenture/
 
     ok "Files uploaded"
 
@@ -281,19 +281,19 @@ EOF
     info "Creating pre-deploy database backup and rollback image..."
     ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP <<REMOTE_DEPLOY
 set -euo pipefail
-cd ~/bizsimai
+cd ~/practenture
 DEPLOY_ID=\$(date -u +%Y%m%dT%H%M%SZ)
-mkdir -p ~/bizsimai-backups
+mkdir -p ~/practenture-backups
 if docker inspect bizsim-backend >/dev/null 2>&1; then
     PREVIOUS_IMAGE=\$(docker inspect bizsim-backend --format '{{.Image}}')
     printf '%s\n' "\$PREVIOUS_IMAGE" > .rollback-image
-    docker tag "\$PREVIOUS_IMAGE" "bizsimai-backend:rollback-\$DEPLOY_ID"
-    docker exec bizsim-backend python -c "import os,sqlite3; src=os.environ.get('BIZSIMAI_DB_PATH','/data/bizsim.db'); a=sqlite3.connect(src); b=sqlite3.connect('/data/predeploy-\$DEPLOY_ID.db'); a.backup(b); b.close(); a.close()"
-    docker cp "bizsim-backend:/data/predeploy-\$DEPLOY_ID.db" "\$HOME/bizsimai-backups/predeploy-\$DEPLOY_ID.db"
+    docker tag "\$PREVIOUS_IMAGE" "practenture-backend:rollback-\$DEPLOY_ID"
+    docker exec bizsim-backend python -c "import os,sqlite3; src=os.environ.get('PRACTENTURE_DB_PATH','/data/bizsim.db'); a=sqlite3.connect(src); b=sqlite3.connect('/data/predeploy-\$DEPLOY_ID.db'); a.backup(b); b.close(); a.close()"
+    docker cp "bizsim-backend:/data/predeploy-\$DEPLOY_ID.db" "\$HOME/practenture-backups/predeploy-\$DEPLOY_ID.db"
     docker exec bizsim-backend rm -f "/data/predeploy-\$DEPLOY_ID.db"
-    python3 -c "import sqlite3; c=sqlite3.connect('\$HOME/bizsimai-backups/predeploy-\$DEPLOY_ID.db'); assert c.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'; print('BACKUP_OK')"
+    python3 -c "import sqlite3; c=sqlite3.connect('\$HOME/practenture-backups/predeploy-\$DEPLOY_ID.db'); assert c.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'; print('BACKUP_OK')"
 fi
-find ~/bizsimai-backups -type f -name 'predeploy-*.db' -mtime +30 -delete
+find ~/practenture-backups -type f -name 'predeploy-*.db' -mtime +30 -delete
 docker-compose up -d --build
 echo "DEPLOY_DONE"
 REMOTE_DEPLOY
@@ -304,7 +304,7 @@ REMOTE_DEPLOY
         if curl -sf "http://$PUBLIC_IP/api/health" &>/dev/null; then
             ok "=== Deployment Complete ==="
             echo ""
-            echo -e "\033[1;32mBizSimAI is LIVE at: http://$PUBLIC_IP\033[0m"
+            echo -e "\033[1;32mPractenture is LIVE at: http://$PUBLIC_IP\033[0m"
             echo -e "\033[1;32mProfessor login: professor / $PROF_PASSWORD\033[0m"
             echo ""
             info "Update your iOS app's NetworkService.swift:"
@@ -320,15 +320,15 @@ REMOTE_DEPLOY
     warn "Health check timed out; rolling back to the retained application image..."
     ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP <<'REMOTE_ROLLBACK'
 set -euo pipefail
-cd ~/bizsimai
+cd ~/practenture
 PREVIOUS_IMAGE=$(cat .rollback-image)
 docker-compose stop bizsim-backend
 docker rm -f bizsim-backend 2>/dev/null || true
-docker tag "$PREVIOUS_IMAGE" bizsimai-backend:stable
+docker tag "$PREVIOUS_IMAGE" practenture-backend:stable
 docker-compose up -d --no-build bizsim-backend nginx
 REMOTE_ROLLBACK
     if curl -sf "http://$PUBLIC_IP/api/health" >/dev/null; then
-        warn "Previous application image restored. Database backup retained in ~/bizsimai-backups."
+        warn "Previous application image restored. Database backup retained in ~/practenture-backups."
     else
         error "Deployment and automatic application rollback both failed. Inspect remote Docker logs immediately."
     fi
@@ -367,7 +367,7 @@ case "${1:-help}" in
     deploy)    cmd_deploy ;;
     destroy)   cmd_destroy ;;
     help|*)
-        echo "BizSimAI — AWS EC2 Deployment"
+        echo "Practenture — AWS EC2 Deployment"
         echo ""
         echo "Usage: $0 {provision|deploy|destroy}"
         echo ""
@@ -378,6 +378,6 @@ case "${1:-help}" in
         echo "Environment variables:"
         echo "  AWS_REGION          (default: us-east-1)"
         echo "  EC2_INSTANCE_TYPE   (default: t3.medium)"
-        echo "  EC2_KEY_NAME        (default: bizsimai)"
+        echo "  EC2_KEY_NAME        (default: practenture)"
         ;;
 esac

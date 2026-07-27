@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BizSimAI — Professor Login</title>
+    <title>Practenture — Professor Login</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -79,7 +79,7 @@
 </head>
 <body>
     <div class="login-card">
-        <h1>BizSimAI</h1>
+        <h1>Practenture</h1>
         <p class="subtitle">Professor Dashboard — Sign in to manage sessions</p>
         <form id="loginForm">
             <div class="form-group">
@@ -96,7 +96,7 @@
     </div>
     <script>
         // Read backend URL from localStorage or use default
-        const backendURL = localStorage.getItem('bizsimai_backend_url') || 'http://localhost:8000';
+        const backendURL = localStorage.getItem('practenture_backend_url') || 'http://localhost:8000';
 
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -123,8 +123,8 @@
                 }
 
                 const data = await resp.json();
-                localStorage.setItem('bizsimai_token', data.access_token);
-                localStorage.setItem('bizsimai_role', data.role);
+                localStorage.setItem('practenture_token', data.access_token);
+                localStorage.setItem('practenture_role', data.role);
                 // Redirect to dashboard
                 window.location.href = '/dashboard';
             } catch (err) {

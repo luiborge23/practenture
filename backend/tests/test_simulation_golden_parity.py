@@ -56,5 +56,8 @@ def test_production_swift_and_python_engines_are_within_fixture_tolerance() -> N
     assert edge["demand"]["totalSold"] == 0
     assert edge["debt"] == 0
     assert edge["cash"] < 0
-    assert edge["equity"] == 1
+    # Equity = initial_equity (1.0) + profit (-1.01) = -0.01.
+    # Both Swift and Python engines agree; the previous assertion expected
+    # the pre-round initial equity, not the post-round result.
+    assert edge["equity"] == -0.01
     assert edge["sharesOutstanding"] == 1

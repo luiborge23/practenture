@@ -1,9 +1,9 @@
 // WorkforceDecisionTests.swift
-// BizSimAI Tests
+// Practenture Tests
 // Unit tests for WorkforceDecision data model
 
 import XCTest
-@testable import BizSimAI
+@testable import Practenture
 
 final class WorkforceDecisionTests: XCTestCase {
 

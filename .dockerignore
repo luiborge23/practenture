@@ -1,8 +1,8 @@
 # Mobile clients and Xcode artifacts are not part of the backend image
-BizSimAI/
-BizSimAITests/
-BizSimAIUITests/
-BizSimAI.xcodeproj/
+Practenture/
+PractentureTests/
+PractentureUITests/
+Practenture.xcodeproj/
 SourcePackages/
 android/
 DerivedData/

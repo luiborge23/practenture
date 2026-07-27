@@ -1,9 +1,9 @@
 // IncomeStatementTests.swift
-// BizSimAI Tests
+// Practenture Tests
 // Unit tests for IncomeStatement financial model
 
 import XCTest
-@testable import BizSimAI
+@testable import Practenture
 
 final class IncomeStatementTests: XCTestCase {
 

@@ -1,4 +1,4 @@
-# BizSimAI iOS — Deep Code Review Report
+# Practenture iOS — Deep Code Review Report
 
 > **Scope:** All 59 Swift files across Engine/, Models/, Services/, ViewModels/, Views/, and Views/Components/
 > **Date:** 2026-05-05

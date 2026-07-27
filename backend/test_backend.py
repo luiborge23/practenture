@@ -1,4 +1,4 @@
-"""Tests for BizSimAI backend."""
+"""Tests for Practenture backend."""
 
 import time
 

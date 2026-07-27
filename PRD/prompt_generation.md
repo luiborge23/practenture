@@ -1,6 +1,6 @@
-# BizSimAI Prompt Generation Output
+# Practenture Prompt Generation Output
 
-Based on the SOTA research and deep analysis, here are the structured prompts with guardrails for BizSimAI development:
+Based on the SOTA research and deep analysis, here are the structured prompts with guardrails for Practenture development:
 
 ## Core System Prompts
 
@@ -13,14 +13,14 @@ Based on the SOTA research and deep analysis, here are the structured prompts wi
 - Include guardrails: sanitize all inputs, prevent arbitrary code execution, validate decision boundaries"
 
 ### 2. Professor Console Prompt
-"You are designing a real-time professor dashboard for BizSimAI that enables coaching rather than administration. The console must:
+"You are designing a real-time professor dashboard for Practenture that enables coaching rather than administration. The console must:
 - Provide live visibility into all team decisions and performance metrics
 - Offer one-click intervention tools (pause, highlight, announce)
 - Generate adaptive difficulty suggestions based on class performance
 - Include guardrails: prevent manipulation of ongoing simulations, ensure student data privacy, validate professor permissions"
 
 ### 3. Student Team Interface Prompt
-"You are designing an intuitive student team interface for BizSimAI that supports strategic decision-making. The interface must:
+"You are designing an intuitive student team interface for Practenture that supports strategic decision-making. The interface must:
 - Present functional area decisions in an accessible format
 - Show real-time impact of decisions on financials and market position
 - Display competitor intelligence with appropriate delays/limitations
@@ -28,7 +28,7 @@ Based on the SOTA research and deep analysis, here are the structured prompts wi
 - Include guardrails: prevent unrealistic decision combinations, validate against budget constraints, ensure equal access to information"
 
 ### 4. Adaptive Learning System Prompt
-"You are designing an AI-powered adaptation system for BizSimAI that personalizes the learning experience. The system must:
+"You are designing an AI-powered adaptation system for Practenture that personalizes the learning experience. The system must:
 - Analyze team decision patterns and performance metrics
 - Adjust market volatility, competitor behavior, and complexity in real-time
 - Generate personalized feedback and learning recommendations
@@ -36,7 +36,7 @@ Based on the SOTA research and deep analysis, here are the structured prompts wi
 - Include guardrails: prevent unfair advantage/disadvantage, ensure adaptation aligns with learning objectives, maintain transparency about adaptations"
 
 ### 5. Assessment & Analytics Prompt
-"You are designing a comprehensive assessment system for BizSimAI that maps to educational standards. The system must:
+"You are designing a comprehensive assessment system for Practenture that maps to educational standards. The system must:
 - Track decision quality, strategic thinking, and financial literacy competencies
 - Generate reports aligned with AACSB/ABET standards
 - Provide actionable insights for both professors and students

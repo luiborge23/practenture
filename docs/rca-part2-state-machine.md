@@ -2,7 +2,7 @@
 
 ## Overview
 
-This report traces the complete round lifecycle from both student and professor perspectives across the BizSimAI iOS app, identifying every point where iOS local state diverges from backend state. The analysis covers `SimulationSession.swift`, `TeamDashboardView.swift`, `BackendState.swift`, `RoundControlView.swift`, `PerformanceHistoryView.swift`, and `PerformanceHistoryViewModel.swift`, with supporting context from `SessionMonitorViewModel.swift`, `DecisionInputViewModel.swift`, and `NetworkService.swift`.
+This report traces the complete round lifecycle from both student and professor perspectives across the Practenture iOS app, identifying every point where iOS local state diverges from backend state. The analysis covers `SimulationSession.swift`, `TeamDashboardView.swift`, `BackendState.swift`, `RoundControlView.swift`, `PerformanceHistoryView.swift`, and `PerformanceHistoryViewModel.swift`, with supporting context from `SessionMonitorViewModel.swift`, `DecisionInputViewModel.swift`, and `NetworkService.swift`.
 
 ---
 

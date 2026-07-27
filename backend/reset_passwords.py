@@ -1,5 +1,5 @@
 """
-Automated password reset script for BizSimAI.
+Automated password reset script for Practenture.
 This ensures professor and owner accounts always have correct passwords after Docker rebuilds.
 """
 
@@ -8,7 +8,7 @@ import sys
 import os
 
 # Database path (matches docker-compose.yml)
-DB_PATH = "/data/bizsim.db"
+DB_PATH = "/data/practenture.db"
 
 # Default credentials
 DEFAULT_USERS = [

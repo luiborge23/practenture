@@ -1,4 +1,4 @@
-# BizSimAI Phase 5 — Progress Log
+# Practenture Phase 5 — Progress Log
 
 ## 2026-06-21
 

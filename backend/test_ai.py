@@ -49,7 +49,7 @@ def _get_professor_token():
     resp = client.post("/api/auth/login", json={
         "provider": "password",
         "username": "professor",
-        "password": "bizsimai2026",
+        "password": "practenture2026",
     })
     assert resp.status_code == 200, f"Login failed: {resp.json()}"
     return resp.json()["accessToken"]

@@ -1,9 +1,9 @@
 // PlayerDecisionTests.swift
-// BizSimAI Tests
+// Practenture Tests
 // Unit tests for PlayerDecision data model (composed of all sub-decisions)
 
 import XCTest
-@testable import BizSimAI
+@testable import Practenture
 
 final class PlayerDecisionTests: XCTestCase {
 

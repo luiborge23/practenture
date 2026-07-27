@@ -1,9 +1,9 @@
 // TeamStatusTests.swift
-// BizSimAI Tests
+// Practenture Tests
 // Unit tests for TeamStatus model
 
 import XCTest
-@testable import BizSimAI
+@testable import Practenture
 
 final class TeamStatusTests: XCTestCase {
 

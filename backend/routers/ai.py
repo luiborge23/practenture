@@ -1,4 +1,4 @@
-"""BizSimAI AI Router — Bedrock-powered endpoints.
+"""Practenture AI Router — Bedrock-powered endpoints.
 
 Endpoints:
   POST /api/ai/scenario          — Generate business scenario (professor)

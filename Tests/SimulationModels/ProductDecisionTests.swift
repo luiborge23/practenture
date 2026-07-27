@@ -1,9 +1,9 @@
 // ProductDecisionTests.swift
-// BizSimAI Tests
+// Practenture Tests
 // Unit tests for ProductDecision data model
 
 import XCTest
-@testable import BizSimAI
+@testable import Practenture
 
 final class ProductDecisionTests: XCTestCase {
 

@@ -1,9 +1,9 @@
 // SessionStateTests.swift
-// BizSimAI Tests
+// Practenture Tests
 // Unit tests for enum types used in the simulation models
 
 import XCTest
-@testable import BizSimAI
+@testable import Practenture
 
 final class EnumTests: XCTestCase {
 

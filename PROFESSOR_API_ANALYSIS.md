@@ -1,4 +1,4 @@
-# BizSimAI iOS App — Professor API Endpoints Analysis
+# Practenture iOS App — Professor API Endpoints Analysis
 
 This document lists ALL API endpoints the iOS app calls that are relevant to the Professor role.
 The backend currently has NO professor routes — these are the endpoints the iOS app expects.

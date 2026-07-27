@@ -1,9 +1,9 @@
 // RoundResultTests.swift
-// BizSimAI Tests
+// Practenture Tests
 // Unit tests for RoundResult and related models
 
 import XCTest
-@testable import BizSimAI
+@testable import Practenture
 
 final class RoundResultTests: XCTestCase {
 

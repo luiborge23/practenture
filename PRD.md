@@ -1,8 +1,8 @@
-# BizSimAI — Product Requirements Document
+# Practenture — Product Requirements Document
 
 ## TL;DR
 
-BizSimAI is a **cloud-connected business simulation platform** for MBA/business classrooms. Professors create and manage simulation sessions from a web dashboard; students join via an iOS app, make quarterly business decisions (pricing, production, marketing, R&D, financing), and compete in real-time against AI and human opponents. The backend (FastAPI + SQLite) runs a deterministic simulation engine, while the iOS app provides the student-facing interface with live dashboards, announcements, and CSV export. The platform supports three authentication methods (password, Apple Sign-In, Google Sign-In) via JWT tokens, with real-time updates delivered through WebSockets.
+Practenture is a **cloud-connected business simulation platform** for MBA/business classrooms. Professors create and manage simulation sessions from a web dashboard; students join via an iOS app, make quarterly business decisions (pricing, production, marketing, R&D, financing), and compete in real-time against AI and human opponents. The backend (FastAPI + SQLite) runs a deterministic simulation engine, while the iOS app provides the student-facing interface with live dashboards, announcements, and CSV export. The platform supports three authentication methods (password, Apple Sign-In, Google Sign-In) via JWT tokens, with real-time updates delivered through WebSockets.
 
 ---
 
@@ -19,7 +19,7 @@ Professors need a **lightweight, self-hostable** simulation tool that lets stude
 
 ## 2. What It Is
 
-BizSimAI is a **three-component platform**:
+Practenture is a **three-component platform**:
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
@@ -69,7 +69,7 @@ The **deterministic simulation engine** (`simulation_engine.py`) processes all d
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        BizSimAI Platform                         │
+│                        Practenture Platform                         │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌──────────────┐     HTTPS      ┌──────────────────────────┐   │
@@ -102,6 +102,10 @@ The **deterministic simulation engine** (`simulation_engine.py`) processes all d
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+### Owner Administration and Database Operations
+
+The target architecture includes a separate Owner control plane for Professor invitation lifecycle, organization and account administration, database-health evidence, audited scoped cleanup, and backup/restore status. Routine operations use Owner-authorized APIs rather than direct SQL. Production and staging use separate databases and secrets. See [`docs/architecture/SYSTEM_ARCHITECTURE.md`](docs/architecture/SYSTEM_ARCHITECTURE.md) and [`docs/architecture/ADMIN_DATABASE_LLD.md`](docs/architecture/ADMIN_DATABASE_LLD.md).
 
 ### Data Flow: One Simulation Round
 
@@ -196,7 +200,7 @@ iOS stores in Keychain, attaches to all future API requests
 ### Journey 2: Student Joins & Competes
 
 ```
-1. Student opens BizSimAI iOS app
+1. Student opens Practenture iOS app
 2. LaunchView shows LoginView (no token)
 3. Taps "Student Login" → Apple Sign-In
 4. iOS sends Apple ID token to /api/auth/login
@@ -313,13 +317,13 @@ iOS stores in Keychain, attaches to all future API requests
 
 | Environment Variable | Default | Purpose |
 |---------------------|---------|---------|
-| `BIZSIMAI_JWT_SECRET` | *(required)* | JWT signing key |
-| `BIZSIMAI_JWT_EXPIRY_HOURS` | `24` | Token lifetime |
-| `BIZSIMAI_CORS_ORIGINS` | `*` | Allowed CORS origins |
-| `BIZSIMAI_HOST` | `0.0.0.0` | Bind address |
-| `BIZSIMAI_PORT` | `8000` | HTTP port |
-| `BIZSIMAI_PROFESSOR_USERNAME` | `professor` | Default professor username |
-| `BIZSIMAI_PROFESSOR_PASSWORD` | `bizsimai2026` | Default professor password |
+| `PRACTENTURE_JWT_SECRET` | *(required)* | JWT signing key |
+| `PRACTENTURE_JWT_EXPIRY_HOURS` | `24` | Token lifetime |
+| `PRACTENTURE_CORS_ORIGINS` | `*` | Allowed CORS origins |
+| `PRACTENTURE_HOST` | `0.0.0.0` | Bind address |
+| `PRACTENTURE_PORT` | `8000` | HTTP port |
+| `PRACTENTURE_PROFESSOR_USERNAME` | `professor` | Default professor username |
+| `PRACTENTURE_PROFESSOR_PASSWORD` | `practenture2026` | Default professor password |
 
 ---
 
@@ -366,9 +370,9 @@ iOS stores in Keychain, attaches to all future API requests
 ## 10. File Structure
 
 ```
-BizSimAI-ios/
-├── BizSimAI/                          # iOS Xcode project
-│   ├── BizSimAI/                      # Swift source
+Practenture-ios/
+├── Practenture/                          # iOS Xcode project
+│   ├── Practenture/                      # Swift source
 │   │   ├── AuthManager.swift          # JWT + Apple/Google auth
 │   │   ├── NetworkService.swift       # HTTP client + models
 │   │   ├── LoginView.swift            # Three-mode login UI
@@ -377,7 +381,7 @@ BizSimAI-ios/
 │   │   ├── TeamDashboardView.swift    # Student dashboard
 │   │   ├── Engine/                    # Simulation engine (iOS local)
 │   │   └── Views/Professor/           # Professor-specific views
-│   ├── BizSimAI.xcodeproj/
+│   ├── Practenture.xcodeproj/
 │   ├── backend/                       # FastAPI backend
 │   │   ├── main.py                    # App entry + CORS
 │   │   ├── models.py                  # SQLAlchemy models
@@ -411,7 +415,7 @@ BizSimAI-ios/
 
 ### Backend Tests (42 passing, 16 e2e failing due to test harness issues)
 ```bash
-cd backend && BIZSIMAI_JWT_SECRET=<your-secret> python3 -m pytest test_backend.py test_phase5.py -v
+cd backend && PRACTENTURE_JWT_SECRET=<your-secret> python3 -m pytest test_backend.py test_phase5.py -v
 ```
 
 | Suite | Tests | Status |
@@ -423,7 +427,7 @@ cd backend && BIZSIMAI_JWT_SECRET=<your-secret> python3 -m pytest test_backend.p
 
 ### iOS Build
 ```bash
-xcodebuild -project BizSimAI.xcodeproj -scheme BizSimAI \
+xcodebuild -project Practenture.xcodeproj -scheme Practenture \
   -sdk iphonesimulator \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
 ```
