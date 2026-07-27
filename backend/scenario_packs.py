@@ -122,7 +122,51 @@ ATHLETIC_FOOTWEAR_CLASSIC = ScenarioPack(
     coefficients=ScenarioCoefficients(),
 )
 
-SCENARIO_PACKS = ScenarioPackRegistry([ATHLETIC_FOOTWEAR_CLASSIC])
+
+
+# ── Wearable Technology (research/calibration — not playable) ─────────────
+
+WEARABLE_TECHNOLOGY = ScenarioPack(
+    scenario_id="wearable-technology",
+    scenario_version="0.1.0-research",
+    title="Wearable Technology — Research Scenario",
+    terminology=ScenarioTerminology(
+        industry="Wearable Technology",
+        product_singular="wearable device",
+        product_plural="wearable devices",
+        quality_metric="Reliability Index",
+        wholesale_channel="Retail Distribution",
+        internet_channel="Direct-to-Consumer",
+        marketplace_channel="Online Marketplace",
+        private_label_channel="White-Label OEM",
+    ),
+    coefficients=ScenarioCoefficients(
+        price_elasticity=1.8,
+        sq_weight=1.5,
+        storage_cost_per_unit=2.00,
+        base_rejection_rate=0.08,
+        base_wage_baseline=28_000.0,
+        noise_amplitude=0.04,
+        base_stock_target=25.0,
+        target_ratchet_rate=0.06,
+        base_eps_target=1.8,
+        base_roe_target=0.14,
+        base_image_target=55.0,
+        base_interest_rate=0.07,
+        overtime_cost_premium=1.5,
+        outlets_weight=0.2,
+        advertising_weight=0.7,
+        wholesale_share=0.45,
+        amazon_share=0.20,
+        internet_share=0.25,
+        private_label_share=0.10,
+        amazon_referral_rate=0.15,
+        rebate_redemption_rate=0.6,
+        internet_shipping_cost_per_unit=5.0,
+    ),
+)
+
+SCENARIO_PACKS = ScenarioPackRegistry([ATHLETIC_FOOTWEAR_CLASSIC, WEARABLE_TECHNOLOGY])
 
 
 def get_scenario_pack(
@@ -134,3 +178,12 @@ def get_scenario_pack(
         scenario_id or DEFAULT_SCENARIO_ID,
         scenario_version or DEFAULT_SCENARIO_VERSION,
     )
+
+
+# Scenarios not yet available for gameplay (research/calibration only).
+RESEARCH_SCENARIOS: frozenset[str] = frozenset({"wearable-technology"})
+
+
+def is_scenario_playable(scenario_id: str) -> bool:
+    """Return True if sessions can be created with this scenario."""
+    return scenario_id not in RESEARCH_SCENARIOS

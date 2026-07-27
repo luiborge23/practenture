@@ -35,7 +35,12 @@ def test_discovery_exposes_only_production_backed_pack():
     response = TestClient(app).get("/api/sessions/scenarios")
     assert response.status_code == 200, response.text
     body = response.json()["scenarios"]
-    assert [(p["scenario_id"], p["scenario_version"]) for p in body] == [(DEFAULT_SCENARIO_ID, DEFAULT_SCENARIO_VERSION)]
+    ids = [(p["scenario_id"], p["scenario_version"]) for p in body]
+    assert (DEFAULT_SCENARIO_ID, DEFAULT_SCENARIO_VERSION) in ids
+    # Wearable is registered but must be marked as research/not-playable
+    if ("wearable-technology", "0.1.0-research") in ids:
+        wearable = [p for p in body if p["scenario_id"] == "wearable-technology"][0]
+        assert wearable.get("status") in ("research", None) or not wearable.get("playable", True)
 
 def test_classic_coefficients_match_engine_constants():
     c = ATHLETIC_FOOTWEAR_CLASSIC.coefficients

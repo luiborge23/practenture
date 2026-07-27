@@ -13,7 +13,7 @@ nonisolated struct ScenarioIdentity: Codable, Hashable, Sendable {
 
     static let wearableTechnologyResearch = ScenarioIdentity(
         id: "wearable-technology",
-        version: "research"
+        version: "0.1.0-research"
     )
 }
 

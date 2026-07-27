@@ -59,6 +59,72 @@ AMAZON_SHARE = 0.20
 INTERNET_SHARE = 0.15
 PRIVATE_LABEL_SHARE = 0.15
 
+# ── Coefficient Context (scenario dispatch) ─────────────────────────────────
+
+from scenario_packs import get_scenario_pack as _get_scenario_pack
+
+
+class CoefficientContext:
+    """Resolves scenario-specific coefficients, defaulting to Footwear Classic.
+
+    The module-level constants remain as the Footwear defaults.  Helper functions
+    read from the module-level ``_current_coeffs`` variable, which ``process_round``
+    sets before calling them.
+    """
+
+    __slots__ = (
+        "price_elasticity", "sq_weight", "storage_cost_per_unit",
+        "base_rejection_rate", "base_wage_baseline", "noise_amplitude",
+        "base_stock_target", "target_ratchet_rate", "base_eps_target",
+        "base_roe_target", "base_image_target", "base_interest_rate",
+        "overtime_cost_premium", "outlets_weight", "advertising_weight",
+        "wholesale_share", "amazon_share", "internet_share",
+        "private_label_share", "amazon_referral_rate",
+        "rebate_redemption_rate", "internet_shipping_cost_per_unit",
+        "scenario_id", "scenario_version",
+    )
+
+    def __init__(self, scenario_id: str = "athletic-footwear-classic",
+                 scenario_version: str = "1.0.0") -> None:
+        pack = _get_scenario_pack(scenario_id, scenario_version)
+        c = pack.coefficients
+        self.price_elasticity = c.price_elasticity
+        self.sq_weight = c.sq_weight
+        self.storage_cost_per_unit = c.storage_cost_per_unit
+        self.base_rejection_rate = c.base_rejection_rate
+        self.base_wage_baseline = c.base_wage_baseline
+        self.noise_amplitude = c.noise_amplitude
+        self.base_stock_target = c.base_stock_target
+        self.target_ratchet_rate = c.target_ratchet_rate
+        self.base_eps_target = c.base_eps_target
+        self.base_roe_target = c.base_roe_target
+        self.base_image_target = c.base_image_target
+        self.base_interest_rate = c.base_interest_rate
+        self.overtime_cost_premium = c.overtime_cost_premium
+        self.outlets_weight = c.outlets_weight
+        self.advertising_weight = c.advertising_weight
+        self.wholesale_share = c.wholesale_share
+        self.amazon_share = c.amazon_share
+        self.internet_share = c.internet_share
+        self.private_label_share = c.private_label_share
+        self.amazon_referral_rate = c.amazon_referral_rate
+        self.rebate_redemption_rate = c.rebate_redemption_rate
+        self.internet_shipping_cost_per_unit = c.internet_shipping_cost_per_unit
+        self.scenario_id = scenario_id
+        self.scenario_version = scenario_version
+
+
+# Module-level current coefficients (set by process_round, read by helpers).
+_current_coeffs: CoefficientContext = CoefficientContext()
+
+
+def _resolve_coeffs(scenario_id: str = "", scenario_version: str = "") -> CoefficientContext:
+    """Build a coefficient context for the given scenario."""
+    return CoefficientContext(
+        scenario_id or "athletic-footwear-classic",
+        scenario_version or "1.0.0",
+    )
+
 # ── Helper Functions ────────────────────────────────────────────────────────
 
 
@@ -83,7 +149,7 @@ class SwiftSeededRandomGenerator:
         return lower + (upper - lower) * self.next_double()
 
 
-def _add_noise(rng: Any, value: float, amplitude: float = NOISE_AMPLITUDE) -> float:
+def _add_noise(rng: Any, value: float, amplitude: float = _current_coeffs.noise_amplitude) -> float:
     """Add deterministic noise to a value."""
     if rng is None:
         return value
@@ -231,10 +297,10 @@ def _compute_wholesale_attractiveness(
     """Compute wholesale channel attractiveness (iOS lines 172-186)."""
     # Match Swift: rebates may exceed price, but elasticity must never receive
     # a negative base (which would produce a complex number in Python).
-    price_attract = _safe_div(max(avg_effective_price, 1.0), max(effective_price, 1.0)) ** PRICE_ELASTICITY
-    sq_attract = _safe_div(sq, max(avg_sq, 1.0)) ** SQ_WEIGHT
-    ad_attract = _safe_div(max(advertising_budget, 100), max(avg_advertising, 100)) ** ADVERTISING_WEIGHT
-    outlet_factor = 1.0 + retail_outlets / 100.0 * OUTLETS_WEIGHT
+    price_attract = _safe_div(max(avg_effective_price, 1.0), max(effective_price, 1.0)) ** _current_coeffs.price_elasticity
+    sq_attract = _safe_div(sq, max(avg_sq, 1.0)) ** _current_coeffs.sq_weight
+    ad_attract = _safe_div(max(advertising_budget, 100), max(avg_advertising, 100)) ** _current_coeffs.advertising_weight
+    outlet_factor = 1.0 + retail_outlets / 100.0 * _current_coeffs.outlets_weight
     endorse_factor = celebrity_endorsement.demand_boost
     reputation_factor = 0.7 + 0.6 * reputation
     delivery_factor = delivery_time.demand_boost
@@ -265,9 +331,9 @@ def _compute_internet_attractiveness(
     rng: random.Random | None = None,
 ) -> float:
     """Compute internet channel attractiveness (iOS lines 188-197)."""
-    price_attract = _safe_div(max(avg_price, 1.0), max(price, 1.0)) ** (PRICE_ELASTICITY * 0.9)
-    sq_attract = _safe_div(sq, max(avg_sq, 1.0)) ** (SQ_WEIGHT * 1.1)
-    ad_attract = _safe_div(max(advertising_budget, 100), max(avg_advertising, 100)) ** ADVERTISING_WEIGHT
+    price_attract = _safe_div(max(avg_price, 1.0), max(price, 1.0)) ** (_current_coeffs.price_elasticity * 0.9)
+    sq_attract = _safe_div(sq, max(avg_sq, 1.0)) ** (_current_coeffs.sq_weight * 1.1)
+    ad_attract = _safe_div(max(advertising_budget, 100), max(avg_advertising, 100)) ** _current_coeffs.advertising_weight
     endorse_factor = celebrity_endorsement.demand_boost
     reputation_factor = 0.7 + 0.6 * reputation
 
@@ -301,8 +367,8 @@ def _compute_amazon_attractiveness(
     effective_price = price * (1.0 - amazon_referral_rate)
     avg_effective_price = avg_price * (1.0 - amazon_referral_rate)
 
-    price_attract = _safe_div(max(avg_effective_price, 1.0), max(effective_price, 1.0)) ** (PRICE_ELASTICITY * 0.8)
-    review_proxy = _safe_div(sq, max(avg_sq, 1.0)) ** (SQ_WEIGHT * 1.2)
+    price_attract = _safe_div(max(avg_effective_price, 1.0), max(effective_price, 1.0)) ** (_current_coeffs.price_elasticity * 0.8)
+    review_proxy = _safe_div(sq, max(avg_sq, 1.0)) ** (_current_coeffs.sq_weight * 1.2)
     ad_boost = 1.0 + _clamp(amazon_ad_budget / 10000 * 0.15, 0, 0.15)
     buy_box = fulfillment_method.buy_box_multiplier
     trust = fulfillment_method.trust_multiplier
@@ -342,7 +408,7 @@ def compute_production_cost(
     overtime_units = max(0, quantity - base_capacity)
 
     regular_prod_cost = materials_cost_per_unit * regular_units
-    overtime_prod_cost = materials_cost_per_unit * OVERTIME_COST_PREMIUM * overtime_units
+    overtime_prod_cost = materials_cost_per_unit * _current_coeffs.overtime_cost_premium * overtime_units
 
     total_prod_cost = regular_prod_cost + overtime_prod_cost
     unit_cost = _safe_div(total_prod_cost, quantity) if quantity > 0 else materials_cost_per_unit
@@ -451,7 +517,7 @@ def compute_stock_price(
     epsGrowthFactor * roeFactor * (1 + dividendYield) * creditFactor * dilutionPenalty
     Then blend 40% previous + 60% new (for round > 1).
     """
-    eps_growth_factor = max(0.5, 1.0 + eps / max(abs(BASE_EPSTARGET), 0.01))
+    eps_growth_factor = max(0.5, 1.0 + eps / max(abs(_current_coeffs.base_eps_target), 0.01))
     roe_factor = max(0.5, 1.0 + roe)
 
     # Dividend yield based on previous stock price
@@ -468,7 +534,7 @@ def compute_stock_price(
     # Raw stock price with noise
     raw_stock_price = max(
         1,
-        BASE_STOCK_TARGET * eps_growth_factor * roe_factor
+        _current_coeffs.base_stock_target * eps_growth_factor * roe_factor
         * (1 + dividend_yield) * credit_factor * dilution_penalty
         * (1.0 + (rng.uniform(-0.03, 0.03) if rng else 0)),
     )
@@ -497,12 +563,12 @@ def compute_investor_scorecard(
     Each component worth 0-20 points (total 100).
     Targets ratchet: base * 1.06^round.
     """
-    ratchet_multiplier = (1.0 + TARGET_RATCHET_RATE) ** round_num
+    ratchet_multiplier = (1.0 + _current_coeffs.target_ratchet_rate) ** round_num
 
-    eps_target = BASE_EPSTARGET * ratchet_multiplier
-    roe_target = BASE_ROETARGET * ratchet_multiplier
-    stock_target = BASE_STOCK_TARGET * ratchet_multiplier
-    image_target = _clamp(BASE_IMAGE_TARGET * (1.0 + 0.03 * round_num), 0, 90)
+    eps_target = _current_coeffs.base_eps_target * ratchet_multiplier
+    roe_target = _current_coeffs.base_roe_target * ratchet_multiplier
+    stock_target = _current_coeffs.base_stock_target * ratchet_multiplier
+    image_target = _clamp(_current_coeffs.base_image_target * (1.0 + 0.03 * round_num), 0, 90)
 
     eps_score = _clamp(20 * eps / max(eps_target, 0.01), 0, 20)
     roe_score = _clamp(20 * roe / max(roe_target, 0.001), 0, 20)
@@ -924,7 +990,7 @@ def process_round(
 
     # Step 8: Private label allocation (iOS lines 219-228). Competitive
     # attractiveness allocates each channel; it does not scale total demand.
-    private_label_demand = total_market_demand * PRIVATE_LABEL_SHARE
+    private_label_demand = total_market_demand * _current_coeffs.private_label_share
     pl_allocations = allocate_private_label(teams, all_decisions, private_label_demand)
 
     # Step 9: Compute results for each team
@@ -942,9 +1008,9 @@ def process_round(
         a_share = _safe_div(amazon_attractivities.get(tid, 0), max(total_amazon_attract, 0.001))
 
         # Total market demand per channel
-        w_total_demand = total_market_demand * WHOLESALE_SHARE
-        i_total_demand = total_market_demand * INTERNET_SHARE
-        a_total_demand = total_market_demand * AMAZON_SHARE
+        w_total_demand = total_market_demand * _current_coeffs.wholesale_share
+        i_total_demand = total_market_demand * _current_coeffs.internet_share
+        a_total_demand = total_market_demand * _current_coeffs.amazon_share
 
         # Demand for this team per channel (Swift truncates to Int).
         w_demand = int(w_total_demand * w_share)
@@ -1061,7 +1127,7 @@ def process_round(
         internet_shipping_cost = i_sold * 5.0 * free_ship_rate
 
         # Storage costs (iOS line 379)
-        storage_costs = STORAGE_COST_PER_UNIT * ending_inventory
+        storage_costs = _current_coeffs.storage_cost_per_unit * ending_inventory
 
         # ── Financial costs (iOS lines 381-407) ────────────────────────
 
@@ -1079,7 +1145,7 @@ def process_round(
             except ValueError:
                 previous_credit = CreditRating[previous_credit]
 
-        interest_rate = BASE_INTEREST_RATE * previous_credit.interest_rate_multiplier
+        interest_rate = _current_coeffs.base_interest_rate * previous_credit.interest_rate_multiplier
         interest_expense = debt * interest_rate
 
         # Share changes (iOS lines 386-392)
@@ -1114,7 +1180,7 @@ def process_round(
         profit = total_revenue - total_costs
 
         # Buyback cost (iOS line 403)
-        prev_stock_for_buyback = prev_state.get("stockPrice", BASE_STOCK_TARGET)
+        prev_stock_for_buyback = prev_state.get("stockPrice", _current_coeffs.base_stock_target)
         buyback_cost = safe_buyback * max(5, prev_stock_for_buyback)
 
         # Cash change (iOS line 404)
@@ -1187,7 +1253,7 @@ def process_round(
             credit_rating=credit_rating,
             shares_issued=d.sharesIssued,
             shares_outstanding=shares_outstanding,
-            previous_stock_price=prev_state.get("stockPrice", BASE_STOCK_TARGET),
+            previous_stock_price=prev_state.get("stockPrice", _current_coeffs.base_stock_target),
             round_num=round_num,
             rng=rng,
         )

@@ -1,5 +1,5 @@
 {
-  "operationCount": 93,
+  "operationCount": 96,
   "operations": [
     {
       "method": "POST",
@@ -1418,6 +1418,39 @@
     },
     {
       "method": "GET",
+      "path": "/owner/owner",
+      "operationId": "owner_dashboard_redirect_owner_owner_get",
+      "security": [],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {}
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/owner/owner/",
+      "operationId": "owner_dashboard_owner_owner__get",
+      "security": [],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {}
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/owner/owner/dashboard",
+      "operationId": "owner_dashboard_page_owner_owner_dashboard_get",
+      "security": [],
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {}
+      }
+    },
+    {
+      "method": "GET",
       "path": "/owner/professor-invitations",
       "operationId": "list_professor_invitations_owner_professor_invitations_get",
       "security": [
@@ -1750,6 +1783,18 @@
     {
       "method": "POST",
       "path": "/owner/login"
+    },
+    {
+      "method": "GET",
+      "path": "/owner/owner"
+    },
+    {
+      "method": "GET",
+      "path": "/owner/owner/"
+    },
+    {
+      "method": "GET",
+      "path": "/owner/owner/dashboard"
     },
     {
       "method": "GET",

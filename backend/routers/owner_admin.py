@@ -784,3 +784,44 @@ async def owner_login(request: Request):
     auth_req = AuthLoginRequest(provider=req.provider, username=req.username, password=req.password)
     result = auth_login(auth_req)  # Returns dict directly
     return result
+
+
+# ── Owner Dashboard (Server-side Auth Check) ────────────────────────────────
+
+@router.get("/owner")
+async def owner_dashboard_redirect(request: Request):
+    """Redirect /owner to /owner/ for consistent routing."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/owner/")
+
+
+@router.get("/owner/")
+async def owner_dashboard(request: Request):
+    """Serve the Owner Dashboard HTML with server-side auth check."""
+    from fastapi.responses import RedirectResponse
+    
+    # Check for token in Authorization header or cookie
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        payload = _verify_token(token)
+        if payload and payload.get("role") in ("owner", "admin"):
+            return FileResponse("templates/owner_dashboard.html")
+    
+    # Check for token in cookie
+    token = request.cookies.get("token")
+    if token:
+        payload = _verify_token(token)
+        if payload and payload.get("role") in ("owner", "admin"):
+            return FileResponse("templates/owner_dashboard.html")
+    
+    # No valid authentication - redirect to login
+    return RedirectResponse(url="/owner/login")
+
+
+@router.get("/owner/dashboard")
+async def owner_dashboard_page(request: Request):
+    """Serve the Owner Dashboard HTML."""
+    return FileResponse("templates/owner_dashboard.html")
+
+
