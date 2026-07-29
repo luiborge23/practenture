@@ -20,6 +20,9 @@ from .invitations_repository import (
 from .invitations_schemas import (
     Invitation,
     InvitationCreateRequest,
+    InvitationEmailDelivery,
+    InvitationEmailDeliveryResponse,
+    InvitationEmailSendRequest,
     InvitationListResponse,
     InvitationResponse,
     InvitationResendRequest,
@@ -33,6 +36,7 @@ from .service import AdminMutationService, AuthenticatedSession, mutation_servic
 _CREATE_ROUTE = "POST /api/admin/v2/invitations"
 _REVOKE_ROUTE = "POST /api/admin/v2/invitations/{invitationId}/revoke"
 _RESEND_ROUTE = "POST /api/admin/v2/invitations/{invitationId}/resend"
+_SEND_EMAIL_ROUTE = "POST /api/admin/v2/invitations/{invitationId}/send-email"
 _PROCESS_INVITATION_KEY = secrets.token_bytes(32)
 
 
@@ -288,6 +292,64 @@ class InvitationService:
             mutation=resend,
         )
         return _with_one_time_secret(execution, route=_RESEND_ROUTE, idempotency_key=key)
+
+    def send_invitation_email(
+        self,
+        *,
+        session: AuthenticatedSession,
+        invitation_id: str,
+        payload: InvitationEmailSendRequest,
+        idempotency_key: str | None,
+        request_id: str,
+    ) -> InvitationEmailDeliveryResponse:
+        """Send only after proof of possession of the currently active code."""
+        key = idempotency_key or ""
+        if not key or len(key) > 255:
+            raise AdminError(400, "ADMIN_IDEMPOTENCY_KEY_INVALID", "Idempotency-Key must be between 1 and 255 characters")
+        proof = hash_invitation_secret(payload.secret)
+        fingerprint = hashlib.sha256(
+            f"{invitation_id}\0{payload.intended_email}\0{proof}".encode("utf-8")
+        ).hexdigest()
+        delivery, reserved = self.repository.reserve_email_delivery(
+            invitation_id=invitation_id,
+            intended_email=payload.intended_email,
+            secret=payload.secret,
+            owner_id=session.record.owner_user_id,
+            idempotency_key=key,
+            request_fingerprint=fingerprint,
+            now=self._now(),
+        )
+        if reserved:
+            try:
+                from .invitation_email import send_professor_invitation
+
+                receipt = send_professor_invitation(recipient=delivery.recipient_email, secret=payload.secret)
+            except AdminError as exc:
+                self.repository.finalize_email_delivery(
+                    delivery_id=delivery.id, accepted=False, provider_message_id=None,
+                    failure_code=exc.code, request_id=request_id,
+                    owner_id=session.record.owner_user_id, now=self._now(),
+                )
+                # The durable record is failed, never sent; caller keeps manual handoff.
+                raise exc
+            delivery = self.repository.finalize_email_delivery(
+                delivery_id=delivery.id, accepted=True, provider_message_id=receipt.message_id,
+                failure_code=None, request_id=request_id,
+                owner_id=session.record.owner_user_id, now=self._now(),
+            )
+        if delivery.state == "pending":
+            raise AdminError(409, "ADMIN_EMAIL_DELIVERY_IN_PROGRESS", "Invitation email delivery is in progress", headers={"Retry-After": "1"})
+        if delivery.state == "failed":
+            raise AdminError(503, delivery.failed_code or "ADMIN_EMAIL_DELIVERY_FAILED", "Invitation email was not accepted; use the manual handoff or retry with a new idempotency key")
+        return InvitationEmailDeliveryResponse(
+            delivery=InvitationEmailDelivery(
+                id=delivery.id, status="SENT", recipientEmail=delivery.recipient_email,
+                provider=delivery.provider,
+                providerMessageId=self.repository.redact_provider_message_id(delivery.provider_message_id),
+                failedCode=None, createdAt=datetime.fromisoformat(delivery.created_at),
+                updatedAt=datetime.fromisoformat(delivery.updated_at),
+            )
+        )
 
 
 invitation_service = InvitationService()

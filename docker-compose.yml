@@ -22,6 +22,10 @@ services:
       - PRACTENTURE_APPLE_AUDIENCE=${PRACTENTURE_APPLE_AUDIENCE:-}
       - PRACTENTURE_GOOGLE_AUDIENCE=${PRACTENTURE_GOOGLE_AUDIENCE:-}
       - PRACTENTURE_CORS_ORIGINS=${PRACTENTURE_CORS_ORIGINS:-http://localhost,http://localhost:8080,capacitor://}
+      - PRACTENTURE_EMAIL_PROVIDER=${PRACTENTURE_EMAIL_PROVIDER:-}
+      - PRACTENTURE_SES_REGION=${PRACTENTURE_SES_REGION:-us-east-1}
+      - PRACTENTURE_SES_SENDER=${PRACTENTURE_SES_SENDER:-}
+      - PRACTENTURE_PUBLIC_ORIGIN=${PRACTENTURE_PUBLIC_ORIGIN:-https://practenture.com}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 30s

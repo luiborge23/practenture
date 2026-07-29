@@ -11,12 +11,15 @@ import binascii
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 import hashlib
+import hmac
 import json
 import sqlite3
 from typing import Any
+from uuid import uuid4
 
 from database import db
 from .errors import AdminError
+from .redaction import redact_secrets
 
 
 _SORT_COLUMNS = {
@@ -51,9 +54,31 @@ class InvitationPage:
     next_cursor: str | None
 
 
+@dataclass(frozen=True)
+class EmailDeliveryRecord:
+    id: str
+    invitation_id: str
+    recipient_email: str
+    owner_id: str
+    request_fingerprint: str
+    state: str
+    provider: str | None
+    provider_message_id: str | None
+    failed_code: str | None
+    created_at: str
+    updated_at: str
+
+
 def hash_invitation_secret(secret: str) -> str:
     """Hash a high-entropy invitation secret for at-rest storage."""
     return hashlib.sha256(secret.encode("utf-8")).hexdigest()
+
+
+def _redact_message_id(message_id: str | None) -> str | None:
+    """Keep provider acceptance evidence useful without exposing its full value."""
+    if not message_id:
+        return None
+    return f"ses:{message_id[:6]}...{message_id[-4:]}"
 
 
 def _fingerprint(
@@ -312,3 +337,117 @@ class InvitationRepository:
         updated = self.get(invitation_id, conn=conn, now=now)
         assert updated is not None
         return updated
+
+    @staticmethod
+    def _delivery(row: sqlite3.Row) -> EmailDeliveryRecord:
+        return EmailDeliveryRecord(
+            id=str(row["id"]), invitation_id=str(row["invitation_id"]),
+            recipient_email=str(row["recipient_email"]), owner_id=str(row["owner_id"]),
+            request_fingerprint=str(row["request_fingerprint"]), state=str(row["state"]),
+            provider=row["provider"], provider_message_id=row["provider_message_id"],
+            failed_code=row["failed_code"], created_at=str(row["created_at"]),
+            updated_at=str(row["updated_at"]),
+        )
+
+    def reserve_email_delivery(
+        self, *, invitation_id: str, intended_email: str, secret: str, owner_id: str,
+        idempotency_key: str, request_fingerprint: str, now: datetime,
+    ) -> tuple[EmailDeliveryRecord, bool]:
+        """Validate possession and atomically reserve exactly one SES call.
+
+        The pending reservation is committed before the provider call because a
+        database transaction cannot make an external call atomic. A duplicate
+        key consequently cannot send a second email.
+        """
+        key_hash = hashlib.sha256(idempotency_key.encode("utf-8")).hexdigest()
+        now_iso = now.astimezone(timezone.utc).isoformat()
+        conn = self._db.connect()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            existing = conn.execute(
+                "SELECT * FROM invitation_email_deliveries WHERE owner_id=? AND idempotency_key_hash=?",
+                (owner_id, key_hash),
+            ).fetchone()
+            if existing is not None:
+                delivery = self._delivery(existing)
+                if not hmac.compare_digest(delivery.request_fingerprint, request_fingerprint):
+                    raise AdminError(409, "ADMIN_IDEMPOTENCY_CONFLICT", "Idempotency key was already used for a different request")
+                conn.commit()
+                return delivery, False
+            invitation = conn.execute(
+                "SELECT secret_hash, intended_email, status, expires_at FROM professor_invitations WHERE id=?",
+                (invitation_id,),
+            ).fetchone()
+            if invitation is None:
+                raise AdminError(404, "ADMIN_INVITATION_NOT_FOUND", "Invitation not found")
+            active = str(invitation[2]).casefold() == "active" and str(invitation[3]) > now_iso
+            secret_matches = hmac.compare_digest(str(invitation[0]), hash_invitation_secret(secret))
+            email_matches = hmac.compare_digest(str(invitation[1]), intended_email)
+            if not active or not secret_matches or not email_matches:
+                raise AdminError(409, "ADMIN_INVITATION_EMAIL_PROOF_INVALID", "The active invitation, email, or disclosed code is invalid")
+            delivery_id = f"idel_{uuid4()}"
+            conn.execute(
+                """INSERT INTO invitation_email_deliveries
+                   (id, invitation_id, recipient_email, owner_id, idempotency_key_hash,
+                    request_fingerprint, state, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)""",
+                (delivery_id, invitation_id, intended_email, owner_id, key_hash, request_fingerprint, now_iso, now_iso),
+            )
+            row = conn.execute("SELECT * FROM invitation_email_deliveries WHERE id=?", (delivery_id,)).fetchone()
+            conn.commit()
+            assert row is not None
+            return self._delivery(row), True
+        except BaseException:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def finalize_email_delivery(
+        self, *, delivery_id: str, accepted: bool, provider_message_id: str | None,
+        failure_code: str | None, request_id: str, owner_id: str, now: datetime,
+    ) -> EmailDeliveryRecord:
+        """Persist provider acceptance/failure and immutable redacted audit evidence."""
+        now_iso = now.astimezone(timezone.utc).isoformat()
+        conn = self._db.connect()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            result = conn.execute(
+                """UPDATE invitation_email_deliveries
+                   SET state=?, provider=?, provider_message_id=?, failed_code=?, updated_at=?
+                   WHERE id=? AND state='pending'""",
+                ("accepted" if accepted else "failed", "ses" if accepted else None,
+                 provider_message_id if accepted else None, failure_code if not accepted else None,
+                 now_iso, delivery_id),
+            )
+            row = conn.execute("SELECT * FROM invitation_email_deliveries WHERE id=?", (delivery_id,)).fetchone()
+            if row is None:
+                raise RuntimeError("email delivery reservation disappeared")
+            delivery = self._delivery(row)
+            if result.rowcount == 1:
+                metadata = redact_secrets({
+                    "deliveryId": delivery.id, "invitationId": delivery.invitation_id,
+                    "recipientEmail": delivery.recipient_email, "provider": delivery.provider,
+                    "providerMessageId": _redact_message_id(delivery.provider_message_id),
+                    "failedCode": delivery.failed_code,
+                })
+                conn.execute(
+                    """INSERT INTO admin_audit_events
+                       (id, request_id, actor_json, target_json, action, outcome, metadata_json, occurred_at)
+                       VALUES (?, ?, ?, ?, 'invitation.email_delivery', ?, ?, ?)""",
+                    (f"audit_{uuid4()}", request_id,
+                     json.dumps({"id": owner_id, "role": "owner"}, separators=(",", ":")),
+                     json.dumps({"type": "invitation", "id": delivery.invitation_id}, separators=(",", ":")),
+                     "succeeded" if accepted else "failed", json.dumps(metadata, separators=(",", ":"), sort_keys=True), now_iso),
+                )
+            conn.commit()
+            return delivery
+        except BaseException:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    @staticmethod
+    def redact_provider_message_id(message_id: str | None) -> str | None:
+        return _redact_message_id(message_id)

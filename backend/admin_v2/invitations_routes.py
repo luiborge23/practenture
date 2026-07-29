@@ -15,6 +15,8 @@ from fastapi.responses import JSONResponse
 from .dependencies import require_admin_session, require_recent_auth_session
 from .invitations_schemas import (
     InvitationCreateRequest,
+    InvitationEmailDeliveryResponse,
+    InvitationEmailSendRequest,
     InvitationListResponse,
     InvitationResponse,
     InvitationResendRequest,
@@ -139,3 +141,25 @@ def resend_invitation(
         request_id=_request_id(request),
     )
     return _mutation_response(execution)
+
+
+@router.post(
+    "/invitations/{invitationId}/send-email",
+    response_model=InvitationEmailDeliveryResponse,
+)
+def send_invitation_email(
+    invitationId: str,
+    request: Request,
+    payload: InvitationEmailSendRequest,
+    idempotency_key: Annotated[
+        str | None, Header(alias="Idempotency-Key", max_length=255)
+    ] = None,
+    session: AuthenticatedSession = Depends(require_recent_auth_session),
+) -> InvitationEmailDeliveryResponse:
+    return invitation_service.send_invitation_email(
+        session=session,
+        invitation_id=invitationId,
+        payload=payload,
+        idempotency_key=idempotency_key,
+        request_id=_request_id(request),
+    )

@@ -89,6 +89,8 @@
       <label for="invitation-code">iOS invitation code</label>
       <textarea id="invitation-code" class="secret-output" readonly rows="3" spellcheck="false"></textarea>
       <button id="copy-invitation-code" class="button button-secondary" type="button">Copy iOS invitation code</button>
+      <button id="send-invitation-email" class="button button-primary" type="button">Send securely with SES</button>
+      <p class="muted">SES delivery requires the currently disclosed code and the exact invited email. If SES cannot accept it, use the prepared manual email instead.</p>
       <p class="muted">The professor can use this same code in the Practenture iOS app or at <strong>practenture.com/login</strong>. Do not put invitation secrets into links.</p>
       <div class="button-row"><a id="open-email-draft" class="button button-secondary" href="#">Open prepared email</a></div>
       <label><input id="delivery-confirmed" type="checkbox"> I copied or sent this invitation securely.</label>

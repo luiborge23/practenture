@@ -293,6 +293,27 @@ class Database:
             CREATE INDEX IF NOT EXISTS idx_inv_org ON professor_invitations(organization_id);
             CREATE INDEX IF NOT EXISTS idx_inv_email ON professor_invitations(intended_email);
 
+            -- Provider acceptance is tracked separately from the invitation; only
+            -- SES message identifiers (never invitation secrets) are durable.
+            CREATE TABLE IF NOT EXISTS invitation_email_deliveries (
+                id TEXT PRIMARY KEY,
+                invitation_id TEXT NOT NULL,
+                recipient_email TEXT NOT NULL,
+                owner_id TEXT NOT NULL,
+                idempotency_key_hash TEXT NOT NULL,
+                request_fingerprint TEXT NOT NULL,
+                state TEXT NOT NULL CHECK(state IN ('pending', 'accepted', 'failed')),
+                provider TEXT,
+                provider_message_id TEXT,
+                failed_code TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(invitation_id) REFERENCES professor_invitations(id),
+                UNIQUE(owner_id, idempotency_key_hash)
+            );
+            CREATE INDEX IF NOT EXISTS idx_invitation_email_deliveries_invitation
+                ON invitation_email_deliveries(invitation_id, created_at);
+
             -- Audit events (SOTA Phase 2)
             CREATE TABLE IF NOT EXISTS audit_events (
                 id TEXT PRIMARY KEY,

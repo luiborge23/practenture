@@ -85,7 +85,7 @@ nonisolated enum ScenarioLibrary {
         if normalizedID == normalize(ScenarioIdentity.athleticFootwearClassic.id) {
             return athleticFootwearClassic
         }
-        if normalizedID == normalize(ScenarioIdentity.wearableTechnologyResearch.id) {
+        if normalizedID == normalize(ScenarioIdentity.wearableTechnology.id) {
             return wearableTechnology
         }
 

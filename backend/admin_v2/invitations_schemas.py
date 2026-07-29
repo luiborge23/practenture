@@ -81,3 +81,37 @@ class InvitationRevokeRequest(CamelModel):
 
 class InvitationResendRequest(CamelModel):
     expires_in_hours: int = Field(default=48, alias="expiresInHours", ge=1, le=720)
+
+
+class InvitationEmailSendRequest(CamelModel):
+    """Proof of possession for the just-disclosed invitation code.
+
+    The secret is request-only: no response model includes it.
+    """
+
+    intended_email: str = Field(alias="intendedEmail", min_length=3, max_length=320)
+    secret: str = Field(min_length=32, max_length=256)
+
+    @field_validator("intended_email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        value = value.strip().casefold()
+        local, separator, domain = value.rpartition("@")
+        if not separator or not local or "." not in domain or domain.startswith(".") or domain.endswith("."):
+            raise ValueError("a valid intended email is required")
+        return value
+
+
+class InvitationEmailDelivery(CamelModel):
+    id: str
+    status: Literal["SENT", "FAILED"]
+    recipient_email: str = Field(alias="recipientEmail")
+    provider: str | None = None
+    provider_message_id: str | None = Field(default=None, alias="providerMessageId")
+    failed_code: str | None = Field(default=None, alias="failedCode")
+    created_at: datetime = Field(alias="createdAt")
+    updated_at: datetime = Field(alias="updatedAt")
+
+
+class InvitationEmailDeliveryResponse(CamelModel):
+    delivery: InvitationEmailDelivery
