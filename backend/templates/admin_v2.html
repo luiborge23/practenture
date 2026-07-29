@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light">
   <title>Practenture Admin Console V2</title>
   <link rel="stylesheet" href="/static/admin_v2/admin-v2.css?v=2">
-  <script src="/static/admin_v2/admin-v2.js?v=4" defer></script>
+  <script src="/static/admin_v2/admin-v2.js?v=6" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -53,7 +53,7 @@
         <a href="#overview" data-view="overview">Overview</a>
         <a href="#organizations" data-view="organizations">Organizations</a>
         <a href="#users" data-view="users">Users</a>
-        <a href="#invitations" data-view="invitations">Invitations</a>
+        <a href="#invitations" data-view="invitations">Professor access</a>
         <p class="nav-label">Operations</p>
         <a href="#sessions" data-view="sessions">Live sessions</a>
         <a href="#audit" data-view="audit">Audit trail</a>
@@ -85,9 +85,15 @@
 
   <dialog id="secret-dialog" aria-labelledby="secret-title">
     <section class="dialog-card stack">
-      <div><p class="eyebrow">Shown once</p><h2 id="secret-title">Copy this secret now</h2><p id="secret-description">It cannot be retrieved after you leave this screen.</p></div>
-      <output id="one-time-secret" class="secret-output"></output>
-      <div class="button-row"><button id="copy-secret" class="button button-secondary" type="button">Copy</button><button id="close-secret" class="button button-primary" type="button">I have saved it</button></div>
+      <div><p class="eyebrow">Professor invitation ready</p><h2 id="secret-title">Send professor access now</h2><p id="secret-description">Practenture does not send this invitation automatically. Copy the code or link and share it securely with the invited professor before closing this screen.</p></div>
+      <label for="invitation-code">iOS invitation code</label>
+      <textarea id="invitation-code" class="secret-output" readonly rows="3" spellcheck="false"></textarea>
+      <button id="copy-invitation-code" class="button button-secondary" type="button">Copy iOS invitation code</button>
+      <p class="muted">The professor can use this same code in the Practenture iOS app or at <strong>practenture.com/login</strong>. Do not put invitation secrets into links.</p>
+      <div class="button-row"><a id="open-email-draft" class="button button-secondary" href="#">Open prepared email</a></div>
+      <label><input id="delivery-confirmed" type="checkbox"> I copied or sent this invitation securely.</label>
+      <p id="secret-delivery-status" class="muted" aria-live="polite"></p>
+      <div class="button-row"><button id="close-secret" class="button button-primary" type="button" disabled>Close invitation handoff</button></div>
     </section>
   </dialog>
 

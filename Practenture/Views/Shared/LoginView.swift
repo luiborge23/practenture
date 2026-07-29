@@ -578,12 +578,12 @@ struct LoginView: View {
             let providerName = pendingOAuthProvider == "apple" ? "Apple" : "Google"
             Text(pendingOAuthProvider != ""
                  ? "You signed in with \(providerName). Enter your professor code to create your account."
-                 : "You'll create an account first, then redeem your professor code to upgrade your role.")
+                 : "Paste the one-time invitation code your administrator shared. Your account and organization access are created together after verification.")
                 .font(.caption2)
                 .foregroundStyle(.white.opacity(0.64))
                 .multilineTextAlignment(.center)
 
-            TextField("PROF-XXXX-XXXX", text: $professorCode)
+            TextField("One-time invitation code", text: $professorCode)
                 .textInputAutocapitalization(.characters)
                 .autocorrectionDisabled()
                 .multilineTextAlignment(.center)
@@ -639,7 +639,7 @@ struct LoginView: View {
                 .textInputAutocapitalization(.words)
                 .textFieldStyle(AuthenticationTextFieldStyle())
 
-            TextField("Invitation email", text: $email)
+            TextField("Invitation email (must match administrator invitation)", text: $email)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .keyboardType(.emailAddress)

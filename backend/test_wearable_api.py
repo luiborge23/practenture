@@ -69,7 +69,7 @@ def _create_wearable_session(code: str, teams: list, professor_token: str) -> di
         "teams": teams,
         "created_by": "professor",
         "scenarioId": "wearable-technology",
-        "scenarioVersion": "0.1.0",
+        "scenarioVersion": "1.0.0",
     }
     resp = client.post(
         "/api/sessions",
@@ -136,7 +136,7 @@ def test_wearable_session_creation():
     resp = client.get(f"/api/sessions/{code}/public")
     assert resp.status_code == 200
     assert resp.json()["scenarioId"] == "wearable-technology"
-    assert resp.json()["scenarioVersion"] == "0.1.0"
+    assert resp.json()["scenarioVersion"] == "1.0.0"
 
 
 def test_wearable_decision_submission():

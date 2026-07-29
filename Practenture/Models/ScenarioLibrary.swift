@@ -11,9 +11,9 @@ nonisolated struct ScenarioIdentity: Codable, Hashable, Sendable {
         version: "1.0.0"
     )
 
-    static let wearableTechnologyResearch = ScenarioIdentity(
+    static let wearableTechnology = ScenarioIdentity(
         id: "wearable-technology",
-        version: "0.1.0"
+        version: "1.0.0"
     )
 }
 
@@ -60,10 +60,10 @@ nonisolated enum ScenarioLibrary {
     )
 
     static let wearableTechnology = SimulationScenario(
-        identity: .wearableTechnologyResearch,
+        identity: .wearableTechnology,
         title: "Wearable Technology",
         edition: "Future Scenario",
-        summary: "A technology-market simulation currently being researched and calibrated.",
+        summary: "Design a wearable device — balance battery, sensors, privacy, and sourcing to win the market.",
         systemImage: "applewatch",
         availability: .available
     )

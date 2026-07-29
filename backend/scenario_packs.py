@@ -124,12 +124,12 @@ ATHLETIC_FOOTWEAR_CLASSIC = ScenarioPack(
 
 
 
-# ── Wearable Technology (research/calibration — not playable) ─────────────
+# ── Wearable Technology (production) ──────────────────────────────────────
 
 WEARABLE_TECHNOLOGY = ScenarioPack(
     scenario_id="wearable-technology",
-    scenario_version="0.1.0",
-    title="Wearable Technology — Research Scenario",
+    scenario_version="1.0.0",
+    title="Wearable Technology — Future Scenario",
     terminology=ScenarioTerminology(
         industry="Wearable Technology",
         product_singular="wearable device",

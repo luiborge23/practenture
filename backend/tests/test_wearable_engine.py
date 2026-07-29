@@ -73,9 +73,9 @@ class TestWearableScenarioPack:
     """Verify the Wearable pack is registered but not playable."""
 
     def test_wearable_pack_exists(self):
-        pack = get_scenario_pack("wearable-technology", "0.1.0")
+        pack = get_scenario_pack("wearable-technology", "1.0.0")
         assert pack is WEARABLE_TECHNOLOGY
-        assert pack.title == "Wearable Technology — Research Scenario"
+        assert pack.title == "Wearable Technology — Future Scenario"
 
     def test_wearable_is_playable(self):
         assert "wearable-technology" in PLAYABLE_SCENARIOS
@@ -126,7 +126,7 @@ class TestCoefficientContext:
         assert c.private_label_share == PRIVATE_LABEL_SHARE
 
     def test_wearable_context_has_specified_values(self):
-        c = _resolve_coeffs("wearable-technology", "0.1.0")
+        c = _resolve_coeffs("wearable-technology", "1.0.0")
         assert c.price_elasticity == 1.8
         assert c.sq_weight == 1.5
         assert c.storage_cost_per_unit == 2.00
@@ -159,9 +159,9 @@ class TestWearableDeterminism:
         states = {"A": _initial_state(), "B": _initial_state()}
 
         r1, _ = process_round(config, teams, decisions, 1, dict(states),
-                              scenario_id="wearable-technology", scenario_version="0.1.0")
+                              scenario_id="wearable-technology", scenario_version="1.0.0")
         r2, _ = process_round(config, teams, decisions, 1, dict(states),
-                              scenario_id="wearable-technology", scenario_version="0.1.0")
+                              scenario_id="wearable-technology", scenario_version="1.0.0")
 
         for a, b in zip(r1, r2):
             assert a.cash == b.cash, f"Non-deterministic cash"
@@ -179,7 +179,7 @@ class TestWearableDeterminism:
         r_footwear, _ = process_round(config, teams, decisions, 1, dict(states),
                                        scenario_id="athletic-footwear-classic", scenario_version="1.0.0")
         r_wearable, _ = process_round(config, teams, decisions, 1, dict(states),
-                                       scenario_id="wearable-technology", scenario_version="0.1.0")
+                                       scenario_id="wearable-technology", scenario_version="1.0.0")
 
         # The coefficient dispatch may not change results for identical decisions
         # because the attractiveness formula is ratio-based (relative, not absolute).
@@ -202,7 +202,7 @@ class TestWearableStability:
         states = {t.teamName: _initial_state() for t in teams}
 
         results, _ = process_round(config, teams, decisions, 1, dict(states),
-                                    scenario_id="wearable-technology", scenario_version="0.1.0")
+                                    scenario_id="wearable-technology", scenario_version="1.0.0")
         for r in results:
             assert math.isfinite(r.cash), "Non-finite cash"
             assert math.isfinite(r.profit), "Non-finite profit"
@@ -216,13 +216,13 @@ class TestWearableStability:
         states = {t.teamName: _initial_state() for t in teams}
 
         results, _ = process_round(config, teams, decisions, 1, dict(states),
-                                    scenario_id="wearable-technology", scenario_version="0.1.0")
+                                    scenario_id="wearable-technology", scenario_version="1.0.0")
         for r in results:
             assert r.marketShare < 0.90, f"Monopoly: {r.marketShare:.2%}"
 
     def test_channel_shares_sum_to_one(self):
         """Wearable channel shares must sum to 1.0."""
-        c = _resolve_coeffs("wearable-technology", "0.1.0")
+        c = _resolve_coeffs("wearable-technology", "1.0.0")
         total = c.wholesale_share + c.amazon_share + c.internet_share + c.private_label_share
         assert abs(total - 1.0) < 1e-9, f"Channel shares sum to {total}, not 1.0"
 
@@ -233,7 +233,7 @@ class TestWearableStability:
         states = {"A": _initial_state()}
 
         results, _ = process_round(config, teams, decisions, 1, dict(states),
-                                    scenario_id="wearable-technology", scenario_version="0.1.0")
+                                    scenario_id="wearable-technology", scenario_version="1.0.0")
         assert results[0].profit < 5_000_000
         assert results[0].profit > -5_000_000
 
@@ -244,7 +244,7 @@ class TestWearableStability:
         states = {"A": _initial_state()}
 
         results, _ = process_round(config, teams, decisions, 1, dict(states),
-                                    scenario_id="wearable-technology", scenario_version="0.1.0")
+                                    scenario_id="wearable-technology", scenario_version="1.0.0")
         for channel, demand in results[0].demand.items():
             assert demand >= 0, f"Negative demand for {channel}: {demand}"
 

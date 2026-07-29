@@ -17,7 +17,7 @@ def test_shell_references_only_local_versioned_assets_and_is_not_cached():
     assert response.headers["referrer-policy"] == "no-referrer"
     assert "default-src 'self'" in response.headers["content-security-policy"]
     assert 'href="/static/admin_v2/admin-v2.css?v=2"' in response.text
-    assert 'src="/static/admin_v2/admin-v2.js?v=4"' in response.text
+    assert 'src="/static/admin_v2/admin-v2.js?v=6"' in response.text
     assert "http://" not in response.text
     assert "https://" not in response.text
     assert "localStorage" not in response.text
@@ -54,6 +54,33 @@ def test_shell_has_accessible_landmarks_and_no_inline_executable_code():
     assert "localStorage" not in html
     assert "sessionStorage" not in html
     assert "Delete all" not in html
+
+
+def test_admin_shell_makes_professor_enrollment_a_primary_visible_action():
+    html = (BACKEND / "templates" / "admin_v2.html").read_text(encoding="utf-8")
+    script = (BACKEND / "static" / "admin_v2" / "admin-v2.js").read_text(encoding="utf-8")
+
+    assert 'data-view="invitations">Professor access</a>' in html
+    assert "Give a professor access" in script
+    assert 'link.href="#invitations"' in script
+
+
+def test_invitation_handoff_exposes_code_only_and_manual_email_actions():
+    html = (BACKEND / "templates" / "admin_v2.html").read_text(encoding="utf-8")
+    script = (BACKEND / "static" / "admin_v2" / "admin-v2.js").read_text(encoding="utf-8")
+
+    for marker in (
+        "Copy iOS invitation code",
+        "Open prepared email",
+        "Practenture does not send this invitation automatically",
+        "Do not put invitation secrets into links.",
+    ):
+        assert marker in html
+    assert "mailto:" in script
+    assert "login?invite=" not in script
+    assert "Create professor access" in script
+    assert "Create new code" in script
+    assert 'button("Resend")' not in script
 
 
 def test_legacy_admin_surface_remains_available():
