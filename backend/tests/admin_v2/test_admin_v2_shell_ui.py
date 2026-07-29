@@ -17,7 +17,7 @@ def test_shell_references_only_local_versioned_assets_and_is_not_cached():
     assert response.headers["referrer-policy"] == "no-referrer"
     assert "default-src 'self'" in response.headers["content-security-policy"]
     assert 'href="/static/admin_v2/admin-v2.css?v=2"' in response.text
-    assert 'src="/static/admin_v2/admin-v2.js?v=6"' in response.text
+    assert 'src="/static/admin_v2/admin-v2.js?v=7"' in response.text
     assert "http://" not in response.text
     assert "https://" not in response.text
     assert "localStorage" not in response.text
@@ -72,7 +72,7 @@ def test_invitation_handoff_exposes_code_only_and_manual_email_actions():
     for marker in (
         "Copy iOS invitation code",
         "Open prepared email",
-        "Practenture does not send this invitation automatically",
+        "Practenture does not send this invitation until you explicitly choose SES delivery",
         "Do not put invitation secrets into links.",
     ):
         assert marker in html

@@ -50,6 +50,9 @@ def send_professor_invitation(*, recipient: str, secret: str) -> EmailDeliveryRe
                 "Body": {"Text": {"Data": body, "Charset": "UTF-8"}},
             },
         )
+        message_id = str(response["MessageId"])
+        if not message_id:
+            raise KeyError("MessageId")
     except (BotoCoreError, ClientError, KeyError, TypeError) as exc:
         raise AdminError(503, "ADMIN_EMAIL_DELIVERY_FAILED", "SES could not accept the invitation email") from exc
-    return EmailDeliveryReceipt(message_id=str(response["MessageId"]))
+    return EmailDeliveryReceipt(message_id=message_id)

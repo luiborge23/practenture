@@ -53,7 +53,7 @@
       "path": "/api/sessions/{code}"
     }
   ],
-  "operationCount": 103,
+  "operationCount": 104,
   "operations": [
     {
       "method": "GET",
@@ -335,6 +335,24 @@
       "responses": {
         "200": {
           "$ref": "#/components/schemas/InvitationResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "operationId": "send_invitation_email_api_admin_v2_invitations__invitationId__send_email_post",
+      "path": "/api/admin/v2/invitations/{invitationId}/send-email",
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/InvitationEmailSendRequest"
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/InvitationEmailDeliveryResponse"
         },
         "422": {
           "$ref": "#/components/schemas/HTTPValidationError"

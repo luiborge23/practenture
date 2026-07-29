@@ -332,6 +332,13 @@ class InvitationService:
                 )
                 # The durable record is failed, never sent; caller keeps manual handoff.
                 raise exc
+            except Exception as exc:
+                self.repository.finalize_email_delivery(
+                    delivery_id=delivery.id, accepted=False, provider_message_id=None,
+                    failure_code="ADMIN_EMAIL_DELIVERY_FAILED", request_id=request_id,
+                    owner_id=session.record.owner_user_id, now=self._now(),
+                )
+                raise AdminError(503, "ADMIN_EMAIL_DELIVERY_FAILED", "SES could not accept the invitation email") from exc
             delivery = self.repository.finalize_email_delivery(
                 delivery_id=delivery.id, accepted=True, provider_message_id=receipt.message_id,
                 failure_code=None, request_id=request_id,
