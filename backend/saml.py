@@ -119,7 +119,7 @@ async def assertion_consumer_service(request: Request):
     It parses the SAML response, extracts user attributes, and issues a JWT.
     """
     import database as db_module
-    from auth import _create_token, _generate_refresh_token, ACCESS_TOKEN_SOTA_MINUTES
+    from auth import _create_access_token, _generate_refresh_token, ACCESS_TOKEN_SOTA_MINUTES
     from datetime import timedelta
     from security import hash_password
 
@@ -183,7 +183,7 @@ async def assertion_consumer_service(request: Request):
     org = db_module.db.get_primary_org(user_id)
     tenant_id = org["id"] if org else ""
 
-    access_token = _create_token({
+    access_token = _create_access_token({
         "sub": user_id,
         "role": role,
         "tenantId": tenant_id,

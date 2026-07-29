@@ -13,7 +13,7 @@ services:
       - db-data:/data
     environment:
       - PRACTENTURE_DB_PATH=/data/practenture.db
-      - PRACTENTURE_JWT_SECRET=${PRACTENTURE_JWT_SECRET:-your-secret-key-change-in-production}
+      - PRACTENTURE_JWT_SECRET=${PRACTENTURE_JWT_SECRET:?PRACTENTURE_JWT_SECRET must be set}
       - PRACTENTURE_OWNER_USERNAME=${PRACTENTURE_OWNER_USERNAME:-owner}
       - PRACTENTURE_OWNER_PASSWORD=${PRACTENTURE_OWNER_PASSWORD:-}
       - PRACTENTURE_PROFESSOR_USERNAME=${PRACTENTURE_PROFESSOR_USERNAME:-professor}
@@ -21,7 +21,7 @@ services:
       - PRACTENTURE_JWT_EXPIRY_HOURS=${PRACTENTURE_JWT_EXPIRY_HOURS:-24}
       - PRACTENTURE_APPLE_AUDIENCE=${PRACTENTURE_APPLE_AUDIENCE:-}
       - PRACTENTURE_GOOGLE_AUDIENCE=${PRACTENTURE_GOOGLE_AUDIENCE:-}
-      - PRACTENTURE_CORS_ORIGINS=${PRACTENTURE_CORS_ORIGINS:-*}
+      - PRACTENTURE_CORS_ORIGINS=${PRACTENTURE_CORS_ORIGINS:-http://localhost,http://localhost:8080,capacitor://}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 30s
@@ -35,9 +35,12 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx-practenture.conf:/etc/nginx/conf.d/practenture.conf:ro
       - /dev/null:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/practenture:/var/www/practenture:ro
     depends_on:
       practenture-backend:
         condition: service_healthy

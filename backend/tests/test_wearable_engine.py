@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from models import PlayerDecision, SessionConfiguration, TeamConfig
 from scenario_packs import (
     WEARABLE_TECHNOLOGY,
-    RESEARCH_SCENARIOS,
+    PLAYABLE_SCENARIOS,
     is_scenario_playable,
     get_scenario_pack,
 )
@@ -78,7 +78,7 @@ class TestWearableScenarioPack:
         assert pack.title == "Wearable Technology — Research Scenario"
 
     def test_wearable_is_playable(self):
-        assert "wearable-technology" not in RESEARCH_SCENARIOS
+        assert "wearable-technology" in PLAYABLE_SCENARIOS
         assert is_scenario_playable("wearable-technology")
 
     def test_footwear_is_playable(self):
@@ -159,9 +159,9 @@ class TestWearableDeterminism:
         states = {"A": _initial_state(), "B": _initial_state()}
 
         r1, _ = process_round(config, teams, decisions, 1, dict(states),
-                              scenario_id="wearable-technology", scenario_version="0.1.0-research")
+                              scenario_id="wearable-technology", scenario_version="0.1.0")
         r2, _ = process_round(config, teams, decisions, 1, dict(states),
-                              scenario_id="wearable-technology", scenario_version="0.1.0-research")
+                              scenario_id="wearable-technology", scenario_version="0.1.0")
 
         for a, b in zip(r1, r2):
             assert a.cash == b.cash, f"Non-deterministic cash"
@@ -179,7 +179,7 @@ class TestWearableDeterminism:
         r_footwear, _ = process_round(config, teams, decisions, 1, dict(states),
                                        scenario_id="athletic-footwear-classic", scenario_version="1.0.0")
         r_wearable, _ = process_round(config, teams, decisions, 1, dict(states),
-                                       scenario_id="wearable-technology", scenario_version="0.1.0-research")
+                                       scenario_id="wearable-technology", scenario_version="0.1.0")
 
         # The coefficient dispatch may not change results for identical decisions
         # because the attractiveness formula is ratio-based (relative, not absolute).
@@ -202,7 +202,7 @@ class TestWearableStability:
         states = {t.teamName: _initial_state() for t in teams}
 
         results, _ = process_round(config, teams, decisions, 1, dict(states),
-                                    scenario_id="wearable-technology", scenario_version="0.1.0-research")
+                                    scenario_id="wearable-technology", scenario_version="0.1.0")
         for r in results:
             assert math.isfinite(r.cash), "Non-finite cash"
             assert math.isfinite(r.profit), "Non-finite profit"
@@ -216,7 +216,7 @@ class TestWearableStability:
         states = {t.teamName: _initial_state() for t in teams}
 
         results, _ = process_round(config, teams, decisions, 1, dict(states),
-                                    scenario_id="wearable-technology", scenario_version="0.1.0-research")
+                                    scenario_id="wearable-technology", scenario_version="0.1.0")
         for r in results:
             assert r.marketShare < 0.90, f"Monopoly: {r.marketShare:.2%}"
 
@@ -233,7 +233,7 @@ class TestWearableStability:
         states = {"A": _initial_state()}
 
         results, _ = process_round(config, teams, decisions, 1, dict(states),
-                                    scenario_id="wearable-technology", scenario_version="0.1.0-research")
+                                    scenario_id="wearable-technology", scenario_version="0.1.0")
         assert results[0].profit < 5_000_000
         assert results[0].profit > -5_000_000
 
@@ -244,7 +244,7 @@ class TestWearableStability:
         states = {"A": _initial_state()}
 
         results, _ = process_round(config, teams, decisions, 1, dict(states),
-                                    scenario_id="wearable-technology", scenario_version="0.1.0-research")
+                                    scenario_id="wearable-technology", scenario_version="0.1.0")
         for channel, demand in results[0].demand.items():
             assert demand >= 0, f"Negative demand for {channel}: {demand}"
 

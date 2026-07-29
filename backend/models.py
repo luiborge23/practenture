@@ -374,6 +374,13 @@ class PlayerDecision(BaseModel):
     productionQuantity: int = Field(default=200, ge=0)
     overtimePercent: float = Field(default=0.0, ge=0, le=20)
 
+    # ── Wearable Technology (WearableDecision) ──────────────────────────
+    # Optional — only meaningful when scenario_id == "wearable-technology"
+    batteryLife: float = Field(default=24.0, ge=12.0, le=48.0)  # hours
+    sensorAccuracy: float = Field(default=7.0, ge=0.0, le=10.0)  # 0-10 scale
+    privacyCompliance: float = Field(default=5000.0, ge=0.0)  # budget in USD
+    componentSourcing: str = Field(default="standard")  # "standard" | "premium" | "sustainable" | "budget"
+
     # ── Finance (FinanceDecision) ───────────────────────────────────────
     csrInvestment: float = Field(default=2000.0, ge=0)
     dividendsPerShare: float = Field(default=0.50, ge=0)

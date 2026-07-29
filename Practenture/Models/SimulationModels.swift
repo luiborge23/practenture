@@ -329,6 +329,37 @@ enum FulfillmentMethod: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Component Sourcing (Wearable Technology)
+
+/// Component sourcing tier for wearable technology parts.
+enum ComponentSourcing: String, Codable, CaseIterable, Identifiable {
+    case budget
+    case standard
+    case premium
+    case sustainable
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .budget: return "Budget"
+        case .standard: return "Standard"
+        case .premium: return "Premium"
+        case .sustainable: return "Sustainable"
+        }
+    }
+
+    /// Production cost multiplier.
+    var costMultiplier: Double {
+        switch self {
+        case .budget: return 0.85
+        case .standard: return 1.0
+        case .premium: return 1.25
+        case .sustainable: return 1.15
+        }
+    }
+}
+
 // MARK: - Credit Rating
 
 /// Financial health grade.
@@ -645,6 +676,16 @@ struct PlayerDecision: Codable, Identifiable {
     /// New shares to issue (raises capital but dilutes EPS).
     var sharesIssued: Int
 
+    // --- Wearable Technology ---
+    /// Battery life in hours (12-48). Affects rejection rate.
+    var batteryLife: Int = 24
+    /// Sensor accuracy score (0-10). Scales S/Q weight.
+    var sensorAccuracy: Double = 7.0
+    /// Privacy compliance investment (0-10000). Scales image rating.
+    var privacyCompliance: Int = 5000
+    /// Component sourcing tier for wearable parts.
+    var componentSourcing: ComponentSourcing = .standard
+
     // Legacy compatibility helpers
     var price: Double { wholesalePrice }
     var marketingBudget: Double { advertisingBudget }
@@ -686,7 +727,11 @@ struct PlayerDecision: Codable, Identifiable {
         dividendsPerShare: Double = 0.50,
         newLoanAmount: Double = 0,
         sharesBuyback: Int = 0,
-        sharesIssued: Int = 0
+        sharesIssued: Int = 0,
+        batteryLife: Int = 24,
+        sensorAccuracy: Double = 7.0,
+        privacyCompliance: Int = 5000,
+        componentSourcing: ComponentSourcing = .standard
     ) {
         self.id = UUID()
         self.teamId = teamId
@@ -724,6 +769,10 @@ struct PlayerDecision: Codable, Identifiable {
         self.newLoanAmount = newLoanAmount
         self.sharesBuyback = sharesBuyback
         self.sharesIssued = sharesIssued
+        self.batteryLife = batteryLife
+        self.sensorAccuracy = sensorAccuracy
+        self.privacyCompliance = privacyCompliance
+        self.componentSourcing = componentSourcing
     }
 }
 

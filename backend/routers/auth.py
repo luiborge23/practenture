@@ -377,18 +377,20 @@ async def forgot_password(req: ForgotPasswordRequest):
 async def reset_password(req: ResetPasswordRequest):
     """Reset password using a valid token.
 
-    Validates the token, hashes the new password with bcrypt, and updates the user.
+    Validates password policy, hashes the password with bcrypt, then atomically
+    consumes the token, updates the password, and revokes active credentials.
     """
-    from database import db
-    from security import hash_password, validate_password_complexity
     import hashlib
 
-    # Hash the token to look it up
-    token_hash = hashlib.sha256(req.token.encode()).hexdigest()
+    from database import db
+    from security import hash_password, validate_password_complexity
 
-    # Verify the token is valid (exists, unused, not expired)
-    token_record = db.verify_reset_token(token_hash)
-    if not token_record:
+    # Preserve the legacy error precedence (invalid token before password policy)
+    # as a read-only preflight. The transactional method below independently
+    # revalidates and conditionally consumes the token, so this check conveys no
+    # authority and cannot reintroduce the former consumption race.
+    token_hash = hashlib.sha256(req.token.encode()).hexdigest()
+    if not db.verify_reset_token(token_hash):
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
 
     # Validate new password complexity
@@ -396,12 +398,11 @@ async def reset_password(req: ResetPasswordRequest):
     if not is_valid:
         raise HTTPException(status_code=400, detail=err_msg)
 
-    # Hash new password with bcrypt and update
+    # Hash before acquiring SQLite's write lock; the database method performs all
+    # persistence changes on one dedicated BEGIN IMMEDIATE transaction.
     h = hash_password(req.new_password)
-    db.update_user_password(token_record["user_id"], h)
-
-    # Mark token as used
-    db.consume_reset_token(token_hash)
+    if not db.complete_password_reset(req.token, h):
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
 
     return ResetPasswordResponse(status="password_reset")
 

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Practenture Professor Portal</title>
+  <link rel="stylesheet" href="/static/professor_portal/portal.css?v=1">
+  <script src="/static/professor_portal/portal.js?v=1" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <main id="main">
+    <section id="auth" class="auth-shell" hidden>
+      <div class="auth-card">
+        <div class="brand">P</div>
+        <p class="eyebrow">Practenture educators</p>
+        <h1>Professor portal</h1>
+        <p class="lede">Sign in to monitor your live simulations and student progress.</p>
+        <div id="auth-alert" class="alert error" role="alert" hidden></div>
+        <div class="tabs" role="tablist">
+          <button id="login-tab" type="button" role="tab" aria-selected="true">Sign in</button>
+          <button id="activate-tab" type="button" role="tab" aria-selected="false">Accept invitation</button>
+        </div>
+        <form id="login-form" class="stack">
+          <label for="login-username">Username</label>
+          <input id="login-username" autocomplete="username" required maxlength="200">
+          <label for="login-password">Password</label>
+          <input id="login-password" type="password" autocomplete="current-password" required maxlength="1024">
+          <label for="login-mfa">MFA code <span class="muted">(if enabled)</span></label>
+          <input id="login-mfa" inputmode="numeric" autocomplete="one-time-code" maxlength="64">
+          <button class="primary" type="submit">Sign in securely</button>
+        </form>
+        <form id="activate-form" class="stack" hidden>
+          <label for="invite-code">Invitation code</label>
+          <input id="invite-code" autocomplete="off" required maxlength="1024">
+          <label for="invite-email">Invited email</label>
+          <input id="invite-email" type="email" autocomplete="email" required maxlength="320">
+          <label for="invite-name">Full name</label>
+          <input id="invite-name" autocomplete="name" required maxlength="200">
+          <label for="invite-username">Choose a username</label>
+          <input id="invite-username" autocomplete="username" required maxlength="200">
+          <label for="invite-password">Choose a password</label>
+          <input id="invite-password" type="password" autocomplete="new-password" required maxlength="1024">
+          <label for="invite-confirm">Confirm password</label>
+          <input id="invite-confirm" type="password" autocomplete="new-password" required maxlength="1024">
+          <p class="hint">Use at least eight characters with uppercase, lowercase, a number, and a special character.</p>
+          <button class="primary" type="submit">Create professor account</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="dashboard" class="dashboard" hidden>
+      <header class="topbar">
+        <div><span class="brand small">P</span><strong>Practenture</strong></div>
+        <div><span id="professor-name" class="muted"></span><button id="logout" type="button">Sign out</button></div>
+      </header>
+      <div class="content">
+        <header class="page-head">
+          <div><p class="eyebrow">Professor workspace</p><h1>Simulation progress</h1><p class="lede">Live, server-authoritative progress for sessions you own.</p></div>
+          <button id="refresh" type="button">Refresh</button>
+        </header>
+        <div id="dashboard-alert" class="alert error" role="alert" hidden></div>
+        <section id="metrics" class="metrics" aria-live="polite"></section>
+        <section class="table-card">
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Session</th><th>Status</th><th>Round</th><th>Teams</th><th>Submitted this round</th><th>Total submissions</th><th>Exports</th></tr></thead>
+              <tbody id="progress-rows"></tbody>
+            </table>
+          </div>
+          <p id="empty-progress" class="empty" hidden>No sessions yet. Create a session in the Practenture iOS app; it will appear here automatically.</p>
+        </section>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

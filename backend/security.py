@@ -27,6 +27,13 @@ _BCRYPT_COST = 12
 
 # SHA-256 hex digest pattern (legacy detection)
 _SHA256_PATTERN = re.compile(r"^[a-f0-9]{64}$")
+# A complete, supported bcrypt encoding: revision, valid cost, salt, checksum.
+# Keeping this strict prevents bcrypt-looking garbage from bypassing the fixed
+# dummy verification performed by privileged authentication callers.
+_BCRYPT_PATTERN = re.compile(
+    r"^\$2[aby]\$(?:0[4-9]|[12][0-9]|3[01])\$"
+    r"[./A-Za-z0-9]{21}[.Oeu][./A-Za-z0-9]{31}$"
+)
 
 
 def hash_password(plain: str) -> str:
@@ -50,9 +57,14 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-def is_legacy_hash(hashed: str) -> bool:
+def is_legacy_hash(hashed: object) -> bool:
     """Check if a hash is legacy SHA-256 (64 hex chars)."""
-    return bool(_SHA256_PATTERN.match(hashed))
+    return isinstance(hashed, str) and bool(_SHA256_PATTERN.fullmatch(hashed))
+
+
+def is_bcrypt_hash(hashed: object) -> bool:
+    """Return whether *hashed* has a complete supported bcrypt encoding."""
+    return isinstance(hashed, str) and bool(_BCRYPT_PATTERN.fullmatch(hashed))
 
 
 def needs_migration(hashed: str) -> bool:

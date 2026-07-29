@@ -180,10 +180,10 @@ def get_scenario_pack(
     )
 
 
-# Scenarios not yet available for gameplay (research/calibration only).
-RESEARCH_SCENARIOS: frozenset[str] = frozenset()
+# Scenarios explicitly registered as playable. Only these IDs can create sessions.
+PLAYABLE_SCENARIOS: frozenset[str] = frozenset(["athletic-footwear-classic", "wearable-technology"])
 
 
 def is_scenario_playable(scenario_id: str) -> bool:
     """Return True if sessions can be created with this scenario."""
-    return scenario_id not in RESEARCH_SCENARIOS
+    return scenario_id in PLAYABLE_SCENARIOS

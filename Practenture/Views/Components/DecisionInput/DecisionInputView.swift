@@ -39,6 +39,7 @@ struct DecisionInputView: View {
                         case .production: ProductionSectionView(viewModel: viewModel)
                         case .csr: CSRSectionView(viewModel: viewModel)
                         case .finance: FinanceSectionView(viewModel: viewModel)
+                        case .wearable: WearableSectionView(viewModel: viewModel)
                         }
                     }
                     .padding(16)

@@ -27,7 +27,8 @@ final class DecisionContractSerializationTests: XCTestCase {
             trainingBudget: 1200, trainingHours: 24, bestPracticesInvestment: 54,
             productionQuantity: 9000, overtimePercent: 12, csrInvestment: 55,
             dividendsPerShare: 0.75, newLoanAmount: 10000, sharesBuyback: 100,
-            sharesIssued: 50, fulfillmentMethod: "fba", internetPromotion: 0.2
+            sharesIssued: 50, fulfillmentMethod: "fba", internetPromotion: 0.2,
+            batteryLife: 24, sensorAccuracy: 7.0, privacyCompliance: 5000, componentSourcing: "standard"
         )
         let data = try JSONEncoder().encode(
             SubmitDecisionRequestBackend(round: 3, teamId: "Team Alpha", decision: backend)
@@ -45,7 +46,8 @@ final class DecisionContractSerializationTests: XCTestCase {
             "tiktokBudget", "instagramBudget", "youtubeBudget", "influencerTier",
             "baseWage", "incentivePay", "trainingHours", "bestPracticesInvestment",
             "productionQuantity", "overtimePercent", "csrInvestment", "dividendsPerShare",
-            "newLoanAmount", "sharesBuyback", "sharesIssued", "fulfillmentMethod"
+            "newLoanAmount", "sharesBuyback", "sharesIssued", "fulfillmentMethod",
+            "batteryLife", "sensorAccuracy", "privacyCompliance", "componentSourcing"
         ]
         XCTAssertTrue(requiredModernKeys.isSubset(of: Set(decision.keys)),
                       "Missing modern fields: \(requiredModernKeys.subtracting(decision.keys))")
@@ -54,6 +56,10 @@ final class DecisionContractSerializationTests: XCTestCase {
         XCTAssertEqual(decision["mailInRebate"] as? Double, 2)
         XCTAssertEqual(decision["trainingHours"] as? Double, 24)
         XCTAssertEqual(decision["bestPracticesInvestment"] as? Double, 54)
+        XCTAssertEqual(decision["batteryLife"] as? Int, 24)
+        XCTAssertEqual(decision["sensorAccuracy"] as? Double, 7.0)
+        XCTAssertEqual(decision["privacyCompliance"] as? Int, 5000)
+        XCTAssertEqual(decision["componentSourcing"] as? String, "standard")
         XCTAssertFalse(decision.keys.contains { $0.contains("_") }, "Contract keys must be camelCase")
     }
 }

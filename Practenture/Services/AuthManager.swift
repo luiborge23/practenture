@@ -320,47 +320,34 @@ final class AuthManager {
         return response
     }
 
-    /// Full professor onboarding in one atomic operation: register → login → redeem code.
+    /// Full professor onboarding in one backend transaction.
     /// Only sets isAuthenticated=true at the END with role="professor", so LaunchView
     /// doesn't auto-dismiss the onboarding sheet mid-flow.
     @MainActor
-    func registerProfessor(username: String, password: String, name: String, professorCode: String) async throws -> AuthLoginResponse {
-        // Step 1: Register the base account (creates student role initially)
-        do {
-            _ = try await network.postVoid("/api/auth/register", body: AuthRegisterRequest(studentId: username, name: name, password: password))
-        } catch NetworkError.serverError(409, _) {
-            // Username already exists as student — fall through to login + redeem
-        } catch {
-            throw error
-        }
-        // Step 2: Login to get tokens (may require MFA)
-        let loginResponse: AuthLoginResponse = try await network.post("/api/auth/login", body: AuthLoginRequest(provider: "password", username: username, password: password, idToken: nil, mfaCode: nil))
-        if loginResponse.mfaRequired == true {
-            // MFA required — persist and return so caller can handle it
-            persistTokens(access: loginResponse.accessToken, refresh: loginResponse.refreshToken)
-            isAuthenticated = true
-            currentUser = AuthUser(userId: loginResponse.userId, username: username, role: loginResponse.role, studentId: username, name: name)
-            return loginResponse
-        }
-        persistTokens(access: loginResponse.accessToken, refresh: loginResponse.refreshToken)
-        currentUser = AuthUser(userId: loginResponse.userId, username: username, role: loginResponse.role, studentId: username, name: name)
-        // Step 3: Redeem professor code to upgrade role
-        let redeemResponse: RedeemCodeResponse = try await network.post("/api/professor/redeem", body: RedeemCodeRequest(code: professorCode))
-        persistTokens(access: redeemResponse.accessToken, refresh: loginResponse.refreshToken)
-        currentUser = AuthUser(
-            userId: currentUser?.userId ?? "",
-            username: currentUser?.username ?? "",
-            role: "professor",
-            studentId: currentUser?.studentId,
-            name: currentUser?.name
+    func registerProfessor(username: String, email: String, password: String, name: String, professorCode: String) async throws -> AuthLoginResponse {
+        let response: AuthLoginResponse = try await network.post(
+            "/api/auth/password/activate-professor",
+            body: ProfessorActivationRequest(
+                professorCode: professorCode,
+                username: username,
+                email: email,
+                name: name,
+                password: password,
+                confirmPassword: password
+            )
         )
-        // ONLY NOW set authenticated — role is professor
+        persistTokens(access: response.accessToken, refresh: response.refreshToken)
+        currentUser = AuthUser(
+            userId: response.userId,
+            username: username,
+            role: "professor",
+            studentId: nil,
+            name: name
+        )
         isAuthenticated = true
         onAuthChange?()
-        // Start background token refresh scheduler to prevent mid-session logout
         startTokenRefreshScheduler()
-        // Return the login response so caller can check mfaRequired if needed
-        return AuthLoginResponse(accessToken: redeemResponse.accessToken, tokenType: redeemResponse.tokenType, role: "professor", userId: currentUser?.userId ?? "", refreshToken: loginResponse.refreshToken)
+        return response
     }
 
     @MainActor

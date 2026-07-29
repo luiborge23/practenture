@@ -1,19 +1,57 @@
 """Test fixtures for Owner service tests."""
 
+import os
+import tempfile
+from pathlib import Path
+
+# Configure and migrate an isolated database before importing any singleton.
+os.environ.setdefault("PRACTENTURE_TESTING", "1")
+os.environ.setdefault("PRACTENTURE_JWT_SECRET", "test-secret-key-for-pytest-only")
+# The repository-wide fixture establishes the sole disposable database path before
+# this nested conftest loads. Alembic must migrate that exact same path so the
+# database singleton and migration runner never diverge.
+_TEST_DATABASE_PATH = Path(os.environ["PRACTENTURE_DB_PATH"])
+_TEST_DATABASE_DIR = _TEST_DATABASE_PATH.parent
+os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DATABASE_PATH}"
+
+from alembic import command
+from alembic.config import Config
+
+_BACKEND_DIR = Path(__file__).resolve().parents[1]
+_alembic_config = Config(str(_BACKEND_DIR / "alembic.ini"))
+_alembic_config.set_main_option("script_location", str(_BACKEND_DIR / "migrations"))
+command.upgrade(_alembic_config, "head")
+
 import pytest
 from datetime import datetime, timezone
 
 from database import db
 
 
+def _clear_login_buckets() -> None:
+    """Clear the durable throttle table only when this fixture's schema includes it."""
+    with db._lock:
+        conn = db._get_conn()
+        exists = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+            ("privileged_login_buckets",),
+        ).fetchone()
+        if exists:
+            conn.execute("DELETE FROM privileged_login_buckets")
+            conn.commit()
+
+
+@pytest.fixture(autouse=True)
+def isolate_admin_v2_login_buckets():
+    """Prevent durable client-wide failure budgets from leaking between tests."""
+    _clear_login_buckets()
+    yield
+    _clear_login_buckets()
+
+
 @pytest.fixture
 def setup_test_db():
-    """Set up a test database with required tables."""
-    from database import db
-    
-    # Create all required tables
-    db._init_db()
-    
+    """Provide the explicitly migrated isolated test database."""
     yield db
 
 

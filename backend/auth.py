@@ -71,6 +71,62 @@ def _create_token(payload: dict) -> str:
     return f"{signing_input}.{signature_b}"
 
 
+def _create_access_token(payload: dict, *, issued_at: datetime | None = None) -> str:
+    """Create an access token with a precise, timezone-safe issuance time.
+
+    ``_create_token`` remains the low-level signer so legacy/test tokens without
+    an ``iat`` claim can still be represented.  All production access-token
+    issuance goes through this helper.
+    """
+    claims = dict(payload)
+    now = issued_at or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    claims.setdefault("iat", now.astimezone(timezone.utc).timestamp())
+    return _create_token(claims)
+
+
+def _parse_utc_timestamp(value) -> datetime | None:
+    """Parse JWT/SQLite timestamps as aware UTC datetimes."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        if isinstance(value, (int, float)):
+            return datetime.fromtimestamp(float(value), tz=timezone.utc)
+        if isinstance(value, str):
+            text = value.strip()
+            if not text:
+                return None
+            try:
+                return datetime.fromtimestamp(float(text), tz=timezone.utc)
+            except ValueError:
+                parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+                return parsed.astimezone(timezone.utc)
+    except (OverflowError, OSError, TypeError, ValueError):
+        return None
+    return None
+
+
+def _is_suspended(user: Optional[Dict[str, Any]]) -> bool:
+    """Return true only for an explicitly suspended persisted account.
+
+    Historical rows without a status (or with NULL) remain active for backward
+    compatibility. Normalizing case/whitespace keeps the lifecycle boundary
+    fail-closed for equivalent explicit suspended values.
+    """
+    if not user:
+        return False
+    value = user.get("status")
+    return isinstance(value, str) and value.strip().casefold() == "suspended"
+
+
+def _require_not_suspended(user: Optional[Dict[str, Any]]) -> None:
+    if _is_suspended(user):
+        raise HTTPException(status_code=403, detail="Account is suspended")
+
+
 def _verify_token(token: str) -> Optional[dict]:
     try:
         parts = token.split(".")
@@ -88,6 +144,22 @@ def _verify_token(token: str) -> Optional[dict]:
         exp = payload.get("exp", 0)
         if datetime.now(timezone.utc).timestamp() > exp:
             return None
+
+        # Password changes form a per-user access-token revocation boundary.
+        # Missing users retain the historical behavior here; route-level code
+        # may use non-persistent fixture/service subjects.  Existing users with
+        # a boundary must present a parseable iat at or after that boundary.
+        subject = payload.get("sub")
+        user = db_module.db.get_user(str(subject)) if subject else None
+        if _is_suspended(user):
+            return None
+        password_changed_at = _parse_utc_timestamp(
+            user.get("password_changed_at") if user else None
+        )
+        if password_changed_at is not None:
+            issued_at = _parse_utc_timestamp(payload.get("iat"))
+            if issued_at is None or issued_at < password_changed_at:
+                return None
         return payload
     except Exception:
         return None
@@ -289,6 +361,7 @@ def login(req: LoginRequest) -> LoginResponse:
         if req.username == owner_username:
             user = db_module.db.verify_user(req.username, req.password)
             if user and user["role"] == "owner":
+                _require_not_suspended(user)
                 # MFA check (if enabled)
                 if db_module.db.is_mfa_enabled(req.username):
                     if not req.mfa_code:
@@ -299,7 +372,7 @@ def login(req: LoginRequest) -> LoginResponse:
                         raise HTTPException(status_code=401, detail="Invalid MFA code")
                 record_login_success(req.username)
                 log_event(actor=req.username, action="login_success", details={"role": "owner"})
-                token = _create_token({
+                token = _create_access_token({
                     "sub": req.username,
                     "role": "owner",
                     "tenantId": "platform",
@@ -314,6 +387,7 @@ def login(req: LoginRequest) -> LoginResponse:
         # Check professor (any professor, not just the default one)
         user = db_module.db.verify_user(req.username, req.password)
         if user and user["role"] == "professor":
+            _require_not_suspended(user)
             # MFA check (if enabled)
             if db_module.db.is_mfa_enabled(req.username):
                 if not req.mfa_code:
@@ -327,7 +401,7 @@ def login(req: LoginRequest) -> LoginResponse:
             org = db_module.db.get_primary_org(req.username)
             tenant_id = org["id"] if org else ""
             log_event(actor=req.username, action="login_success", details={"role": "professor", "tenantId": tenant_id})
-            token = _create_token({
+            token = _create_access_token({
                 "sub": req.username,
                 "role": "professor",
                 "name": user.get("name", ""),
@@ -342,6 +416,7 @@ def login(req: LoginRequest) -> LoginResponse:
 
         # Check student
         if user and user["role"] == "student":
+            _require_not_suspended(user)
             # Check if professor still exists — students can't use the app without a professor
             prof_exists = _check_professor_exists()
             if not prof_exists:
@@ -359,7 +434,7 @@ def login(req: LoginRequest) -> LoginResponse:
                     raise HTTPException(status_code=401, detail="Invalid MFA code")
             record_login_success(req.username)
             log_event(actor=req.username, action="login_success", details={"role": "student"})
-            token = _create_token({
+            token = _create_access_token({
                 "sub": user["username"],
                 "role": "student",
                 "name": user.get("name", ""),
@@ -408,6 +483,7 @@ def login(req: LoginRequest) -> LoginResponse:
         existing_user = find_social_user(req.provider, subject)
         if existing_user:
             user = existing_user
+            _require_not_suspended(user)
         else:
             if not req.professor_code:
                 return LoginResponse(accessToken="", tokenType="bearer", role="professor",
@@ -425,7 +501,7 @@ def login(req: LoginRequest) -> LoginResponse:
         role = user["role"]
         org = db_module.db.get_primary_org(user_id)
         tenant_id = org["id"] if org else ""
-        token = _create_token({"sub": user_id, "role": role, "tenantId": tenant_id,
+        token = _create_access_token({"sub": user_id, "role": role, "tenantId": tenant_id,
             "email": user.get("email") or email,
             "exp": (datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_SOTA_MINUTES)).timestamp()})
         refresh = _generate_refresh_token(user_id)
@@ -454,7 +530,7 @@ def activate_password_professor(req: ProfessorActivationRequest) -> LoginRespons
         raise HTTPException(status_code=409 if "exists" in detail or "used" in detail else 400, detail=detail)
     org = db_module.db.get_primary_org(user["username"])
     tenant_id = org["id"] if org else ""
-    token = _create_token({"sub": user["username"], "role": "professor", "name": user["name"],
+    token = _create_access_token({"sub": user["username"], "role": "professor", "name": user["name"],
         "tenantId": tenant_id,
         "exp": (datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_SOTA_MINUTES)).timestamp()})
     refresh = _generate_refresh_token(user["username"])
@@ -491,7 +567,7 @@ def register(req: RegisterRequest) -> RegisterResponse:
         raise HTTPException(status_code=409, detail="Registration failed")
 
     # Auto-login: generate tokens so iOS can skip the second API call
-    token = _create_token({
+    token = _create_access_token({
         "sub": req.student_id,
         "role": "student",
         "name": req.name,
@@ -557,20 +633,22 @@ def refresh_access_token(refresh_token_str: str) -> dict:
 
     user_id = record["user_id"]
 
-    # Revoke the old refresh token (rotation)
-    db_module.db.revoke_refresh_token(token_hash)
-
-    # Look up user to get role and tenantId
+    # Resolve lifecycle state before any destructive rotation. A suspended
+    # refresh attempt must not consume the presented token or mint replacements.
     user = db_module.db.get_user(user_id)
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    _require_not_suspended(user)
+
+    # Revoke the old refresh token (rotation)
+    db_module.db.revoke_refresh_token(token_hash)
 
     role = user["role"]
     org = db_module.db.get_primary_org(user_id)
     tenant_id = org["id"] if org else ""
 
     # Create new short-lived access token
-    access_token = _create_token({
+    access_token = _create_access_token({
         "sub": user_id,
         "role": role,
         "name": user.get("name", ""),

@@ -15,9 +15,14 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Set the database URL from environment variable
+# Set the migration target explicitly. Production Compose mounts the
+# authoritative SQLite database at PRACTENTURE_DB_PATH; local/CI callers can
+# continue to provide a complete DATABASE_URL.
 import os
-database_url = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///data.db")
+database_path = os.environ.get("PRACTENTURE_DB_PATH", "/data/practenture.db")
+database_url = os.environ.get(
+    "DATABASE_URL", f"sqlite+aiosqlite:///{database_path.lstrip('/')}" if not database_path.startswith('/') else f"sqlite+aiosqlite:////{database_path.lstrip('/')}"
+)
 # Use synchronous SQLite for Alembic CLI operations
 if "aiosqlite" in database_url:
     database_url = database_url.replace("sqlite+aiosqlite://", "sqlite://")

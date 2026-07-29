@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import secrets
 import sqlite3
 import time
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from database import db
@@ -38,6 +40,35 @@ def _code_row(conn: sqlite3.Connection, code: str) -> Optional[sqlite3.Row]:
     ).fetchone()
 
 
+def _admin_invitation_row(
+    conn: sqlite3.Connection, secret: str, email: str
+) -> Optional[sqlite3.Row]:
+    """Resolve an Admin V2 invitation without storing or logging its secret."""
+    secret_hash = hashlib.sha256(secret.strip().encode("utf-8")).hexdigest()
+    row = conn.execute(
+        "SELECT * FROM professor_invitations WHERE secret_hash=?",
+        (secret_hash,),
+    ).fetchone()
+    if row is None:
+        return None
+    intended_email = str(row["intended_email"] or "").strip().casefold()
+    if not hmac.compare_digest(intended_email, email.strip().casefold()):
+        raise ValueError("Invitation email does not match")
+    if (
+        str(row["status"] or "active").casefold() == "redeemed"
+        or int(row["use_count"] or 0) >= int(row["max_uses"] or 1)
+    ):
+        raise ValueError("Invitation was already used")
+    if str(row["status"] or "active").casefold() != "active":
+        raise ValueError("Invalid, revoked, or expired invitation")
+    expires_at = datetime.fromisoformat(str(row["expires_at"]).replace("Z", "+00:00"))
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at <= datetime.now(timezone.utc):
+        raise ValueError("Invalid, revoked, or expired invitation")
+    return row
+
+
 def _add_org_membership(conn: sqlite3.Connection, user_id: str, university: str) -> None:
     if not university:
         return
@@ -67,6 +98,62 @@ def _consume_code(conn: sqlite3.Connection, code: str, user_id: str) -> Dict[str
     return dict(row)
 
 
+def _consume_invitation(
+    conn: sqlite3.Connection, code: str, user_id: str, email: str
+) -> Dict[str, Any]:
+    """Consume either an Admin V2 invitation or a legacy PROF code atomically."""
+    normalized = code.strip()
+    if normalized.upper().startswith("PROF-"):
+        result = _consume_code(conn, normalized, user_id)
+        result["invitation_kind"] = "legacy"
+        return result
+
+    row = _admin_invitation_row(conn, normalized, email)
+    if row is None:
+        raise ValueError("Invalid, already used, or expired invitation")
+    updated = conn.execute(
+        """UPDATE professor_invitations
+           SET status='redeemed', use_count=COALESCE(use_count, 0)+1,
+               last_used_at=?, redeemed_at=?, redeemed_by=?
+           WHERE id=? AND lower(COALESCE(status, 'active'))='active'
+             AND COALESCE(use_count, 0) < COALESCE(max_uses, 1)""",
+        (
+            datetime.now(timezone.utc).isoformat(),
+            datetime.now(timezone.utc).isoformat(),
+            user_id,
+            row["id"],
+        ),
+    ).rowcount
+    if updated != 1:
+        raise ValueError("Invitation was already used")
+    result = dict(row)
+    result["invitation_kind"] = "admin_v2"
+    return result
+
+
+def _add_invitation_membership(
+    conn: sqlite3.Connection,
+    user_id: str,
+    invitation: Dict[str, Any],
+    fallback_university: str,
+) -> None:
+    organization_id = invitation.get("organization_id")
+    if organization_id:
+        organization = conn.execute(
+            "SELECT 1 FROM organizations WHERE id=?", (organization_id,)
+        ).fetchone()
+        if organization is None:
+            raise ValueError("Invitation organization no longer exists")
+        conn.execute(
+            "INSERT OR IGNORE INTO memberships (id,user_id,org_id,role) VALUES (?,?,?,'professor')",
+            (str(uuid.uuid4()), user_id, organization_id),
+        )
+        return
+    _add_org_membership(
+        conn, user_id, invitation.get("university_name") or fallback_university
+    )
+
+
 def activate_password_professor(*, code: str, username: str, email: str, name: str,
                                 university_name: str, password_hash: str) -> Dict[str, Any]:
     ensure_identity_schema()
@@ -75,14 +162,23 @@ def activate_password_professor(*, code: str, username: str, email: str, name: s
     if not username or not email or not name.strip():
         raise ValueError("Name, email, and username are required")
     with db._lock:
-        conn = db._get_conn()
+        # This multi-statement unit of work must not share the legacy process-
+        # wide connection: an unrelated request could otherwise commit or roll
+        # back its partially completed enrollment. BEGIN IMMEDIATE also
+        # serializes competing redemptions from other workers/processes.
+        conn = db.connect(check_same_thread=False)
         try:
             conn.execute("BEGIN IMMEDIATE")
+            # Validate and reserve the invitation before checking account
+            # uniqueness. This makes replay semantics authoritative: a holder
+            # of an already-consumed secret always receives the same 409,
+            # rather than a misleading email-exists response. Any later
+            # conflict rolls the reservation back with the transaction.
+            code_info = _consume_invitation(conn, code, username, email)
             if conn.execute("SELECT 1 FROM users WHERE username=?", (username,)).fetchone():
                 raise ValueError("Username already exists")
             if conn.execute("SELECT 1 FROM users WHERE lower(email)=?", (email,)).fetchone():
                 raise ValueError("Email already exists")
-            code_info = _consume_code(conn, code, username)
             invitation_university = code_info.get("university_name") or university_name.strip()
             conn.execute(
                 "INSERT INTO users (username,password_hash,role,name,email,provider,provider_uid,must_change_password) VALUES (?,?,?,?,?,'password',?,0)",
@@ -92,12 +188,14 @@ def activate_password_professor(*, code: str, username: str, email: str, name: s
                 "INSERT INTO auth_identities (id,user_id,provider,provider_subject,email,created_at,last_login_at) VALUES (?,?, 'password',?,?,?,?)",
                 (str(uuid.uuid4()), username, username, email, time.time(), time.time()),
             )
-            _add_org_membership(conn, username, invitation_university)
+            _add_invitation_membership(conn, username, code_info, invitation_university)
             conn.commit()
             return {"username": username, "role": "professor", "email": email, "name": name.strip()}
         except Exception:
             conn.rollback()
             raise
+        finally:
+            conn.close()
 
 
 def find_social_user(provider: str, subject: str) -> Optional[Dict[str, Any]]:
@@ -133,7 +231,7 @@ def enroll_social_professor(*, provider: str, subject: str, email: str, name: st
     ensure_identity_schema()
     internal_id = f"{provider}_{hashlib.sha256(subject.encode()).hexdigest()[:24]}"
     with db._lock:
-        conn = db._get_conn()
+        conn = db.connect(check_same_thread=False)
         try:
             conn.execute("BEGIN IMMEDIATE")
             existing = conn.execute(
@@ -144,7 +242,7 @@ def enroll_social_professor(*, provider: str, subject: str, email: str, name: st
                 user = conn.execute("SELECT * FROM users WHERE username=?", (existing["user_id"],)).fetchone()
                 conn.commit()
                 return dict(user)
-            code_info = _consume_code(conn, code, internal_id)
+            code_info = _consume_invitation(conn, code, internal_id, email)
             conn.execute(
                 "INSERT INTO users (username,password_hash,role,name,email,provider,provider_uid,must_change_password) VALUES (?,?,?,?,?,?,?,0)",
                 (internal_id, password_hash, "professor", name.strip(), email.strip().lower(), provider, subject),
@@ -153,9 +251,11 @@ def enroll_social_professor(*, provider: str, subject: str, email: str, name: st
                 "INSERT INTO auth_identities (id,user_id,provider,provider_subject,email,created_at,last_login_at) VALUES (?,?,?,?,?,?,?)",
                 (str(uuid.uuid4()), internal_id, provider, subject, email.strip().lower(), time.time(), time.time()),
             )
-            _add_org_membership(conn, internal_id, code_info.get("university_name") or "")
+            _add_invitation_membership(conn, internal_id, code_info, "")
             conn.commit()
             return dict(conn.execute("SELECT * FROM users WHERE username=?", (internal_id,)).fetchone())
         except Exception:
             conn.rollback()
             raise
+        finally:
+            conn.close()

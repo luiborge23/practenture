@@ -988,6 +988,11 @@ struct PlayerDecisionBackend: Codable {
     var sharesIssued: Int = 0
     var fulfillmentMethod: String = "fbm"
     var internetPromotion: Double = 0
+    // Wearable Technology
+    var batteryLife: Int = 24
+    var sensorAccuracy: Double = 7.0
+    var privacyCompliance: Int = 5000
+    var componentSourcing: String = "standard"
 }
 
 struct SocialMediaBudgetBackend: Codable {
@@ -1123,7 +1128,11 @@ extension PlayerDecision {
             sharesBuyback: sharesBuyback,
             sharesIssued: sharesIssued,
             fulfillmentMethod: fulfillmentMethod.backendValue,
-            internetPromotion: 0
+            internetPromotion: 0,
+            batteryLife: batteryLife,
+            sensorAccuracy: sensorAccuracy,
+            privacyCompliance: privacyCompliance,
+            componentSourcing: componentSourcing.rawValue
         )
     }
 }
@@ -1164,7 +1173,11 @@ extension PlayerDecisionBackend {
             dividendsPerShare: dividendsPerShare,
             newLoanAmount: newLoanAmount,
             sharesBuyback: sharesBuyback,
-            sharesIssued: sharesIssued
+            sharesIssued: sharesIssued,
+            batteryLife: batteryLife,
+            sensorAccuracy: sensorAccuracy,
+            privacyCompliance: privacyCompliance,
+            componentSourcing: ComponentSourcing(rawValue: componentSourcing) ?? .standard
         )
     }
 }

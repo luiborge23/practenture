@@ -260,58 +260,71 @@ EOF
 
     ok "Wrote stable .env (JWT + owner + professor preserved)"
 
-    # Upload files to EC2
-    info "Uploading application to EC2..."
-    ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP "mkdir -p ~/practenture"
+    # Build and stage one checksummed immutable application artifact. Runtime
+    # configuration and the database remain outside the release archive.
+    info "Building immutable release artifact..."
+    RELEASE_DIR=$(mktemp -d)
+    python3 "$SCRIPT_DIR/scripts/build_release_artifact.py" \
+        --root "$SCRIPT_DIR" --output "$RELEASE_DIR/practenture-release.tar.gz"
+    RELEASE_SHA=$(awk '{print $1}' "$RELEASE_DIR/practenture-release.tar.gz.sha256")
 
-    # rsync the backend directory (excluding venv, __pycache__, .git)
-    rsync -avz --delete \
-        --exclude='venv' \
-        --exclude='__pycache__' \
-        --exclude='.git' \
-        --exclude='.ec2-state.json' \
-        --exclude='data.db' \
-        -e "ssh -i ~/.ssh/$KEY_NAME" \
-        "$SCRIPT_DIR/" ec2-user@$PUBLIC_IP:~/practenture/
+    info "Uploading verified release artifact..."
+    ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP \
+        "mkdir -p ~/practenture-artifacts ~/practenture-releases"
+    scp -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME \
+        "$RELEASE_DIR/practenture-release.tar.gz" \
+        "$RELEASE_DIR/practenture-release.tar.gz.sha256" \
+        "$SCRIPT_DIR/.env" ec2-user@$PUBLIC_IP:~/practenture-artifacts/
+    ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP <<REMOTE_STAGE
+set -euo pipefail
+cd ~/practenture-artifacts
+sha256sum -c practenture-release.tar.gz.sha256
+RELEASE_PATH="\$HOME/practenture-releases/$RELEASE_SHA"
+test ! -e "\$RELEASE_PATH"
+mkdir "\$RELEASE_PATH"
+tar -xzf practenture-release.tar.gz -C "\$RELEASE_PATH"
+install -m 600 .env "\$RELEASE_PATH/.env"
+readlink "\$HOME/practenture-current" > previous-release 2>/dev/null || true
+ln -sfn "\$RELEASE_PATH" "\$HOME/practenture-current"
+REMOTE_STAGE
+    rm -rf "$RELEASE_DIR"
 
-    ok "Files uploaded"
+    ok "Immutable release staged and checksum verified"
 
     # Create a transactionally consistent SQLite backup and retain the current image.
     # Backups live outside the rsync --delete target and are preserved across deployments.
     info "Creating pre-deploy database backup and rollback image..."
     ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP <<REMOTE_DEPLOY
 set -euo pipefail
-cd ~/practenture
+cd ~/practenture-current
 DEPLOY_ID=\$(date -u +%Y%m%dT%H%M%SZ)
 mkdir -p ~/practenture-backups
-if docker inspect bizsim-backend >/dev/null 2>&1; then
-    PREVIOUS_IMAGE=\$(docker inspect bizsim-backend --format '{{.Image}}')
+if docker inspect practenture-backend >/dev/null 2>&1; then
+    PREVIOUS_IMAGE=\$(docker inspect practenture-backend --format '{{.Image}}')
     printf '%s\n' "\$PREVIOUS_IMAGE" > .rollback-image
     docker tag "\$PREVIOUS_IMAGE" "practenture-backend:rollback-\$DEPLOY_ID"
-    docker exec bizsim-backend python -c "import os,sqlite3; src=os.environ.get('PRACTENTURE_DB_PATH','/data/bizsim.db'); a=sqlite3.connect(src); b=sqlite3.connect('/data/predeploy-\$DEPLOY_ID.db'); a.backup(b); b.close(); a.close()"
-    docker cp "bizsim-backend:/data/predeploy-\$DEPLOY_ID.db" "\$HOME/practenture-backups/predeploy-\$DEPLOY_ID.db"
-    docker exec bizsim-backend rm -f "/data/predeploy-\$DEPLOY_ID.db"
+    docker exec practenture-backend python -c "import os,sqlite3; src=os.environ.get('PRACTENTURE_DB_PATH','/data/practenture.db'); a=sqlite3.connect(src); b=sqlite3.connect('/data/predeploy-\$DEPLOY_ID.db'); a.backup(b); b.close(); a.close()"
+    docker cp "practenture-backend:/data/predeploy-\$DEPLOY_ID.db" "\$HOME/practenture-backups/predeploy-\$DEPLOY_ID.db"
+    docker exec practenture-backend rm -f "/data/predeploy-\$DEPLOY_ID.db"
     python3 -c "import sqlite3; c=sqlite3.connect('\$HOME/practenture-backups/predeploy-\$DEPLOY_ID.db'); assert c.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'; print('BACKUP_OK')"
 fi
 find ~/practenture-backups -type f -name 'predeploy-*.db' -mtime +30 -delete
-docker-compose up -d --build
+# Keep one stable Compose project across immutable release directories so the
+# database volume and managed containers are reused rather than forked by the
+# release directory basename.
+docker-compose -p practenture up -d --build
 echo "DEPLOY_DONE"
 REMOTE_DEPLOY
 
     # Wait for health check
     info "Waiting for service to be healthy..."
     for i in $(seq 1 30); do
-        if curl -sf "http://$PUBLIC_IP/api/health" &>/dev/null; then
+        if ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP \
+            "curl -sf http://127.0.0.1:8000/api/health" &>/dev/null; then
             ok "=== Deployment Complete ==="
             echo ""
             echo -e "\033[1;32mPractenture is LIVE at: http://$PUBLIC_IP\033[0m"
-            echo -e "\033[1;32mProfessor login: professor / $PROF_PASSWORD\033[0m"
-            echo ""
-            info "Update your iOS app's NetworkService.swift:"
-            echo -e "  return \"http://$PUBLIC_IP:8005\""
-            echo ""
-            info "For HTTPS, set up certbot:"
-            echo -e "  ssh -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP 'sudo certbot --nginx'"
+            info "Credentials are preserved and are not printed. HTTPS remains the public entry point."
             return 0
         fi
         sleep 3
@@ -320,14 +333,19 @@ REMOTE_DEPLOY
     warn "Health check timed out; rolling back to the retained application image..."
     ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP <<'REMOTE_ROLLBACK'
 set -euo pipefail
-cd ~/practenture
+cd ~/practenture-current
 PREVIOUS_IMAGE=$(cat .rollback-image)
-docker-compose stop bizsim-backend
-docker rm -f bizsim-backend 2>/dev/null || true
+docker-compose -p practenture stop practenture-backend
+docker rm -f practenture-backend 2>/dev/null || true
 docker tag "$PREVIOUS_IMAGE" practenture-backend:stable
-docker-compose up -d --no-build bizsim-backend nginx
+docker-compose -p practenture up -d --no-build practenture-backend nginx
+PREVIOUS_RELEASE=$(cat "$HOME/practenture-artifacts/previous-release" 2>/dev/null || true)
+if [ -n "$PREVIOUS_RELEASE" ]; then
+    ln -sfn "$PREVIOUS_RELEASE" "$HOME/practenture-current"
+fi
 REMOTE_ROLLBACK
-    if curl -sf "http://$PUBLIC_IP/api/health" >/dev/null; then
+    if ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP \
+        "curl -sf http://127.0.0.1:8000/api/health" >/dev/null; then
         warn "Previous application image restored. Database backup retained in ~/practenture-backups."
     else
         error "Deployment and automatic application rollback both failed. Inspect remote Docker logs immediately."

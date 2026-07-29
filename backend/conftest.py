@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 
-_TEST_DB_DIR = Path(tempfile.mkdtemp(prefix="practenture-pytest-"))
+_TEST_DB_DIR = Path(tempfile.mkdtemp(prefix="practenture-tests-"))
 os.environ["PRACTENTURE_DB_PATH"] = str(_TEST_DB_DIR / "test.db")
 # Legacy auth tests exercise real password verification. These credentials are
 # scoped to the pytest process and never become production defaults.
@@ -47,6 +47,10 @@ def isolate_backend_state(_bootstrap_password_hash: str):
 
     conn = db._get_conn()
     conn.execute("PRAGMA foreign_keys=OFF")
+    # Audit immutability is enforced by production triggers. Test isolation is a
+    # privileged schema operation: temporarily remove and restore those triggers.
+    conn.execute("DROP TRIGGER IF EXISTS trg_admin_audit_events_no_update")
+    conn.execute("DROP TRIGGER IF EXISTS trg_admin_audit_events_no_delete")
     table_names = [
         row[0]
         for row in conn.execute(
@@ -57,6 +61,21 @@ def isolate_backend_state(_bootstrap_password_hash: str):
     for table_name in table_names:
         # Names come exclusively from sqlite_master, not from external input.
         conn.execute(f'DELETE FROM "{table_name}"')
+    if "admin_audit_events" in table_names:
+        conn.executescript(
+            """
+            CREATE TRIGGER IF NOT EXISTS trg_admin_audit_events_no_update
+            BEFORE UPDATE ON admin_audit_events
+            BEGIN
+                SELECT RAISE(ABORT, 'admin audit events are immutable');
+            END;
+            CREATE TRIGGER IF NOT EXISTS trg_admin_audit_events_no_delete
+            BEFORE DELETE ON admin_audit_events
+            BEGIN
+                SELECT RAISE(ABORT, 'admin audit events are immutable');
+            END;
+            """
+        )
     conn.execute("PRAGMA foreign_keys=ON")
     conn.commit()
 

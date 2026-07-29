@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
@@ -29,8 +30,13 @@ from models import (
 )
 from auth import get_current_user, verify_professor
 from routers import ai, announcements, auth, classes, dashboard, decisions, grades, leaderboard, professor, sessions, websocket
-from routers import owner_admin, owner_audit
+from admin_v2.errors import AdminError, error_envelope
+from admin_v2.router import router as admin_v2_router
+from admin_v2.shell import router as admin_v2_shell_router
+from professor_portal import api_router as professor_portal_api_router
+from professor_portal import router as professor_portal_shell_router
 from simulation_engine import process_round
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
 # ── Production configuration ──────────────────────────────────────────────
@@ -64,6 +70,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    """Give each response an opaque server-generated correlation ID."""
+    import secrets
+
+    request.state.request_id = f"req_{secrets.token_urlsafe(18)}"
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request.state.request_id
+    if request.url.path.startswith("/api/admin/v2"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
 # CORS — use configured origins (SOTA: no wildcard in production)
 # Default: iOS native app origins + localhost for dev
 _DEFAULT_CORS = "http://localhost,http://localhost:8080,capacitor://,http://localhost"
@@ -79,27 +98,95 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Static files for Owner Console
+# Static files are anchored to this module, never the process working directory.
 from fastapi.staticfiles import StaticFiles
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+_BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+app.mount("/static", StaticFiles(directory=os.path.join(_BACKEND_DIR, "static")), name="static")
 
 
 # ── Global error handlers ──────────────────────────────────────────────────
-# ── Global error handlers ──────────────────────────────────────────────────
+
+def _admin_v2_error_response(
+    request: Request,
+    status_code: int,
+    code: str,
+    message: str,
+    headers: dict[str, str] | None = None,
+) -> JSONResponse:
+    request_id = getattr(request.state, "request_id", None)
+    body = error_envelope(code, message, request_id)
+    response_request_id = body["error"]["requestId"]
+    response_headers = dict(headers or {})
+    response_headers.update(
+        {
+            "Cache-Control": "no-store",
+            "X-Request-ID": response_request_id,
+        }
+    )
+    return JSONResponse(
+        status_code=status_code,
+        content=body,
+        headers=response_headers,
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler_for_admin_v2(
+    request: Request, exc: StarletteHTTPException
+):
+    if not request.url.path.startswith("/api/admin/v2"):
+        return await http_exception_handler(request, exc)
+    if exc.status_code == 404:
+        return _admin_v2_error_response(
+            request, 404, "ADMIN_NOT_FOUND", "Admin V2 resource not found"
+        )
+    if exc.status_code == 405:
+        return _admin_v2_error_response(
+            request,
+            405,
+            "ADMIN_METHOD_NOT_ALLOWED",
+            "Method not allowed",
+            headers=dict(exc.headers or {}),
+        )
+    return _admin_v2_error_response(
+        request,
+        exc.status_code,
+        "ADMIN_HTTP_ERROR",
+        str(exc.detail),
+        headers=dict(exc.headers or {}),
+    )
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(
     request: Request, exc: RequestValidationError
 ):
+    if request.url.path.startswith("/api/admin/v2"):
+        return _admin_v2_error_response(
+            request,
+            400,
+            "ADMIN_VALIDATION_ERROR",
+            "Request validation failed",
+        )
     return JSONResponse(
         status_code=400,
         content={"detail": exc.errors()},
     )
 
 
+@app.exception_handler(AdminError)
+async def admin_v2_exception_handler(request: Request, exc: AdminError):
+    return _admin_v2_error_response(
+        request, exc.status_code, exc.code, exc.message, headers=exc.headers
+    )
+
+
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
+    if request.url.path.startswith("/api/admin/v2"):
+        return _admin_v2_error_response(
+            request, 500, "ADMIN_INTERNAL_ERROR", "Internal server error"
+        )
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},
@@ -112,16 +199,18 @@ async def general_exception_handler(request: Request, exc: Exception):
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
     
-    # Content-Security-Policy (SOTA: restrict to self, allow inline for SwiftUI)
+    # Browser shells use external assets; native SwiftUI is unaffected by CSP.
+    # Do not overwrite their stricter policy with inline-script exceptions.
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline'; "
+        "script-src 'self'; "
+        "style-src 'self'; "
         "img-src 'self' data:; "
         "font-src 'self'; "
         "connect-src 'self'; "
-        "frame-ancestors 'self'; "
-        "base-uri 'self'; "
+        "object-src 'none'; "
+        "frame-ancestors 'none'; "
+        "base-uri 'none'; "
         "form-action 'self';"
     )
     
@@ -169,21 +258,13 @@ app.include_router(leaderboard.router)
 app.include_router(classes.router)
 app.include_router(professor.router)
 
-# Owner Administration
-app.include_router(owner_admin.router, prefix="/api/owner")
-app.include_router(owner_audit.router)
-
-
-@app.get("/admin", include_in_schema=False)
-async def admin_console(request: Request):
-    """Serve login or the protected Owner Console at the canonical URL."""
-    from auth import _verify_token
-
-    token = request.cookies.get("practenture_admin_token")
-    payload = _verify_token(token) if token else None
-    if payload and payload.get("role") in ("owner", "admin"):
-        return FileResponse("templates/owner_dashboard.html")
-    return FileResponse("templates/login_owner.html")
+# Admin Console V2 is the only mounted privileged administration surface.
+# The legacy owner routers are intentionally retired: they bypassed the V2
+# session, CSRF, recent-authentication, audit, and bounded-cleanup contracts.
+app.include_router(admin_v2_router)
+app.include_router(admin_v2_shell_router)
+app.include_router(professor_portal_api_router)
+app.include_router(professor_portal_shell_router)
 
 
 @app.get("/owner", include_in_schema=False)

@@ -147,7 +147,7 @@ async def redeem_professor_code(req: RedeemCodeRequest, user=Depends(get_current
     Works for both password users and Google/Apple users.
     """
     from audit import log_event
-    from auth import _create_token, ACCESS_TOKEN_EXPIRE_MINUTES
+    from auth import _create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
     from datetime import datetime, timedelta, timezone
 
     if user.get("role") == "professor":
@@ -173,7 +173,7 @@ async def redeem_professor_code(req: RedeemCodeRequest, user=Depends(get_current
     org = db.get_primary_org(user["sub"])
     tenant_id = org["id"] if org else ""
 
-    token = _create_token({
+    token = _create_access_token({
         "sub": user["sub"],
         "role": "professor",
         "tenantId": tenant_id,
@@ -208,7 +208,8 @@ async def change_password(req: ChangePasswordRequest, user=Depends(get_current_u
 
     # Hash new password with bcrypt and update
     h = hash_password(req.new_password)
-    db.update_user_password(user["sub"], h)
+    if not db.update_user_password(user["sub"], h, mark_changed=True):
+        raise HTTPException(status_code=500, detail="Failed to update password")
 
     # Clear must_change_password flag
     with db._get_conn() as conn:

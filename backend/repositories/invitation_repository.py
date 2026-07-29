@@ -59,11 +59,11 @@ class InvitationRepository:
                     INSERT INTO professor_invitations (
                         id, secret_hash, masked_code, organization_id,
                         intended_email, status, expires_at, max_uses,
-                        use_count, issued_by, notes, change_ticket
+                        use_count, issued_by, notes, change_ticket, created_at
                     ) VALUES (
                         ?, ?, ?, ?,
                         ?, 'active', ?, ?,
-                        0, ?, ?, ?
+                        0, ?, ?, ?, ?
                     )
                 """,
                 (
@@ -76,7 +76,8 @@ class InvitationRepository:
                     max_uses,
                     issued_by,
                     notes,
-                    change_ticket
+                    change_ticket,
+                    datetime.now(timezone.utc).isoformat(),
                 )
             )
             conn.commit()

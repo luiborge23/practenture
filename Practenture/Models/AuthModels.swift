@@ -107,6 +107,17 @@ struct AuthRegisterResponse: Codable {
     }
 }
 
+/// Atomic professor enrollment request. The backend consumes the invitation,
+/// creates the account and organization membership, and returns tokens.
+struct ProfessorActivationRequest: Encodable {
+    let professorCode: String
+    let username: String
+    let email: String
+    let name: String
+    let password: String
+    let confirmPassword: String
+}
+
 // MARK: - SOTA Phase 2: MFA Models
 
 /// MFA setup response from /api/auth/mfa/setup

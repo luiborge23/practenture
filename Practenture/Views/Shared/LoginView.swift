@@ -34,6 +34,7 @@ struct LoginView: View {
     @State private var password: String = ""
     @State private var confirmPassword: String = ""
     @State private var fullName: String = ""
+    @State private var email: String = ""
     @State private var studentId: String = ""
     @State private var professorCode: String = ""
     @State private var classJoinCode: String = ""
@@ -638,6 +639,12 @@ struct LoginView: View {
                 .textInputAutocapitalization(.words)
                 .textFieldStyle(AuthenticationTextFieldStyle())
 
+            TextField("Invitation email", text: $email)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .keyboardType(.emailAddress)
+                .textFieldStyle(AuthenticationTextFieldStyle())
+
             SecureField("Password", text: $password)
                 .textFieldStyle(AuthenticationTextFieldStyle())
 
@@ -653,7 +660,7 @@ struct LoginView: View {
             Button { Task { await handleProfessorCreateAccount() } } label: {
                 actionButtonLabel("Create Account & Redeem Code", color: .blue)
             }
-            .disabled(isLoading || username.isEmpty || fullName.isEmpty || !isPasswordValid)
+            .disabled(isLoading || username.isEmpty || fullName.isEmpty || email.isEmpty || !isPasswordValid)
         }
         .padding(.top, 8)
     }
@@ -1198,7 +1205,7 @@ struct LoginView: View {
 
     private func handleProfessorCreateAccount() async {
         isLoading = true; errorMessage = nil; defer { isLoading = false }
-        guard !username.isEmpty, !fullName.isEmpty, !password.isEmpty else {
+        guard !username.isEmpty, !fullName.isEmpty, !email.isEmpty, !password.isEmpty else {
             errorMessage = "Please fill in all fields."
             return
         }
@@ -1207,9 +1214,10 @@ struct LoginView: View {
             return
         }
         do {
-            // Atomic: register → login → redeem professor code → set role=professor
+            // Atomic backend activation: invitation + identity + membership.
             let response = try await AuthManager.shared.registerProfessor(
                 username: username,
+                email: email,
                 password: password,
                 name: fullName,
                 professorCode: professorCode

@@ -46,31 +46,36 @@ def _hotp(secret_b32: str, counter: int, digits: int = 6) -> str:
     return str(truncated)[-digits:].zfill(digits)
 
 
-def verify_totp(secret: str, code: str, window: int = 1) -> bool:
-    """Verify a TOTP code with ±window time steps (default ±1 = ±30s).
+def resolve_totp_counter(
+    secret: str,
+    code: str,
+    window: int = 1,
+    *,
+    at_time: float | None = None,
+) -> int | None:
+    """Return the newest RFC 6238 counter matching ``code`` within ``window``.
 
-    Args:
-        secret: Base32-encoded TOTP secret
-        code: 6-digit code from authenticator app
-        window: Number of time steps to check before/after current time
-
-    Returns:
-        True if code is valid within the window
+    Newest-first selection is deterministic even if adjacent counters happen to
+    generate the same six-digit value.
     """
-    if not code or not secret:
-        return False
+    if not code or not secret or window < 0:
+        return None
 
     code = code.strip().replace(" ", "")
     if len(code) != 6 or not code.isdigit():
-        return False
+        return None
 
-    current_step = int(time.time()) // 30
-    for offset in range(-window, window + 1):
+    current_step = int(time.time() if at_time is None else at_time) // 30
+    for offset in range(window, -window - 1, -1):
         step = current_step + offset
-        expected = _hotp(secret, step)
-        if hmac.compare_digest(expected, code):
-            return True
-    return False
+        if step >= 0 and hmac.compare_digest(_hotp(secret, step), code):
+            return step
+    return None
+
+
+def verify_totp(secret: str, code: str, window: int = 1) -> bool:
+    """Verify a TOTP code with ±window time steps (default ±1 = ±30s)."""
+    return resolve_totp_counter(secret, code, window) is not None
 
 
 def get_totp_uri(secret: str, account_name: str, issuer: str = "Practenture") -> str:

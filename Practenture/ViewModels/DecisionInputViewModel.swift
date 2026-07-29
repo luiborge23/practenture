@@ -13,6 +13,7 @@ extension DecisionInputViewModel {
         case production = "Production"
         case csr = "CSR & Image"
         case finance = "Finance"
+        case wearable = "Wearable Tech"
         
         var id: String { rawValue }
         
@@ -27,6 +28,7 @@ extension DecisionInputViewModel {
             case .production: return "hammer"
             case .csr: return "leaf"
             case .finance: return "banknote"
+            case .wearable: return "watch"
             }
         }
     }
@@ -91,6 +93,12 @@ final class DecisionInputViewModel {
     var sharesBuyback: Int = 0
     var sharesIssued: Int = 0
 
+    // MARK: - Wearable Technology
+    var batteryLife: Int = 24
+    var sensorAccuracy: Double = 7.0
+    var privacyCompliance: Int = 5000
+    var componentSourcing: ComponentSourcing = .standard
+
     // MARK: - Constraints
     var availableCash: Double = 100_000
     var maxProductionCapacity: Int = 500
@@ -124,6 +132,9 @@ final class DecisionInputViewModel {
     static let incentivePayRange: ClosedRange<Double> = 0...3.0
     static let trainingHoursRange: ClosedRange<Double> = 0...80
     static let socialMediaRange: ClosedRange<Double> = 0...15_000
+    static let batteryLifeRange: ClosedRange<Int> = 12...48
+    static let sensorAccuracyRange: ClosedRange<Double> = 0...10
+    static let privacyComplianceRange: ClosedRange<Int> = 0...10000
 
     // MARK: - Undo / Rollback
 
@@ -166,6 +177,10 @@ final class DecisionInputViewModel {
         var newLoanAmount: Double
         var sharesBuyback: Int
         var sharesIssued: Int
+        var batteryLife: Int
+        var sensorAccuracy: Double
+        var privacyCompliance: Int
+        var componentSourcing: ComponentSourcing
     }
 
     /// Save current decisions as a snapshot for undo.
@@ -202,7 +217,11 @@ final class DecisionInputViewModel {
             dividendsPerShare: dividendsPerShare,
             newLoanAmount: newLoanAmount,
             sharesBuyback: sharesBuyback,
-            sharesIssued: sharesIssued
+            sharesIssued: sharesIssued,
+            batteryLife: batteryLife,
+            sensorAccuracy: sensorAccuracy,
+            privacyCompliance: privacyCompliance,
+            componentSourcing: componentSourcing
         )
     }
 
@@ -243,6 +262,10 @@ final class DecisionInputViewModel {
         newLoanAmount = snapshot.newLoanAmount
         sharesBuyback = snapshot.sharesBuyback
         sharesIssued = snapshot.sharesIssued
+        batteryLife = snapshot.batteryLife
+        sensorAccuracy = snapshot.sensorAccuracy
+        privacyCompliance = snapshot.privacyCompliance
+        componentSourcing = snapshot.componentSourcing
         // Clear the snapshot after restore
         decisionSnapshot = nil
         return true
@@ -496,7 +519,11 @@ final class DecisionInputViewModel {
             dividendsPerShare: dividendsPerShare,
             newLoanAmount: newLoanAmount,
             sharesBuyback: sharesBuyback,
-            sharesIssued: sharesIssued
+            sharesIssued: sharesIssued,
+            batteryLife: batteryLife,
+            sensorAccuracy: sensorAccuracy,
+            privacyCompliance: privacyCompliance,
+            componentSourcing: componentSourcing
         )
 
         if let backendTeamId {
@@ -574,6 +601,10 @@ final class DecisionInputViewModel {
         newLoanAmount = 0
         sharesBuyback = 0
         sharesIssued = 0
+        batteryLife = 24
+        sensorAccuracy = 7.0
+        privacyCompliance = 5000
+        componentSourcing = .standard
         submissionError = nil
         didSubmitSuccessfully = false
     }

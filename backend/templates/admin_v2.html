@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Practenture Admin Console V2</title>
+  <link rel="stylesheet" href="/static/admin_v2/admin-v2.css?v=2">
+  <script src="/static/admin_v2/admin-v2.js?v=4" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+  <div id="boot" class="boot" role="status">Restoring secure admin session…</div>
+
+  <main id="auth-view" class="auth-layout" hidden>
+    <section class="auth-card" aria-labelledby="login-title">
+      <div class="brand-mark" aria-hidden="true">P</div>
+      <p class="eyebrow">Practenture operations</p>
+      <h1 id="login-title">Admin Console V2</h1>
+      <p class="lede">Sign in with your administrator account. Your session remains in a secure, HTTP-only cookie.</p>
+      <div id="auth-alert" class="alert alert-error" role="alert" hidden></div>
+      <form id="login-form" class="stack">
+        <label for="username">Username</label>
+        <input id="username" name="username" autocomplete="username" required maxlength="200">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="1024">
+        <label for="mfa-code">MFA code <span class="muted">(when required)</span></label>
+        <input id="mfa-code" name="mfaCode" inputmode="numeric" autocomplete="one-time-code" maxlength="64">
+        <button class="button button-primary" type="submit">Sign in securely</button>
+      </form>
+      <details class="recovery-panel">
+        <summary>Account recovery</summary>
+        <form id="recovery-form" class="stack compact-stack">
+          <label for="recovery-identifier">Username or email</label>
+          <input id="recovery-identifier" required maxlength="320">
+          <button class="button button-secondary" type="submit">Request recovery</button>
+        </form>
+      </details>
+    </section>
+  </main>
+
+  <div id="console" class="console" hidden>
+    <header class="topbar">
+      <button id="menu-button" class="icon-button menu-button" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="sidebar">☰</button>
+      <a class="wordmark" href="#overview" aria-label="Practenture Admin Console home"><span aria-hidden="true">P</span><strong>Practenture</strong></a>
+      <div class="topbar-context"><span class="environment">Admin V2</span><span id="session-user" class="muted"></span></div>
+      <button id="logout-button" class="button button-quiet" type="button">Sign out</button>
+    </header>
+
+    <aside id="sidebar" class="sidebar" aria-label="Admin navigation">
+      <nav>
+        <p class="nav-label">Workspace</p>
+        <a href="#overview" data-view="overview">Overview</a>
+        <a href="#organizations" data-view="organizations">Organizations</a>
+        <a href="#users" data-view="users">Users</a>
+        <a href="#invitations" data-view="invitations">Invitations</a>
+        <p class="nav-label">Operations</p>
+        <a href="#sessions" data-view="sessions">Live sessions</a>
+        <a href="#audit" data-view="audit">Audit trail</a>
+        <a href="#operations" data-view="operations">Health &amp; backups</a>
+        <a href="#cleanup" data-view="cleanup">Scoped cleanup</a>
+      </nav>
+      <p class="security-note"><strong>Secure session</strong><br>No credentials or session tokens are stored in browser storage.</p>
+    </aside>
+    <button id="nav-scrim" class="nav-scrim" type="button" aria-label="Close navigation" hidden></button>
+
+    <main id="main-content" class="main-content" tabindex="-1">
+      <div id="page-status" class="sr-only" aria-live="polite"></div>
+      <div id="page-alert" class="alert" role="alert" hidden></div>
+      <section id="page" aria-live="polite" aria-busy="false"></section>
+    </main>
+  </div>
+
+  <dialog id="reauth-dialog" aria-labelledby="reauth-title">
+    <form id="reauth-form" method="dialog" class="dialog-card stack">
+      <div><p class="eyebrow">Sensitive action</p><h2 id="reauth-title">Confirm your identity</h2><p>Recent authentication is required before this operation.</p></div>
+      <div id="reauth-alert" class="alert alert-error" role="alert" hidden></div>
+      <label for="reauth-password">Password</label>
+      <input id="reauth-password" type="password" autocomplete="current-password" required maxlength="1024">
+      <label for="reauth-mfa">MFA code <span class="muted">(when required)</span></label>
+      <input id="reauth-mfa" inputmode="numeric" autocomplete="one-time-code" maxlength="64">
+      <div class="button-row"><button id="reauth-cancel" class="button button-secondary" type="button">Cancel</button><button class="button button-primary" type="submit">Verify</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="secret-dialog" aria-labelledby="secret-title">
+    <section class="dialog-card stack">
+      <div><p class="eyebrow">Shown once</p><h2 id="secret-title">Copy this secret now</h2><p id="secret-description">It cannot be retrieved after you leave this screen.</p></div>
+      <output id="one-time-secret" class="secret-output"></output>
+      <div class="button-row"><button id="copy-secret" class="button button-secondary" type="button">Copy</button><button id="close-secret" class="button button-primary" type="button">I have saved it</button></div>
+    </section>
+  </dialog>
+
+  <template id="loading-template"><div class="state-card" role="status"><span class="spinner" aria-hidden="true"></span><p>Loading current data…</p></div></template>
+  <template id="empty-template"><div class="state-card"><h2>No results</h2><p>There is nothing to show for the current filters.</p></div></template>
+</body>
+</html>

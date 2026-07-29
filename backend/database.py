@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import secrets
@@ -51,18 +52,36 @@ class Database:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._conn: Optional[sqlite3.Connection] = None
+        # Bind this Database instance to the path selected at construction time.
+        # Dedicated units of work must not follow a later environment change to
+        # a different database while the legacy shared connection stays here.
+        self._database_path = get_db_path()
         self._init_db()
 
     # ── Connection helpers ────────────────────────────────────────────────
 
+    @property
+    def database_path(self) -> str:
+        """Return the SQLite path to which this Database instance is bound."""
+        return self._database_path
+
+    def connect(self, *, check_same_thread: bool = True) -> sqlite3.Connection:
+        """Create a separately owned, consistently configured connection."""
+        os.makedirs(os.path.dirname(self._database_path) or ".", exist_ok=True)
+        conn = sqlite3.connect(
+            self._database_path,
+            timeout=5.0,
+            check_same_thread=check_same_thread,
+        )
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout=5000")
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        return conn
+
     def _get_conn(self) -> sqlite3.Connection:
         if self._conn is None:
-            db_path = get_db_path()
-            os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
-            self._conn = sqlite3.connect(db_path, check_same_thread=False)
-            self._conn.row_factory = sqlite3.Row
-            self._conn.execute("PRAGMA journal_mode=WAL")
-            self._conn.execute("PRAGMA foreign_keys=ON")
+            self._conn = self.connect(check_same_thread=False)
         return self._conn
 
     def _init_db(self) -> None:
@@ -267,7 +286,9 @@ class Database:
                 revoked_at TEXT,
                 revoked_by TEXT,
                 created_at TEXT DEFAULT (datetime('now')),
-                last_used_at TEXT
+                last_used_at TEXT,
+                redeemed_at TEXT,
+                redeemed_by TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_inv_org ON professor_invitations(organization_id);
             CREATE INDEX IF NOT EXISTS idx_inv_email ON professor_invitations(intended_email);
@@ -354,6 +375,19 @@ class Database:
                 "ALTER TABLE sessions ADD COLUMN scenario_version TEXT NOT NULL "
                 f"DEFAULT '{DEFAULT_SCENARIO_VERSION}'"
             )
+        invitation_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(professor_invitations)").fetchall()
+        }
+        for column in ("created_at", "last_used_at", "redeemed_at", "redeemed_by"):
+            if column not in invitation_columns:
+                conn.execute(
+                    f"ALTER TABLE professor_invitations ADD COLUMN {column} TEXT"
+                )
+        conn.execute(
+            "UPDATE professor_invitations SET created_at=datetime('now') "
+            "WHERE created_at IS NULL"
+        )
         conn.commit()
 
     # ── Session CRUD ──────────────────────────────────────────────────────
@@ -802,15 +836,26 @@ class Database:
             return user
         return None
 
-    def update_user_password(self, username: str, password_hash: str) -> bool:
-        """Update a user's password hash."""
+    def update_user_password(
+        self, username: str, password_hash: str, *, mark_changed: bool = False
+    ) -> bool:
+        """Update a password hash, optionally advancing its revocation boundary."""
         try:
             with self._get_conn() as conn:
-                conn.execute(
-                    "UPDATE users SET password_hash=? WHERE username=?",
-                    (password_hash, username),
-                )
-            return True
+                if mark_changed:
+                    changed_at = datetime.now(timezone.utc).isoformat()
+                    cursor = conn.execute(
+                        """UPDATE users
+                           SET password_hash=?, password_changed_at=?
+                           WHERE username=?""",
+                        (password_hash, changed_at, username),
+                    )
+                else:
+                    cursor = conn.execute(
+                        "UPDATE users SET password_hash=? WHERE username=?",
+                        (password_hash, username),
+                    )
+            return cursor.rowcount == 1
         except sqlite3.Error:
             return False
 
@@ -1194,6 +1239,77 @@ class Database:
         return [dict(r) for r in rows]
 
     # ── Password Reset Tokens ────────────────────────────────────────────────
+
+    def complete_password_reset(self, token: str, password_hash: str) -> bool:
+        """Atomically consume a reset token and invalidate the user's credentials.
+
+        The transaction uses a separately owned connection so no legacy caller can
+        accidentally commit part of this security-sensitive unit of work.  False
+        means the token was invalid, expired, or already consumed; database errors
+        are raised after every mutation has been rolled back.
+        """
+        import time as _time
+
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        now = _time.time()
+        conn = self.connect()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            token_record = conn.execute(
+                """SELECT reset.user_id, users.role
+                   FROM password_reset_tokens AS reset
+                   JOIN users ON users.username = reset.user_id
+                   WHERE reset.token_hash=? AND reset.used=0 AND reset.expires_at>?""",
+                (token_hash, now),
+            ).fetchone()
+            if token_record is None:
+                conn.rollback()
+                return False
+
+            consumed = conn.execute(
+                """UPDATE password_reset_tokens SET used=1
+                   WHERE token_hash=? AND used=0 AND expires_at>?""",
+                (token_hash, now),
+            )
+            if consumed.rowcount != 1:
+                conn.rollback()
+                return False
+
+            revoked_at = datetime.now(timezone.utc).isoformat()
+            updated = conn.execute(
+                """UPDATE users
+                   SET password_hash=?, password_changed_at=?
+                   WHERE username=?""",
+                (password_hash, revoked_at, token_record["user_id"]),
+            )
+            if updated.rowcount != 1:
+                raise sqlite3.IntegrityError("reset target user no longer exists")
+
+            conn.execute(
+                "UPDATE refresh_tokens SET revoked=1 WHERE user_id=? AND revoked=0",
+                (token_record["user_id"],),
+            )
+
+            if token_record["role"] == "owner":
+                admin_sessions_exists = conn.execute(
+                    """SELECT 1 FROM sqlite_master
+                       WHERE type='table' AND name='admin_sessions'"""
+                ).fetchone()
+                if admin_sessions_exists:
+                    conn.execute(
+                        """UPDATE admin_sessions
+                           SET revoked_at=?, revocation_reason='password_reset'
+                           WHERE owner_user_id=? AND revoked_at IS NULL""",
+                        (revoked_at, token_record["user_id"]),
+                    )
+
+            conn.commit()
+            return True
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def create_reset_token(self, user_id: str, token_hash: str, expires_in_hours: int = 1) -> None:
         """Create a password reset token. Token is stored as SHA-256 hash."""

@@ -838,6 +838,13 @@ def process_round(
         # Swift seeds each round with randomSeed &+ round.
         rng = SwiftSeededRandomGenerator(config.randomSeed + round_num)
 
+    # Load scenario-specific coefficients (module-level _current_coeffs).
+    global _current_coeffs
+    _current_coeffs = _resolve_coeffs(scenario_id, scenario_version)
+
+    # Step 0.5: Wearable-specific pre-round adjustments (only when scenario matches)
+    is_wearable = (scenario_id == "wearable-technology")
+
     # Step 1: Require every human decision and generate missing AI decisions.
     # The API exposes this as a 409; this invariant also protects direct engine
     # callers from silently dropping a human team from competition.
@@ -885,6 +892,15 @@ def process_round(
             training_hours=d.trainingHours,
             previous_sq=previous_sq,
         )
+
+        # Wearable-specific: sensor accuracy modifies S/Q (0-10 scale, 1.0 = neutral)
+        if is_wearable:
+            sensor_accuracy_factor = _clamp(d.sensorAccuracy / 7.0, 0.85, 1.15)
+            sq = sq * sensor_accuracy_factor
+            # Battery life: >24h bonus, <18h penalty (factor 0.95-1.05)
+            battery_factor = _clamp(d.batteryLife / 24.0, 0.92, 1.08)
+            sq = sq * battery_factor
+
         team_sq[tid] = sq
 
     # Step 3: Compute rejection rates (iOS lines 973-986)
@@ -901,6 +917,15 @@ def process_round(
             incentive_pay=d.incentivePay,
             best_practices=d.bestPracticesInvestment,
         )
+
+        # Wearable-specific: battery life affects rejection rate
+        # Short battery life (component stress) increases rejections
+        if is_wearable:
+            battery_rejection_factor = _clamp(24.0 / max(d.batteryLife, 1.0), 0.7, 1.3)
+            # High sensor accuracy reduces manufacturing defects
+            sensor_quality_factor = _clamp(d.sensorAccuracy / 7.0, 0.8, 1.2)
+            rate = rate * battery_rejection_factor * sensor_quality_factor
+
         team_rejection_rates[tid] = rate
 
     # Swift draws market-demand noise before any per-team attractiveness noise.
@@ -1072,6 +1097,16 @@ def process_round(
         # Add fixed costs, styling, TQM, best practices to production cost
         total_prod_cost += config.fixedCostsPerRound + d.stylingBudget + d.tqmInvestment + d.bestPracticesInvestment
 
+        # Wearable-specific: component sourcing affects production cost
+        if is_wearable:
+            sourcing_multipliers = {
+                "standard": 1.0,
+                "premium": 1.15,
+                "sustainable": 1.10,
+                "budget": 0.92,
+            }
+            total_prod_cost *= sourcing_multipliers.get(d.componentSourcing, 1.0)
+
         # Workforce costs (iOS lines 334-338)
         wage_cost = d.baseWage * workers_needed / 1000.0
         # incentivePay is per-worker, not per-unit
@@ -1230,6 +1265,12 @@ def process_round(
             youtube_budget=d.youtubeBudget,
             influencer_tier=d.influencerTier,
         )
+
+        # Wearable-specific: privacy compliance affects image rating
+        if is_wearable:
+            # Privacy compliance: 0-10000 scale, 5000 = neutral
+            privacy_factor = _clamp(d.privacyCompliance / 5000.0, 0.85, 1.15)
+            image_rating = image_rating * privacy_factor
         awareness_score = compute_awareness_score(
             advertising_budget=d.advertisingBudget,
             tiktok_budget=d.tiktokBudget,
