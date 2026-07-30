@@ -173,7 +173,7 @@ def test_websocket_connect_no_token():
 
 
 @pytest.mark.skipif(
-    os.environ.get("CI") or not os.environ.get("APPLE_AUDIENCE"),
+    bool(os.environ.get("CI")) or not os.environ.get("APPLE_AUDIENCE"),
     reason="Requires Apple JWKS network access and APPLE_AUDIENCE configured",
 )
 def test_websocket_student_login_provider():
