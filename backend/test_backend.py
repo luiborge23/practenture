@@ -57,6 +57,8 @@ def clean_db():
     db.team_states.clear()
     # Clear SQLite users table to avoid stale data from previous test runs
     conn = db._get_conn()
+    conn.execute("DELETE FROM memberships")
+    conn.execute("DELETE FROM organizations")
     conn.execute("DELETE FROM users")
     conn.execute("DELETE FROM sessions")
     conn.execute("DELETE FROM professor_codes")
@@ -66,6 +68,8 @@ def clean_db():
     # Re-bootstrap professor after clearing (tests expect it to exist)
     from auth import ensure_professor
     ensure_professor()
+    organization = db.get_or_create_organization("Legacy Backend Tests")
+    assert db.add_membership("professor", organization["id"], "professor")
     yield
 
 
@@ -137,6 +141,14 @@ def test_create_session_returns_valid_code(created_session):
     session = response.json()
     assert session["code"] == created_session
     assert session["state"] == "creating"
+    assert "teams" not in session
+
+    response = client.get(
+        f"/api/sessions/{created_session}",
+        headers=auth_headers(get_professor_token()),
+    )
+    assert response.status_code == 200
+    session = response.json()
     # Three configured teams plus two auto-created AI competitors.
     assert len(session["teams"]) == 5
     assert sum(team["isAI"] for team in session["teams"]) == 3
@@ -153,12 +165,6 @@ def test_get_nonexistent_session():
 
 def test_join_session(created_session, student_tokens):
     """Test that a student can join a session."""
-    # Start the session first
-    client.post(
-        f"/api/sessions/{created_session}/start",
-        headers=auth_headers(get_professor_token()),
-    )
-
     response = client.put(
         f"/api/sessions/{created_session}/join",
         headers=auth_headers(student_tokens["student-3"]),
@@ -170,16 +176,11 @@ def test_join_session(created_session, student_tokens):
     data = response.json()
     assert data["teamId"] == "Team Delta"
     assert data["teamName"] == "Team Delta"
-    assert data["state"] == "active"
+    assert data["state"] == "creating"
 
 
 def test_join_duplicate_team_name(created_session, student_tokens):
     """Test that joining with a duplicate team name fails."""
-    client.post(
-        f"/api/sessions/{created_session}/start",
-        headers=auth_headers(get_professor_token()),
-    )
-
     # Join first time — should succeed
     client.put(
         f"/api/sessions/{created_session}/join",
@@ -869,6 +870,17 @@ def test_authoritative_20_students_complete_8_rounds(professor_token):
         assert joined.status_code == 200, joined.text
         assert joined.json()["teamId"] == team_name
         team_ids.append(team_name)
+
+    started = client.post(
+        f"/api/sessions/{code}/start",
+        headers=headers,
+    )
+    assert started.status_code == 200, started.text
+    assert started.json()["status"] == "started"
+
+    status = client.get(f"/api/sessions/{code}/status", headers=headers)
+    assert status.status_code == 200, status.text
+    assert status.json()["currentRound"] == 1
 
     process_calls = 0
     for round_num in range(1, 9):

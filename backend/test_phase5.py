@@ -21,6 +21,8 @@ def clean_phase5_auth_state(monkeypatch):
     """Give each auth-contract test a known professor and isolated users."""
     monkeypatch.setenv("PRACTENTURE_PROFESSOR_PASSWORD", "practenture2026")
     conn = db._get_conn()
+    conn.execute("DELETE FROM memberships")
+    conn.execute("DELETE FROM organizations")
     conn.execute("DELETE FROM class_enrollments")
     conn.execute("DELETE FROM classes")
     conn.execute("DELETE FROM professor_codes")
@@ -28,6 +30,8 @@ def clean_phase5_auth_state(monkeypatch):
     conn.commit()
     from auth import ensure_professor
     ensure_professor()
+    organization = db.get_or_create_organization("Legacy Phase 5 Tests")
+    assert db.add_membership("professor", organization["id"], "professor")
     yield
 
 
