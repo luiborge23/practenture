@@ -13,6 +13,7 @@ struct CreateSessionView: View {
 
     @State private var viewModel = CreateSessionViewModel()
     @State private var showingSessionCreated: Bool = false
+    @State private var createdSession: SimulationSession?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -89,6 +90,9 @@ struct CreateSessionView: View {
                 }
             }
             Button("Open Session") {
+                if let createdSession {
+                    appState.setActiveSession(createdSession)
+                }
                 dismiss()
             }
             Button("Cancel", role: .cancel) {}
@@ -204,10 +208,13 @@ struct CreateSessionView: View {
                 .foregroundStyle(.secondary)
 
             Toggle("Practice Mode (non-graded)", isOn: $viewModel.isPracticeMode)
+                .disabled(viewModel.useBackend)
         } header: {
             Label("Quick Setup", systemImage: "wand.and.stars")
         } footer: {
-            Text("Templates pre-fill settings. Choose Custom to configure everything manually.")
+            Text(viewModel.useBackend
+                 ? "Templates pre-fill server-supported settings. Practice mode is local-only."
+                 : "Templates pre-fill settings. Choose Custom to configure everything manually.")
         }
     }
 
@@ -248,6 +255,7 @@ struct CreateSessionView: View {
             Stepper("Max Teams: \(viewModel.maxHumanTeams)", value: $viewModel.maxHumanTeams, in: CreateSessionViewModel.maxTeamsRange)
 
             Stepper("Students per Team: \(viewModel.teamSize)", value: $viewModel.teamSize, in: CreateSessionViewModel.teamSizeRange)
+                .disabled(viewModel.useBackend)
 
             HStack {
                 Text("Total Student Capacity")
@@ -260,7 +268,9 @@ struct CreateSessionView: View {
         } header: {
             Label("Teams & Enrollment", systemImage: "person.crop.circle.badge.checkmark")
         } footer: {
-            Text("Students join using the session code. Teams can be auto-assigned or manually configured.")
+            Text(viewModel.useBackend
+                 ? "The server enforces maximum teams. Students-per-team is local-only."
+                 : "Students join using the session code. Teams can be auto-assigned or manually configured.")
         }
     }
 
@@ -294,8 +304,11 @@ struct CreateSessionView: View {
         } header: {
             Label("Timing & Deadlines", systemImage: "clock")
         } footer: {
-            Text("Timed rounds auto-advance after the deadline. Manual mode gives you full control.")
+            Text(viewModel.useBackend
+                 ? "Cloud sessions currently use server-controlled manual pacing; timing settings are local-only."
+                 : "Timed rounds auto-advance after the deadline. Manual mode gives you full control.")
         }
+        .disabled(viewModel.useBackend)
     }
 
     // MARK: - Economy
@@ -474,7 +487,12 @@ struct CreateSessionView: View {
         }
 
         if viewModel.backendSessionCode != nil {
-            // Cloud backend was used — show session code alert
+            // Keep the server-confirmed session visible immediately. Opening
+            // it remains an explicit action from the success alert.
+            createdSession = session
+            if !appState.professorSessions.contains(where: { $0.sessionCode == session.sessionCode }) {
+                appState.professorSessions.insert(session, at: 0)
+            }
             showingSessionCreated = true
         } else {
             // Local-only mode

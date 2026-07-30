@@ -28,6 +28,11 @@ WORKDIR /app
 # Copy installed dependencies from builder
 COPY --from=builder /install /usr/local
 
+# Bind the runtime source layer to the immutable release identifier. BuildKit
+# can otherwise reuse a COPY layer after a deployment symlink changes targets.
+ARG PRACTENTURE_RELEASE_SHA=development
+LABEL org.opencontainers.image.revision=$PRACTENTURE_RELEASE_SHA
+
 # Copy application code
 COPY . .
 

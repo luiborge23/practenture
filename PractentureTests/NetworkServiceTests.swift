@@ -267,4 +267,50 @@ final class NetworkServiceTests: XCTestCase {
         // Verify it's a valid URL
         XCTAssertNotNil(URL(string: fullURL), "Constructed URL should be valid")
     }
+
+    func testProfessorSessionCreationSendsCrossPlatformAuthoritativeConfiguration() async throws {
+        DeterministicURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/sessions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Idempotency-Key"), "ios-create-test-key")
+            let data = try XCTUnwrap(
+                try DeterministicURLProtocol.bodyData(for: request)
+            )
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let config = try XCTUnwrap(json["config"] as? [String: Any])
+            XCTAssertEqual(config["name"] as? String, "MBA Operations Lab")
+            XCTAssertEqual(config["courseCode"] as? String, "MBA 510")
+            XCTAssertEqual(config["semester"] as? String, "Fall 2026")
+            XCTAssertEqual(config["marketType"] as? String, "aggressive")
+            XCTAssertEqual(config["aiDifficulty"] as? String, "hard")
+            XCTAssertEqual(config["scoringMetric"] as? String, "cumulative_profit")
+            XCTAssertEqual(json["maxHumanTeams"] as? Int, 14)
+            XCTAssertEqual(json["scenarioId"] as? String, "athletic-footwear-classic")
+            XCTAssertEqual(json["scenarioVersion"] as? String, "1.0.0")
+            return DeterministicURLProtocol.response(
+                for: request,
+                statusCode: 201,
+                json: #"{"sessionId":"BIZ-TEST01","code":"BIZ-TEST01"}"#
+            )
+        }
+
+        let config = SessionConfiguration(
+            name: "MBA Operations Lab",
+            totalRounds: 6,
+            marketType: .aggressive,
+            aiDifficulty: .hard,
+            numberOfAICompetitors: 2,
+            scoringMetric: .cumulativeProfit,
+            courseCode: "MBA 510",
+            semester: "Fall 2026",
+            maxHumanTeams: 14,
+            scenarioIdentity: .athleticFootwearClassic
+        )
+        let result = try await networkService.createSession(
+            config: config,
+            teams: [],
+            idempotencyKey: "ios-create-test-key"
+        )
+        XCTAssertEqual(result.code, "BIZ-TEST01")
+    }
 }

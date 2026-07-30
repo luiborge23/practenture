@@ -50,6 +50,7 @@ def test_session_join_requires_matching_authenticated_student_identity():
     code=session(
         teams=[TeamConfig(teamName="AI-Balanced",isAI=True,aiStrategy="balanced")]
     )
+    db.update_session(code, {"state": SessionState.CREATING, "currentRound": 0})
     url=f"/api/sessions/{code}/join"
     body={"teamName":"Honest Team","studentId":"student-a"}
 

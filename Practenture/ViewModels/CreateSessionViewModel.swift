@@ -8,6 +8,9 @@ import SwiftUI
 @Observable
 final class CreateSessionViewModel {
 
+    /// Reused across transport retries so a committed response cannot create a duplicate.
+    private let creationIdempotencyKey = UUID().uuidString
+
     // MARK: - Form Fields
 
     var sessionName: String = ""
@@ -175,14 +178,27 @@ final class CreateSessionViewModel {
                 // the backend to double-generate AI teams (6 instead of 3).
                 let sessionResult = try await NetworkService.shared.createSession(
                     config: config,
-                    teams: []  // Empty — backend generates AI teams from numberOfAICompetitors
+                    teams: [],  // Empty — backend generates AI teams from numberOfAICompetitors
+                    idempotencyKey: creationIdempotencyKey
                 )
 
-                // Sync the actual team list from backend so local model matches
-                let syncedSession = try await syncTeamsFromBackend(config: config, sessionCode: sessionResult.code)
-
-                // Create local session with the backend code
+                // The successful POST is authoritative. Team hydration is a
+                // best-effort follow-up and must never turn a committed cloud
+                // session into an apparent creation failure.
                 backendSessionCode = sessionResult.code
+                let syncedSession: SimulationSession
+                do {
+                    syncedSession = try await syncTeamsFromBackend(
+                        config: config, sessionCode: sessionResult.code
+                    )
+                    backendTeamCount = syncedSession.teams.count
+                } catch {
+                    syncedSession = SimulationSession(
+                        code: sessionResult.code, config: config
+                    )
+                    syncedSession.teams = []
+                    backendTeamCount = 0
+                }
 
                 isCreating = false
                 return syncedSession
@@ -190,9 +206,9 @@ final class CreateSessionViewModel {
             } catch {
                 isCreating = false
                 creationError = "Failed to create session on cloud: \(UserFriendlyError.message(for: error))"
-                // Fallback to local-only mode
-                let session = SimulationSession(config: config)
-                return session
+                // Fail closed: a Professor must never see a local session that
+                // the backend did not confirm and that web/students cannot see.
+                return nil
             }
         } else {
             // Local-only mode

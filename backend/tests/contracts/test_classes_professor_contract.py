@@ -58,6 +58,10 @@ def isolated_contract_state():
     _seed_user("prof-a", "professor", "Professor A", "a@example.test")
     _seed_user("prof-b", "professor", "Professor B", "b@example.test")
     _seed_user("student-a", "student", "Student A", "student@example.test")
+    db.get_or_create_organization("org-a", "Organization A")
+    db.get_or_create_organization("org-b", "Organization B")
+    db.add_membership("prof-a", "org-a", "professor")
+    db.add_membership("prof-b", "org-b", "professor")
     yield
 
 

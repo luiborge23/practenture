@@ -156,6 +156,7 @@ final class AppState {
     func clearActiveSession() {
         activeSession = nil
         gameController = nil
+        BackendState.shared.disconnect()
     }
 
     /// Find a professor session by its session code.

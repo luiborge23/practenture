@@ -231,6 +231,9 @@ class CreditRating(str, Enum):
 # ── Session Configuration ─────────────────────────────────────────────────
 
 class SessionConfiguration(BaseModel):
+    name: str = Field(default="Untitled session", min_length=1, max_length=120)
+    courseCode: str = Field(default="", max_length=40)
+    semester: str = Field(default="", max_length=40)
     totalRounds: int = Field(default=20, ge=1, le=50)
     numberOfAICompetitors: int = Field(default=3, ge=0, le=20)
     randomSeed: int = Field(default=42)
@@ -533,9 +536,9 @@ class SessionResultsResponse(BaseModel):
 
 class CreateSessionRequest(BaseModel):
     config: SessionConfiguration = Field(default_factory=SessionConfiguration)
-    teams: List[TeamConfig] = []
+    teams: List[TeamConfig] = Field(default_factory=list)
     created_by: str = "professor"
-    maxHumanTeams: int = 30
+    maxHumanTeams: int = Field(default=30, ge=1, le=100)
     classId: Optional[str] = None
     # Convenience: num_rounds overrides config.totalRounds if provided
     num_rounds: Optional[int] = None
@@ -626,6 +629,9 @@ class CreateAnnouncementRequest(BaseModel):
 
 class DashboardSessionResponse(BaseModel):
     code: str
+    name: str = ""
+    courseCode: str = ""
+    semester: str = ""
     state: str
     currentRound: int = 0
     totalRounds: int = 20
@@ -634,6 +640,21 @@ class DashboardSessionResponse(BaseModel):
     totalTeams: int = 0
     totalSubmissions: int = 0
     lastRound: int = 0
+    maxHumanTeams: int = 30
+    marketType: str = "moderate"
+    aiDifficulty: str = "medium"
+    scoringMetric: str = "investor_score"
+    startingCash: float = 500000.0
+    randomSeed: int = 42
+    fixedCostsPerRound: float = 5000.0
+    baseCostPerUnit: float = 30.0
+    baseMarketDemand: int = 10000
+    sharesOutstanding: int = 10000
+    initialEquity: float = 300000.0
+    baseInterestRate: float = 0.06
+    plantCapacity: int = 10000
+    scenarioId: str = DEFAULT_SCENARIO_ID
+    scenarioVersion: str = DEFAULT_SCENARIO_VERSION
 
 
 class ErrorResponse(BaseModel):

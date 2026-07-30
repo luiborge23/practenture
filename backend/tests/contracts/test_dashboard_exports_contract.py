@@ -18,6 +18,11 @@ client = TestClient(app)
 DASHBOARD_KEYS = {
     "code", "state", "currentRound", "totalRounds", "teamsCount",
     "aiTeamsCount", "totalTeams", "totalSubmissions", "lastRound",
+    "name", "courseCode", "semester", "maxHumanTeams", "marketType",
+    "aiDifficulty", "scoringMetric", "scenarioId", "scenarioVersion",
+    "startingCash", "randomSeed", "fixedCostsPerRound", "baseCostPerUnit",
+    "baseMarketDemand", "sharesOutstanding", "initialEquity",
+    "baseInterestRate", "plantCapacity",
 }
 GRADES_HEADER = [
     "Team", "Round", "Revenue", "Costs", "Profit", "Market Share", "S/Q Rating",
@@ -104,6 +109,16 @@ def test_dashboard_exact_fields_counts_and_professor_owner_filtering():
         "code": code_a, "state": "active", "currentRound": 1, "totalRounds": 2,
         "teamsCount": 1, "aiTeamsCount": 1, "totalTeams": 2,
         "totalSubmissions": 1, "lastRound": 1,
+        "name": "Untitled session", "courseCode": "", "semester": "",
+        "maxHumanTeams": 30, "marketType": "moderate",
+        "aiDifficulty": "medium", "scoringMetric": "investor_score",
+        "startingCash": 500000.0, "randomSeed": 42,
+        "fixedCostsPerRound": 5000.0, "baseCostPerUnit": 30.0,
+        "baseMarketDemand": 10000, "sharesOutstanding": 10000,
+        "initialEquity": 300000.0, "baseInterestRate": 0.06,
+        "plantCapacity": 10000,
+        "scenarioId": "athletic-footwear-classic",
+        "scenarioVersion": "1.0.0",
     }
     assert {s["code"] for s in owner.json()["sessions"]} == {code_a, code_b}
 

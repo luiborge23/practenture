@@ -23,8 +23,15 @@ async def create_class(req: CreateClassRequest, user=Depends(verify_professor)):
     """Professor creates a new class. Returns class with join_code for students."""
     from audit import log_event
 
+    organization_id = db.get_single_organization_id(user["sub"])
+    if user.get("role") == "professor" and not organization_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Professor organization membership is missing or ambiguous",
+        )
     result = db.create_class(
         professor_user_id=user["sub"],
+        organization_id=organization_id,
         name=req.name,
         description=req.description,
     )

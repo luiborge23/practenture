@@ -213,7 +213,14 @@ cmd_deploy() {
     # Stable .env — only generate if missing; never rotate on re-deploy
     # Loads existing .env if present so JWT_SECRET + PROFESSOR_PASSWORD persist
     local JWT_SECRET PROF_PASSWORD OWNER_USER OWNER_PASS OWNER_USERNAME
+    local EMAIL_PROVIDER SES_REGION SES_SENDER PUBLIC_ORIGIN
     OWNER_USERNAME="${PRACTENTURE_OWNER_USERNAME:-owner}"
+    # Capture explicit release-time values before sourcing the preserved .env,
+    # whose older deployments may contain blank email settings.
+    EMAIL_PROVIDER="${PRACTENTURE_EMAIL_PROVIDER:-}"
+    SES_REGION="${PRACTENTURE_SES_REGION:-us-east-1}"
+    SES_SENDER="${PRACTENTURE_SES_SENDER:-}"
+    PUBLIC_ORIGIN="${PRACTENTURE_PUBLIC_ORIGIN:-https://practenture.com}"
 
     if [ -f "$SCRIPT_DIR/.env" ]; then
         # Source existing env (ignore errors)
@@ -222,6 +229,9 @@ cmd_deploy() {
         PROF_PASSWORD="${PRACTENTURE_PROFESSOR_PASSWORD:-}"
         OWNER_USER="${PRACTENTURE_OWNER_USERNAME:-owner}"
         OWNER_PASS="${PRACTENTURE_OWNER_PASSWORD:-}"
+        EMAIL_PROVIDER="${EMAIL_PROVIDER:-${PRACTENTURE_EMAIL_PROVIDER:-}}"
+        SES_REGION="${SES_REGION:-${PRACTENTURE_SES_REGION:-us-east-1}}"
+        SES_SENDER="${SES_SENDER:-${PRACTENTURE_SES_SENDER:-}}"
     fi
 
     if [ -z "${JWT_SECRET:-}" ]; then
@@ -245,22 +255,41 @@ cmd_deploy() {
         ok "Reusing existing owner password (stable)"
     fi
 
-    cat > "$SCRIPT_DIR/.env" <<EOF
-PRACTENTURE_JWT_SECRET=$JWT_SECRET
-PRACTENTURE_OWNER_USERNAME=${OWNER_USER}
-PRACTENTURE_OWNER_PASSWORD=$OWNER_PASS
-PRACTENTURE_PROFESSOR_USERNAME=${PRACTENTURE_PROFESSOR_USERNAME:-professor}
-PRACTENTURE_PROFESSOR_PASSWORD=$PROF_PASSWORD
-PRACTENTURE_JWT_EXPIRY_HOURS=${PRACTENTURE_JWT_EXPIRY_HOURS:-24}
-NGINX_HTTP_PORT=${NGINX_HTTP_PORT:-80}
-NGINX_HTTPS_PORT=${NGINX_HTTPS_PORT:-443}
-PRACTENTURE_APPLE_AUDIENCE=${PRACTENTURE_APPLE_AUDIENCE:-}
-PRACTENTURE_GOOGLE_AUDIENCE=${PRACTENTURE_GOOGLE_AUDIENCE:-}
-PRACTENTURE_EMAIL_PROVIDER=${PRACTENTURE_EMAIL_PROVIDER:-}
-PRACTENTURE_SES_REGION=${PRACTENTURE_SES_REGION:-us-east-1}
-PRACTENTURE_SES_SENDER=${PRACTENTURE_SES_SENDER:-}
-PRACTENTURE_PUBLIC_ORIGIN=${PRACTENTURE_PUBLIC_ORIGIN:-https://practenture.com}
-EOF
+    PRACTENTURE_JWT_SECRET="$JWT_SECRET" \
+    PRACTENTURE_OWNER_USERNAME="$OWNER_USER" \
+    PRACTENTURE_OWNER_PASSWORD="$OWNER_PASS" \
+    PRACTENTURE_PROFESSOR_USERNAME="${PRACTENTURE_PROFESSOR_USERNAME:-professor}" \
+    PRACTENTURE_PROFESSOR_PASSWORD="$PROF_PASSWORD" \
+    PRACTENTURE_JWT_EXPIRY_HOURS="${PRACTENTURE_JWT_EXPIRY_HOURS:-24}" \
+    NGINX_HTTP_PORT="${NGINX_HTTP_PORT:-80}" \
+    NGINX_HTTPS_PORT="${NGINX_HTTPS_PORT:-443}" \
+    PRACTENTURE_APPLE_AUDIENCE="${PRACTENTURE_APPLE_AUDIENCE:-}" \
+    PRACTENTURE_GOOGLE_AUDIENCE="${PRACTENTURE_GOOGLE_AUDIENCE:-}" \
+    PRACTENTURE_EMAIL_PROVIDER="$EMAIL_PROVIDER" \
+    PRACTENTURE_SES_REGION="$SES_REGION" \
+    PRACTENTURE_SES_SENDER="$SES_SENDER" \
+    PRACTENTURE_PUBLIC_ORIGIN="$PUBLIC_ORIGIN" \
+    python3 - "$SCRIPT_DIR/.env" <<'PY'
+import json
+import os
+import sys
+
+keys = (
+    "PRACTENTURE_JWT_SECRET", "PRACTENTURE_OWNER_USERNAME",
+    "PRACTENTURE_OWNER_PASSWORD", "PRACTENTURE_PROFESSOR_USERNAME",
+    "PRACTENTURE_PROFESSOR_PASSWORD", "PRACTENTURE_JWT_EXPIRY_HOURS",
+    "NGINX_HTTP_PORT", "NGINX_HTTPS_PORT", "PRACTENTURE_APPLE_AUDIENCE",
+    "PRACTENTURE_GOOGLE_AUDIENCE", "PRACTENTURE_EMAIL_PROVIDER",
+    "PRACTENTURE_SES_REGION", "PRACTENTURE_SES_SENDER",
+    "PRACTENTURE_PUBLIC_ORIGIN",
+)
+with open(sys.argv[1], "w", encoding="utf-8") as env_file:
+    for key in keys:
+        value = os.environ[key]
+        if "\n" in value or "\r" in value:
+            raise ValueError(f"{key} contains a forbidden newline")
+        env_file.write(f"{key}={json.dumps(value)}\n")
+PY
 
     ok "Wrote stable .env (JWT + owner + professor preserved)"
 
@@ -298,25 +327,57 @@ REMOTE_STAGE
     # Create a transactionally consistent SQLite backup and retain the current image.
     # Backups live outside the rsync --delete target and are preserved across deployments.
     info "Creating pre-deploy database backup and rollback image..."
-    ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP <<REMOTE_DEPLOY
+    ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP <<'REMOTE_DEPLOY'
 set -euo pipefail
 cd ~/practenture-current
-DEPLOY_ID=\$(date -u +%Y%m%dT%H%M%SZ)
+# Resolve the immutable release symlink before asking BuildKit for a context.
+# Reusing the logical symlink path can make Docker read the previous target.
+cd "$(pwd -P)"
+DEPLOY_ID=$(date -u +%Y%m%dT%H%M%SZ)
 mkdir -p ~/practenture-backups
 if docker inspect practenture-backend >/dev/null 2>&1; then
-    PREVIOUS_IMAGE=\$(docker inspect practenture-backend --format '{{.Image}}')
-    printf '%s\n' "\$PREVIOUS_IMAGE" > .rollback-image
-    docker tag "\$PREVIOUS_IMAGE" "practenture-backend:rollback-\$DEPLOY_ID"
-    docker exec practenture-backend python -c "import os,sqlite3; src=os.environ.get('PRACTENTURE_DB_PATH','/data/practenture.db'); a=sqlite3.connect(src); b=sqlite3.connect('/data/predeploy-\$DEPLOY_ID.db'); a.backup(b); b.close(); a.close()"
-    docker cp "practenture-backend:/data/predeploy-\$DEPLOY_ID.db" "\$HOME/practenture-backups/predeploy-\$DEPLOY_ID.db"
-    docker exec practenture-backend rm -f "/data/predeploy-\$DEPLOY_ID.db"
-    python3 -c "import sqlite3; c=sqlite3.connect('\$HOME/practenture-backups/predeploy-\$DEPLOY_ID.db'); assert c.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'; print('BACKUP_OK')"
+    PREVIOUS_IMAGE=$(docker inspect practenture-backend --format '{{.Image}}')
+    printf '%s\n' "$PREVIOUS_IMAGE" > .rollback-image
+    docker tag "$PREVIOUS_IMAGE" "practenture-backend:rollback-$DEPLOY_ID"
+    docker exec practenture-backend python -c "import os,sqlite3; src=os.environ.get('PRACTENTURE_DB_PATH','/data/practenture.db'); a=sqlite3.connect(src); b=sqlite3.connect('/data/predeploy-$DEPLOY_ID.db'); a.backup(b); b.close(); a.close()"
+    docker cp "practenture-backend:/data/predeploy-$DEPLOY_ID.db" "$HOME/practenture-backups/predeploy-$DEPLOY_ID.db"
+    python3 -c "import sqlite3; c=sqlite3.connect('$HOME/practenture-backups/predeploy-$DEPLOY_ID.db'); assert c.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'; print('BACKUP_OK')"
+    cp "$HOME/practenture-backups/predeploy-$DEPLOY_ID.db" "$HOME/practenture-backups/restore-drill-$DEPLOY_ID.db"
+    python3 -c "import sqlite3; c=sqlite3.connect('$HOME/practenture-backups/restore-drill-$DEPLOY_ID.db'); assert c.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'; print('RESTORE_DRILL_OK')"
+    rm -f "$HOME/practenture-backups/restore-drill-$DEPLOY_ID.db"
 fi
 find ~/practenture-backups -type f -name 'predeploy-*.db' -mtime +30 -delete
 # Keep one stable Compose project across immutable release directories so the
 # database volume and managed containers are reused rather than forked by the
 # release directory basename.
-docker-compose -p practenture up -d --build
+BUILD_CONTEXT=$(mktemp -d)
+trap 'rm -rf "$BUILD_CONTEXT"' EXIT
+cp -a backend/. "$BUILD_CONTEXT/"
+cp Dockerfile "$BUILD_CONTEXT/Dockerfile"
+docker build \
+    --no-cache-filter production \
+    --build-arg "PRACTENTURE_RELEASE_SHA=$(basename "$(pwd -P)")" \
+    --file "$BUILD_CONTEXT/Dockerfile" \
+    --tag practenture-backend:stable \
+    "$BUILD_CONTEXT"
+rm -rf "$BUILD_CONTEXT"
+trap - EXIT
+docker-compose -p practenture stop practenture-backend
+if ! docker-compose -p practenture run --rm --no-deps \
+    -e DATABASE_URL=sqlite:////data/practenture.db \
+    practenture-backend alembic upgrade head </dev/null; then
+    echo "MIGRATION_FAILED_RESTORING_BACKUP"
+    docker-compose -p practenture run --rm --no-deps practenture-backend \
+        python -c "import sqlite3; a=sqlite3.connect('/data/predeploy-$DEPLOY_ID.db'); b=sqlite3.connect('/data/practenture.db'); a.backup(b); b.close(); a.close()" </dev/null
+    docker start practenture-backend
+    exit 1
+fi
+# Compose does not always recreate a stopped service when a mutable image tag
+# is repointed to a new image. Force the backend replacement so the candidate
+# image is actually activated, then reconcile the proxy separately.
+docker-compose -p practenture up -d --no-build --force-recreate practenture-backend
+docker-compose -p practenture up -d --no-build nginx
+docker exec practenture-backend rm -f "/data/predeploy-$DEPLOY_ID.db"
 echo "DEPLOY_DONE"
 REMOTE_DEPLOY
 

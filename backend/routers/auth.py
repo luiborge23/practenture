@@ -343,7 +343,7 @@ async def mfa_status(user=Depends(get_current_user)):
 # ── Password Reset ───────────────────────────────────────────────────────────
 
 @router.post("/forgot-password", response_model=ForgotPasswordResponse)
-async def forgot_password(req: ForgotPasswordRequest):
+def forgot_password(req: ForgotPasswordRequest):
     """Request a password reset token for the given email.
 
     Always returns success (even if email not found) to prevent email enumeration.
@@ -360,6 +360,7 @@ async def forgot_password(req: ForgotPasswordRequest):
     ).fetchone()
 
     raw_token = None
+    token_hash = None
     if row:
         # Generate a random token and store its hash
         raw_token = _secrets.token_urlsafe(32)
@@ -367,6 +368,20 @@ async def forgot_password(req: ForgotPasswordRequest):
 
         # Store the reset token (invalidates any previous ones for this user)
         db.create_reset_token(row["username"], token_hash, expires_in_hours=1)
+
+        # Keep account discovery opaque: callers always receive the same response.
+        # If delivery fails, invalidate the undisclosed credential immediately.
+        try:
+            from password_reset_email import send_password_reset_code
+
+            send_password_reset_code(recipient=req.email.strip().lower(), code=raw_token)
+        except Exception:
+            with db._lock:
+                conn.execute(
+                    "UPDATE password_reset_tokens SET used=1 WHERE token_hash=?",
+                    (token_hash,),
+                )
+                conn.commit()
 
     # Always return success to prevent email enumeration when no user found.
     # Token is NOT returned in the response — it must be delivered out-of-band (email).

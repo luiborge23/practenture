@@ -2,77 +2,189 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Practenture Professor Portal</title>
-  <link rel="stylesheet" href="/static/professor_portal/portal.css?v=1">
-  <script src="/static/professor_portal/portal.js?v=1" defer></script>
+  <link rel="stylesheet" href="/static/professor_portal/portal.css?v=3">
+  <script src="/static/professor_portal/portal.js?v=7" defer></script>
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to main content</a>
-  <main id="main">
-    <section id="auth" class="auth-shell" hidden>
-      <div class="auth-card">
-        <div class="brand">P</div>
-        <p class="eyebrow">Practenture educators</p>
-        <h1>Professor portal</h1>
-        <p class="lede">Sign in to monitor your live simulations and student progress.</p>
-        <div id="auth-alert" class="alert error" role="alert" hidden></div>
-        <div class="tabs" role="tablist">
-          <button id="login-tab" type="button" role="tab" aria-selected="true">Sign in</button>
-          <button id="activate-tab" type="button" role="tab" aria-selected="false">Accept invitation</button>
+<a class="skip-link" href="#main-content">Skip to main content</a>
+<main id="main-content" class="page-shell">
+  <section id="auth-view" class="auth-card" aria-labelledby="portal-title">
+    <header class="brand-header">
+      <div class="brand-mark" aria-hidden="true">P</div>
+      <div>
+        <p class="eyebrow">PRACTENTURE EDUCATORS</p>
+        <h1 id="portal-title">Professor portal</h1>
+        <p class="lede">Create, facilitate, monitor, and analyze your classroom simulations.</p>
+      </div>
+    </header>
+
+    <div id="auth-alert" class="alert alert-error" role="alert" hidden></div>
+    <div id="auth-status" class="alert alert-success" role="status" aria-live="polite" hidden></div>
+
+    <div id="tabs" class="tabs" role="tablist" aria-label="Professor access">
+      <button id="login-tab" type="button" role="tab" aria-controls="login-form" aria-selected="true">Sign in</button>
+      <button id="activate-tab" type="button" role="tab" aria-controls="activate-form" aria-selected="false">Accept invitation</button>
+    </div>
+
+    <form id="login-form" class="form-stack" novalidate>
+      <label>Username<input id="login-username" autocomplete="username" required></label>
+      <label>Password<input id="login-password" type="password" autocomplete="current-password" required></label>
+      <label>MFA code <span class="optional">(if enabled)</span><input id="login-mfa" inputmode="numeric" autocomplete="one-time-code"></label>
+      <button class="button button-primary" type="submit">Sign in securely</button>
+      <button id="forgot-password" class="button button-link" type="button">Forgot password?</button>
+    </form>
+
+    <form id="activate-form" class="form-stack" hidden novalidate>
+      <div class="form-intro">
+        <h2>Create your Professor account</h2>
+        <p>Use the exact invited email and the one-time code sent by your Administrator.</p>
+      </div>
+      <label>Invited email<input id="activate-email" type="email" autocomplete="email" required></label>
+      <label>Invitation code<input id="activate-code" autocomplete="one-time-code" required></label>
+      <label>Full name<input id="activate-name" autocomplete="name" required></label>
+      <label>Choose username<input id="activate-username" autocomplete="username" required></label>
+      <label>Create password<input id="activate-password" type="password" autocomplete="new-password" required></label>
+      <label>Confirm password<input id="activate-confirm" type="password" autocomplete="new-password" required></label>
+      <p class="field-help">Use at least eight characters with uppercase, lowercase, a number, and a special character.</p>
+      <button class="button button-primary" type="submit">Create Professor account</button>
+    </form>
+
+    <form id="forgot-form" class="form-stack" hidden novalidate>
+      <div class="form-intro">
+        <h2>Reset your password</h2>
+        <p>Enter the email attached to your account. We will send a new one-time code if the account exists.</p>
+      </div>
+      <label>Account email<input id="forgot-email" type="email" autocomplete="email" required></label>
+      <button class="button button-primary" type="submit">Send reset code</button>
+      <button id="forgot-cancel" class="button button-secondary" type="button">Back to sign in</button>
+    </form>
+
+    <form id="reset-form" class="form-stack" hidden novalidate>
+      <div class="form-intro">
+        <h2>Choose a new password</h2>
+        <p>Use only the newest reset code. Requesting another email invalidates every earlier code.</p>
+      </div>
+      <label>Reset code<input id="reset-token" autocomplete="one-time-code" required></label>
+      <label>New password<input id="reset-password" type="password" autocomplete="new-password" required></label>
+      <label>Confirm new password<input id="reset-confirm" type="password" autocomplete="new-password" required></label>
+      <p class="field-help">Use at least eight characters with uppercase, lowercase, a number, and a special character.</p>
+      <button class="button button-primary" type="submit">Reset password</button>
+      <button id="reset-cancel" class="button button-secondary" type="button">Request another code</button>
+    </form>
+
+    <section id="reset-success" class="success-panel" role="status" hidden>
+      <div class="success-icon" aria-hidden="true">✓</div>
+      <h2>Password reset successful</h2>
+      <p>Your new password is active. You can now sign in with your username and new password.</p>
+      <button id="reset-success-login" class="button button-primary" type="button">Continue to sign in</button>
+    </section>
+  </section>
+
+  <section id="dashboard-view" class="dashboard" aria-labelledby="workspace-title" hidden>
+    <header class="workspace-header">
+      <div>
+        <p class="eyebrow">PROFESSOR WORKSPACE</p>
+        <h1 id="workspace-title">Simulation command center</h1>
+        <p id="welcome" class="lede"></p>
+      </div>
+      <div class="header-actions">
+        <button id="refresh" class="button button-secondary" type="button">Refresh</button>
+        <button id="logout" class="button button-quiet" type="button">Sign out</button>
+      </div>
+    </header>
+
+    <div id="activation-success" class="alert alert-success" role="status" aria-live="polite" hidden></div>
+    <div id="workspace-alert" class="alert alert-error" role="alert" hidden></div>
+    <div id="workspace-status" class="alert alert-info" role="status" aria-live="polite" hidden></div>
+
+    <nav class="workspace-nav" aria-label="Professor workspace">
+      <button id="nav-sessions" class="nav-item active" type="button">Sessions</button>
+      <button id="nav-create" class="nav-item" type="button">Create session</button>
+    </nav>
+
+    <section id="sessions-view">
+      <div class="section-heading">
+        <div>
+          <h2>Simulation progress</h2>
+          <p>Live, server-authoritative progress for sessions you own.</p>
         </div>
-        <form id="login-form" class="stack">
-          <label for="login-username">Username</label>
-          <input id="login-username" autocomplete="username" required maxlength="200">
-          <label for="login-password">Password</label>
-          <input id="login-password" type="password" autocomplete="current-password" required maxlength="1024">
-          <label for="login-mfa">MFA code <span class="muted">(if enabled)</span></label>
-          <input id="login-mfa" inputmode="numeric" autocomplete="one-time-code" maxlength="64">
-          <button class="primary" type="submit">Sign in securely</button>
-        </form>
-        <form id="activate-form" class="stack" hidden>
-          <label for="invite-code">Invitation code</label>
-          <input id="invite-code" autocomplete="off" required maxlength="1024">
-          <label for="invite-email">Invited email</label>
-          <input id="invite-email" type="email" autocomplete="email" required maxlength="320">
-          <label for="invite-name">Full name</label>
-          <input id="invite-name" autocomplete="name" required maxlength="200">
-          <label for="invite-username">Choose a username</label>
-          <input id="invite-username" autocomplete="username" required maxlength="200">
-          <label for="invite-password">Choose a password</label>
-          <input id="invite-password" type="password" autocomplete="new-password" required maxlength="1024">
-          <label for="invite-confirm">Confirm password</label>
-          <input id="invite-confirm" type="password" autocomplete="new-password" required maxlength="1024">
-          <p class="hint">Use at least eight characters with uppercase, lowercase, a number, and a special character.</p>
-          <button class="primary" type="submit">Create professor account</button>
-        </form>
+        <button id="create-session" class="button button-primary" type="button">+ Create session</button>
+      </div>
+
+      <div class="metrics" aria-label="Session metrics">
+        <article><strong id="metric-total">0</strong><span>Sessions</span></article>
+        <article><strong id="metric-active">0</strong><span>Active</span></article>
+        <article><strong id="metric-teams">0</strong><span>Student teams</span></article>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Session</th><th>Status</th><th>Round</th><th>Teams</th><th>Submitted</th><th>Total submissions</th><th>Actions</th></tr></thead>
+          <tbody id="session-rows"></tbody>
+        </table>
+      </div>
+      <div id="empty-state" class="empty-state" hidden>
+        <div class="empty-icon" aria-hidden="true">＋</div>
+        <h3>No sessions yet</h3>
+        <p>Create your first simulation here or in the Practenture iOS app. It will appear in both places automatically.</p>
+        <button id="empty-create" class="button button-primary" type="button">Create first session</button>
       </div>
     </section>
 
-    <section id="dashboard" class="dashboard" hidden>
-      <header class="topbar">
-        <div><span class="brand small">P</span><strong>Practenture</strong></div>
-        <div><span id="professor-name" class="muted"></span><button id="logout" type="button">Sign out</button></div>
-      </header>
-      <div class="content">
-        <header class="page-head">
-          <div><p class="eyebrow">Professor workspace</p><h1>Simulation progress</h1><p class="lede">Live, server-authoritative progress for sessions you own.</p></div>
-          <button id="refresh" type="button">Refresh</button>
-        </header>
-        <div id="dashboard-alert" class="alert error" role="alert" hidden></div>
-        <section id="metrics" class="metrics" aria-live="polite"></section>
-        <section class="table-card">
-          <div class="table-scroll">
-            <table>
-              <thead><tr><th>Session</th><th>Status</th><th>Round</th><th>Teams</th><th>Submitted this round</th><th>Total submissions</th><th>Exports</th></tr></thead>
-              <tbody id="progress-rows"></tbody>
-            </table>
-          </div>
-          <p id="empty-progress" class="empty" hidden>No sessions yet. Create a session in the Practenture iOS app; it will appear here automatically.</p>
-        </section>
+    <section id="create-view" class="creation-workspace" aria-labelledby="create-title" hidden>
+      <div class="section-heading">
+        <div><p class="eyebrow">NEW SIMULATION</p><h2 id="create-title">Create a classroom session</h2><p>Configure the essentials now. Practenture keeps advanced engine settings on safe defaults.</p></div>
+        <button id="create-cancel" class="button button-secondary" type="button">Back to sessions</button>
       </div>
+      <div id="create-alert" class="alert alert-error" role="alert" tabindex="-1" hidden></div>
+      <form id="create-form" class="wizard-form" novalidate>
+        <fieldset><legend><span>1</span> Scenario</legend>
+          <label>Simulation scenario<select id="create-scenario" required><option value="">Loading scenarios…</option></select></label>
+          <p id="scenario-help" class="field-help">Only calibrated, production-backed scenarios can be launched.</p>
+        </fieldset>
+        <fieldset><legend><span>2</span> Classroom details</legend>
+          <div class="form-grid">
+            <label class="full">Session name<input id="create-name" maxlength="120" placeholder="MBA 510 — Fall 2026" required></label>
+            <label>Class <span class="optional">(optional)</span><select id="create-class"><option value="">No class</option></select></label>
+            <label>Course code <span class="optional">(optional)</span><input id="create-course" maxlength="40" placeholder="MBA 510"></label>
+            <label>Semester <span class="optional">(optional)</span><input id="create-semester" maxlength="40" placeholder="Fall 2026"></label>
+          </div>
+        </fieldset>
+        <fieldset><legend><span>3</span> Gameplay</legend>
+          <div class="form-grid three">
+            <label>Total rounds<input id="create-rounds" type="number" min="1" max="50" value="8" required></label>
+            <label>Maximum human teams<input id="create-max-teams" type="number" min="1" max="100" value="10" required></label>
+            <label>AI competitors<input id="create-ai" type="number" min="0" max="20" value="3" required></label>
+            <label>Market type<select id="create-market"><option value="conservative">Conservative</option><option value="moderate" selected>Moderate</option><option value="aggressive">Aggressive</option></select></label>
+            <label>AI difficulty<select id="create-difficulty"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option></select></label>
+            <label>Scoring<select id="create-scoring"><option value="investor_score">Investor score</option><option value="cumulative_profit">Cumulative profit</option><option value="revenue">Revenue</option><option value="composite">Composite</option></select></label>
+          </div>
+        </fieldset>
+        <fieldset><legend><span>4</span> Review</legend><div id="create-review" class="review-grid"></div></fieldset>
+        <div class="form-actions"><button id="create-submit" class="button button-primary" type="submit">Create session</button><p>Creation is server-authoritative and tied to your signed-in Professor identity.</p></div>
+      </form>
+
+      <section id="create-success" class="created-panel" role="status" tabindex="-1" hidden>
+        <div class="success-icon" aria-hidden="true">✓</div>
+        <p class="eyebrow">SESSION CREATED</p>
+        <h2>Your classroom is ready</h2>
+        <p>Share this join code with your students:</p>
+        <output id="created-code" class="join-code"></output>
+        <div class="button-row"><button id="copy-code" class="button button-primary" type="button">Copy join code</button><button id="open-created" class="button button-secondary" type="button">Open sessions</button><button id="create-another" class="button button-quiet" type="button">Create another</button></div>
+      </section>
     </section>
-  </main>
+  </section>
+</main>
+
+<dialog id="action-dialog" aria-labelledby="dialog-title">
+  <form method="dialog" class="dialog-card">
+    <h2 id="dialog-title">Confirm action</h2>
+    <p id="dialog-message"></p>
+    <label id="dialog-input-wrap" hidden><span id="dialog-input-label">Message</span><textarea id="dialog-input" maxlength="1000"></textarea></label>
+    <div class="dialog-actions"><button id="dialog-cancel" class="button button-secondary" value="cancel">Cancel</button><button id="dialog-confirm" class="button button-primary" value="confirm">Confirm</button></div>
+  </form>
+</dialog>
 </body>
 </html>

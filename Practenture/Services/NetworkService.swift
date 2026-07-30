@@ -319,7 +319,8 @@ final class NetworkService {
     private func request<T: Decodable>(
         method: String,
         endpoint: String,
-        body: Encodable?
+        body: Encodable?,
+        headers: [String: String] = [:]
     ) async throws -> T {
         var lastError: Error?
 
@@ -333,7 +334,7 @@ final class NetworkService {
             }
 
             do {
-                return try await performRequest(method: method, endpoint: endpoint, body: body)
+                return try await performRequest(method: method, endpoint: endpoint, body: body, headers: headers)
             } catch let error as NetworkError {
                 // Retry on transient errors only: timeout (408), rate limit (429), server errors (5xx)
                 if case .serverError(let code, _) = error {
@@ -355,6 +356,7 @@ final class NetworkService {
         method: String,
         endpoint: String,
         body: Encodable?,
+        headers: [String: String] = [:],
         retryingAfterRefresh: Bool = false
     ) async throws -> T {
         guard let url = URL(string: baseURL + endpoint) else {
@@ -364,6 +366,9 @@ final class NetworkService {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        for (name, value) in headers {
+            request.setValue(value, forHTTPHeaderField: name)
+        }
 
         // Auto-attach auth token from AuthManager if available
         if let token = authTokenProvider(), !token.isEmpty {
@@ -387,7 +392,13 @@ final class NetworkService {
             do {
                 let newToken = try await refreshToken()
                 request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
-                return try await performRequest(method: method, endpoint: endpoint, body: body, retryingAfterRefresh: true)
+                return try await performRequest(
+                    method: method,
+                    endpoint: endpoint,
+                    body: body,
+                    headers: headers,
+                    retryingAfterRefresh: true
+                )
             } catch {
                 // Refresh failed — force logout and surface the error
                 AuthManager.shared.logout()
@@ -464,14 +475,25 @@ final class NetworkService {
 
     // MARK: - Session Operations
 
-    func createSession(config: SessionConfiguration, teams: [TeamConfig]) async throws -> SessionBackend {
+    func createSession(
+        config: SessionConfiguration,
+        teams: [TeamConfig],
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> SessionBackend {
         let request = CreateSessionRequestBackend(
             config: config.toBackendConfig(),
             teams: teams.map { $0.toBackend() },
             createdBy: "professor",
-            maxHumanTeams: config.maxHumanTeams
+            maxHumanTeams: config.maxHumanTeams,
+            scenarioId: config.scenarioIdentity.id,
+            scenarioVersion: config.scenarioIdentity.version
         )
-        let response: CreateSessionResponseBackend = try await post("/api/sessions", body: request)
+        let response: CreateSessionResponseBackend = try await self.request(
+            method: "POST",
+            endpoint: "/api/sessions",
+            body: request,
+            headers: ["Idempotency-Key": idempotencyKey]
+        )
         // Return a SessionBackend built from the response
         return SessionBackend(code: response.code)
     }
@@ -580,6 +602,9 @@ final class NetworkService {
     struct DashboardSessionResponse: Codable, Identifiable {
         var id: String { code }
         var code: String = ""
+        var name: String?
+        var courseCode: String?
+        var semester: String?
         var state: String = "creating"
         var currentRound: Int = 0
         var totalRounds: Int = 20
@@ -588,6 +613,21 @@ final class NetworkService {
         var totalTeams: Int = 0
         var totalSubmissions: Int = 0
         var lastRound: Int = 0
+        var maxHumanTeams: Int?
+        var marketType: String?
+        var aiDifficulty: String?
+        var scoringMetric: String?
+        var startingCash: Double?
+        var randomSeed: UInt64?
+        var fixedCostsPerRound: Double?
+        var baseCostPerUnit: Double?
+        var baseMarketDemand: Int?
+        var sharesOutstanding: Int?
+        var initialEquity: Double?
+        var baseInterestRate: Double?
+        var plantCapacity: Int?
+        var scenarioId: String?
+        var scenarioVersion: String?
     }
 
     /// Backend wraps the session list in {"sessions": [...]} — decode the wrapper.
@@ -725,8 +765,14 @@ struct SessionBackend: Codable {
 
 /// Backend session configuration.
 struct SessionConfigBackend: Codable {
+    var name: String = "Untitled session"
+    var courseCode: String = ""
+    var semester: String = ""
     var totalRounds: Int = 20
     var numberOfAICompetitors: Int = 3
+    var marketType: String = "moderate"
+    var aiDifficulty: String = "medium"
+    var scoringMetric: String = "investor_score"
     var randomSeed: Int = 42
     var startingCash: Double = 500000
     var initialEquity: Double = 300000
@@ -881,6 +927,9 @@ struct CreateSessionRequestBackend: Encodable {
     var teams: [TeamConfigBackend] = []
     var createdBy: String = "professor"
     var maxHumanTeams: Int = 30
+    var classId: String? = nil
+    var scenarioId: String = ScenarioIdentity.athleticFootwearClassic.id
+    var scenarioVersion: String = ScenarioIdentity.athleticFootwearClassic.version
 }
 
 struct CreateSessionResponseBackend: Codable {
@@ -1006,8 +1055,21 @@ struct SocialMediaBudgetBackend: Codable {
 extension SessionConfiguration {
     func toBackendConfig() -> SessionConfigBackend {
         SessionConfigBackend(
+            name: name,
+            courseCode: courseCode,
+            semester: semester,
             totalRounds: totalRounds,
             numberOfAICompetitors: numberOfAICompetitors,
+            marketType: marketType.rawValue,
+            aiDifficulty: aiDifficulty.rawValue,
+            scoringMetric: {
+                switch scoringMetric {
+                case .investorScore: return "investor_score"
+                case .cumulativeProfit: return "cumulative_profit"
+                case .revenue: return "revenue"
+                case .composite: return "composite"
+                }
+            }(),
             randomSeed: Int(min(randomSeed, UInt64(Int.max))),
             startingCash: startingCash,
             initialEquity: initialEquity,

@@ -1,5 +1,7 @@
 """Decision submission and retrieval endpoints."""
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -15,6 +17,7 @@ from models import (
 from simulation_engine import process_round
 
 router = APIRouter(prefix="/api/sessions", tags=["decisions"])
+_round_processing_locks: dict[str, asyncio.Lock] = {}
 
 
 def _verify_session_professor(code: str, user: dict) -> None:
@@ -83,6 +86,15 @@ async def get_decisions(code: str, round_num: int, user=Depends(verify_professor
 
 @router.post("/{code}/process_round", response_model=ProcessRoundResponse)
 async def process_round_endpoint(code: str, user=Depends(verify_professor)):
+    """Serialize processing so a round can advance at most once per worker."""
+    lock = _round_processing_locks.setdefault(code, asyncio.Lock())
+    if lock.locked():
+        raise HTTPException(status_code=409, detail="Round processing is already in progress")
+    async with lock:
+        return await _process_round_locked(code, user)
+
+
+async def _process_round_locked(code: str, user: dict):
     """Professor triggers round processing for all teams."""
     session = db.get_session(code)
     if not session:
@@ -108,7 +120,10 @@ async def process_round_endpoint(code: str, user=Depends(verify_professor)):
         )
 
     # Process round
-    team_states = db.team_states.get(code, {})
+    team_states = {
+        team.teamName: db.get_team_state(code, team.teamName)
+        for team in session.teams
+    }
     engine_results, new_team_states = process_round(
         config=session.config,
         teams=session.teams,
@@ -119,19 +134,19 @@ async def process_round_endpoint(code: str, user=Depends(verify_professor)):
         scenario_version=session.scenarioVersion,
     )
 
-    # Store results
-    db.store_results(code, current_round, engine_results)
-
-    # Update team states
-    for tid, state in new_team_states.items():
-        db.update_team_state(code, tid, state)
-
-    # If all rounds completed, mark session as finished
-    if current_round >= session.config.totalRounds:
-        db.update_session(code, {"state": SessionState.FINISHED, "currentRound": current_round})
-    else:
-        # Advance to next round
-        db.update_session(code, {"currentRound": current_round + 1})
+    committed = db.finalize_round_atomic(
+        code=code,
+        professor_user_id=None if user.get("role") == "owner" else user["sub"],
+        expected_round=current_round,
+        engine_results=engine_results,
+        new_team_states=new_team_states,
+        total_rounds=session.config.totalRounds,
+    )
+    if not committed:
+        raise HTTPException(
+            status_code=409,
+            detail="Round state changed while processing; refresh before retrying",
+        )
 
     # Broadcast results via WebSocket
     broadcast_msg = {
@@ -144,7 +159,6 @@ async def process_round_endpoint(code: str, user=Depends(verify_professor)):
         "results": [r.model_dump() for r in engine_results],
     }
     
-    import asyncio
     from ws_manager import manager
     try:
         # Run broadcast in background task

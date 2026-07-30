@@ -116,9 +116,11 @@ class Database:
                 created_by TEXT,
                 professor_user_id TEXT,
                 class_id TEXT,
+                organization_id TEXT,
                 max_human_teams INTEGER DEFAULT 30,
                 current_round INTEGER DEFAULT 0,
                 state TEXT DEFAULT 'creating',
+                version INTEGER NOT NULL DEFAULT 0,
                 scenario_id TEXT NOT NULL DEFAULT 'athletic-footwear-classic',
                 scenario_version TEXT NOT NULL DEFAULT '1.0.0',
                 created_at TEXT DEFAULT (datetime('now'))
@@ -173,6 +175,7 @@ class Database:
             CREATE TABLE IF NOT EXISTS classes (
                 id TEXT PRIMARY KEY,
                 professor_user_id TEXT NOT NULL,
+                organization_id TEXT,
                 name TEXT NOT NULL,
                 description TEXT,
                 join_code TEXT UNIQUE NOT NULL,
@@ -228,6 +231,17 @@ class Database:
             CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action);
             CREATE INDEX IF NOT EXISTS idx_memberships_user ON memberships(user_id);
             CREATE INDEX IF NOT EXISTS idx_memberships_org ON memberships(org_id);
+
+            CREATE TABLE IF NOT EXISTS session_create_requests (
+                professor_user_id TEXT NOT NULL,
+                idempotency_key_hash TEXT NOT NULL,
+                request_fingerprint TEXT NOT NULL,
+                session_code TEXT NOT NULL,
+                response_json TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                PRIMARY KEY (professor_user_id, idempotency_key_hash),
+                FOREIGN KEY(session_code) REFERENCES sessions(code)
+            );
 
             -- SOTA Phase 2: Refresh tokens (rotation + revocation)
             CREATE TABLE IF NOT EXISTS refresh_tokens (
@@ -396,6 +410,37 @@ class Database:
                 "ALTER TABLE sessions ADD COLUMN scenario_version TEXT NOT NULL "
                 f"DEFAULT '{DEFAULT_SCENARIO_VERSION}'"
             )
+        if "organization_id" not in session_columns:
+            conn.execute("ALTER TABLE sessions ADD COLUMN organization_id TEXT")
+        if "version" not in session_columns:
+            conn.execute(
+                "ALTER TABLE sessions ADD COLUMN version INTEGER NOT NULL DEFAULT 0"
+            )
+        class_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(classes)").fetchall()
+        }
+        if "organization_id" not in class_columns:
+            conn.execute("ALTER TABLE classes ADD COLUMN organization_id TEXT")
+        conn.execute("""
+            UPDATE classes SET organization_id=(
+                SELECT MIN(m.org_id) FROM memberships m
+                WHERE m.user_id=classes.professor_user_id
+            )
+            WHERE organization_id IS NULL AND (
+                SELECT COUNT(*) FROM memberships m
+                WHERE m.user_id=classes.professor_user_id
+            )=1
+        """)
+        conn.execute("""
+            UPDATE sessions SET organization_id=(
+                SELECT MIN(m.org_id) FROM memberships m
+                WHERE m.user_id=sessions.professor_user_id
+            )
+            WHERE organization_id IS NULL AND (
+                SELECT COUNT(*) FROM memberships m
+                WHERE m.user_id=sessions.professor_user_id
+            )=1
+        """)
         invitation_columns = {
             row["name"]
             for row in conn.execute("PRAGMA table_info(professor_invitations)").fetchall()
@@ -413,6 +458,116 @@ class Database:
 
     # ── Session CRUD ──────────────────────────────────────────────────────
 
+    def get_single_organization_id(self, user_id: str) -> Optional[str]:
+        """Return an unambiguous tenant membership, otherwise fail closed."""
+        with self._lock:
+            rows = self._get_conn().execute(
+                "SELECT org_id FROM memberships WHERE user_id=? ORDER BY org_id",
+                (user_id,),
+            ).fetchall()
+        return rows[0]["org_id"] if len(rows) == 1 else None
+
+    def create_session_idempotent(
+        self,
+        *,
+        config: SessionConfiguration,
+        teams: List[TeamConfig],
+        created_by: str,
+        professor_user_id: str,
+        organization_id: str,
+        idempotency_key_hash: str,
+        request_fingerprint: str,
+        max_human_teams: int = 30,
+        class_id: Optional[str] = None,
+        scenario_id: str = DEFAULT_SCENARIO_ID,
+        scenario_version: str = DEFAULT_SCENARIO_VERSION,
+    ) -> tuple[str, str, bool]:
+        """Create once; replay the original response for matching retries."""
+        with self._lock:
+            conn = self.connect(check_same_thread=False)
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                prior = conn.execute(
+                    """SELECT request_fingerprint, response_json
+                       FROM session_create_requests
+                       WHERE professor_user_id=? AND idempotency_key_hash=?""",
+                    (professor_user_id, idempotency_key_hash),
+                ).fetchone()
+                if prior:
+                    if prior["request_fingerprint"] != request_fingerprint:
+                        raise ValueError("Idempotency key was already used for another request")
+                    response = json.loads(prior["response_json"])
+                    conn.rollback()
+                    return response["code"], response["sessionId"], True
+
+                code = _generate_code()
+                while conn.execute(
+                    "SELECT 1 FROM sessions WHERE code=?", (code,)
+                ).fetchone():
+                    code = _generate_code()
+                session_id = _generate_id()
+                conn.execute(
+                    """INSERT INTO sessions (
+                           code, session_id, config_json, teams_json, created_by,
+                           professor_user_id, class_id, organization_id,
+                           max_human_teams, scenario_id, scenario_version
+                       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        code,
+                        session_id,
+                        config.model_dump_json(),
+                        json.dumps([team.model_dump() for team in teams]),
+                        created_by,
+                        professor_user_id,
+                        class_id,
+                        organization_id,
+                        max_human_teams,
+                        scenario_id,
+                        scenario_version,
+                    ),
+                )
+                response_json = json.dumps(
+                    {"sessionId": session_id, "code": code},
+                    separators=(",", ":"),
+                    sort_keys=True,
+                )
+                conn.execute(
+                    """INSERT INTO session_create_requests (
+                           professor_user_id, idempotency_key_hash,
+                           request_fingerprint, session_code, response_json
+                       ) VALUES (?, ?, ?, ?, ?)""",
+                    (
+                        professor_user_id,
+                        idempotency_key_hash,
+                        request_fingerprint,
+                        code,
+                        response_json,
+                    ),
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
+
+            session = Session(
+                id=session_id,
+                code=code,
+                config=config,
+                teams=teams,
+                created_by=created_by,
+                maxHumanTeams=max_human_teams,
+                scenarioId=scenario_id,
+                scenarioVersion=scenario_version,
+            )
+            self.sessions[code] = session
+            self.decisions[code] = {}
+            self.announcements[code] = []
+            self.results[code] = {}
+            self.team_states[code] = {}
+            return code, session_id, False
+
     def create_session(
         self,
         config: SessionConfiguration,
@@ -421,6 +576,7 @@ class Database:
         max_human_teams: int = 30,
         professor_user_id: Optional[str] = None,
         class_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
         scenario_id: str = DEFAULT_SCENARIO_ID,
         scenario_version: str = DEFAULT_SCENARIO_VERSION,
     ) -> str:
@@ -435,9 +591,9 @@ class Database:
             teams_json = [t.model_dump() for t in teams]
 
             conn.execute(
-                """INSERT INTO sessions (code, session_id, config_json, teams_json, created_by, professor_user_id, class_id, max_human_teams, scenario_id, scenario_version)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (code, sid, config_json, json.dumps(teams_json), created_by, professor_user_id, class_id, max_human_teams, scenario_id, scenario_version),
+                """INSERT INTO sessions (code, session_id, config_json, teams_json, created_by, professor_user_id, class_id, organization_id, max_human_teams, scenario_id, scenario_version)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (code, sid, config_json, json.dumps(teams_json), created_by, professor_user_id, class_id, organization_id, max_human_teams, scenario_id, scenario_version),
             )
             conn.commit()
 
@@ -454,11 +610,173 @@ class Database:
             self.team_states[code] = {}
             return code
 
+    def transition_session_owned(
+        self,
+        *,
+        code: str,
+        professor_user_id: Optional[str],
+        allowed_states: tuple[str, ...],
+        new_state: str,
+        current_round: Optional[int] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Apply an ownership-scoped lifecycle compare-and-swap."""
+        placeholders = ",".join("?" for _ in allowed_states)
+        with self._lock:
+            conn = self.connect(check_same_thread=False)
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                params: list[Any] = [new_state]
+                assignments = "state=?, version=version+1"
+                if current_round is not None:
+                    assignments += ", current_round=?"
+                    params.append(current_round)
+                sql = f"UPDATE sessions SET {assignments} WHERE code=?"
+                params.append(code)
+                if professor_user_id is not None:
+                    sql += " AND professor_user_id=?"
+                    params.append(professor_user_id)
+                sql += f" AND state IN ({placeholders})"
+                params.extend(allowed_states)
+                cursor = conn.execute(sql, params)
+                if cursor.rowcount != 1:
+                    conn.rollback()
+                    return None
+                row = conn.execute(
+                    "SELECT session_id, state, current_round, version FROM sessions WHERE code=?",
+                    (code,),
+                ).fetchone()
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
+        cached = self.sessions.get(code)
+        if cached is not None:
+            cached.state = type(cached.state)(row["state"])
+            cached.currentRound = row["current_round"]
+        return dict(row)
+
+    def join_session_atomic(
+        self, *, code: str, team_name: str, student_id: str
+    ) -> Dict[str, Any]:
+        """Serialize team assignment and capacity enforcement in SQLite."""
+        with self._lock:
+            conn = self.connect(check_same_thread=False)
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                row = conn.execute(
+                    """SELECT teams_json, state, current_round, max_human_teams
+                       FROM sessions WHERE code=?""",
+                    (code,),
+                ).fetchone()
+                if not row:
+                    conn.rollback()
+                    return {"status": "not_found"}
+                if row["state"] != "creating":
+                    conn.rollback()
+                    return {"status": "invalid_state", "state": row["state"]}
+                teams = json.loads(row["teams_json"])
+                existing = next(
+                    (
+                        team
+                        for team in teams
+                        if team.get("teamName") == team_name
+                        and not team.get("isAI", False)
+                    ),
+                    None,
+                )
+                if existing and existing.get("studentId"):
+                    if existing["studentId"] != student_id:
+                        conn.rollback()
+                        return {"status": "name_taken"}
+                elif existing:
+                    existing["studentId"] = student_id
+                else:
+                    human_count = sum(
+                        1 for team in teams if not team.get("isAI", False)
+                    )
+                    if human_count >= row["max_human_teams"]:
+                        conn.rollback()
+                        return {"status": "capacity"}
+                    teams.append(
+                        TeamConfig(teamName=team_name, studentId=student_id).model_dump()
+                    )
+                conn.execute(
+                    "UPDATE sessions SET teams_json=?, version=version+1 WHERE code=?",
+                    (json.dumps(teams), code),
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
+        cached = self.sessions.get(code)
+        if cached is not None:
+            cached.teams = [TeamConfig(**team) for team in teams]
+        return {
+            "status": "joined",
+            "state": row["state"],
+            "round": row["current_round"],
+        }
+
+    def finalize_round_atomic(
+        self,
+        *,
+        code: str,
+        professor_user_id: Optional[str],
+        expected_round: int,
+        engine_results: List[RoundResult],
+        new_team_states: Dict[str, Dict[str, Any]],
+        total_rounds: int,
+    ) -> bool:
+        """Commit results, team states, and round advancement as one CAS."""
+        next_round = expected_round if expected_round >= total_rounds else expected_round + 1
+        next_state = "finished" if expected_round >= total_rounds else "active"
+        with self._lock:
+            conn = self.connect(check_same_thread=False)
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                sql = """UPDATE sessions
+                         SET state=?, current_round=?, version=version+1
+                         WHERE code=? AND state='active' AND current_round=?"""
+                params: list[Any] = [next_state, next_round, code, expected_round]
+                if professor_user_id is not None:
+                    sql += " AND professor_user_id=?"
+                    params.append(professor_user_id)
+                if conn.execute(sql, params).rowcount != 1:
+                    conn.rollback()
+                    return False
+                for result in engine_results:
+                    conn.execute(
+                        """INSERT OR REPLACE INTO results
+                           (session_code, round_num, team_id, result_json)
+                           VALUES (?, ?, ?, ?)""",
+                        (code, expected_round, result.teamId, result.model_dump_json()),
+                    )
+                for team_id, state in new_team_states.items():
+                    conn.execute(
+                        """INSERT OR REPLACE INTO team_states
+                           (session_code, team_id, state_json) VALUES (?, ?, ?)""",
+                        (code, team_id, json.dumps(state)),
+                    )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
+        cached = self.sessions.get(code)
+        if cached is not None:
+            cached.state = type(cached.state)(next_state)
+            cached.currentRound = next_round
+        self.results.setdefault(code, {})[expected_round] = engine_results
+        self.team_states[code] = new_team_states
+        return True
+
     def get_session(self, code: str) -> Optional[Session]:
-        # Fast path: in-memory cache
-        if code in self.sessions:
-            return self.sessions[code]
-        # Fallback: DB lookup
+        # Durable state is authoritative across workers; refresh the cache.
         with self._lock:
             conn = self._get_conn()
             row = conn.execute(
@@ -638,8 +956,6 @@ class Database:
         return True
 
     def get_decisions(self, session_code: str, round_num: int) -> Dict[str, PlayerDecision]:
-        if session_code in self.decisions and round_num in self.decisions.get(session_code, {}):
-            return self.decisions[session_code][round_num]
         with self._lock:
             conn = self._get_conn()
             rows = conn.execute(
@@ -720,7 +1036,14 @@ class Database:
     # ── Team states ───────────────────────────────────────────────────────
 
     def get_team_state(self, session_code: str, team_id: str) -> Dict[str, Any]:
-        return self.team_states.get(session_code, {}).get(team_id, {})
+        with self._lock:
+            row = self._get_conn().execute(
+                "SELECT state_json FROM team_states WHERE session_code=? AND team_id=?",
+                (session_code, team_id),
+            ).fetchone()
+        state = json.loads(row["state_json"]) if row else {}
+        self.team_states.setdefault(session_code, {})[team_id] = state
+        return state
 
     def update_team_state(self, session_code: str, team_id: str, updates: Dict[str, Any]) -> None:
         if session_code not in self.team_states:
@@ -728,6 +1051,18 @@ class Database:
         if team_id not in self.team_states[session_code]:
             self.team_states[session_code][team_id] = {}
         self.team_states[session_code][team_id].update(updates)
+        with self._lock:
+            conn = self._get_conn()
+            conn.execute(
+                """INSERT OR REPLACE INTO team_states
+                   (session_code, team_id, state_json) VALUES (?, ?, ?)""",
+                (
+                    session_code,
+                    team_id,
+                    json.dumps(self.team_states[session_code][team_id]),
+                ),
+            )
+            conn.commit()
 
     def count_submitted_decisions(self, session_code: str, round_num: int) -> int:
         return len(self.decisions.get(session_code, {}).get(round_num, {}))
@@ -783,16 +1118,31 @@ class Database:
     def delete_session(self, code: str) -> bool:
         with self._lock:
             conn = self._get_conn()
-            if code in self.sessions:
-                del self.sessions[code]
+            row = conn.execute(
+                "SELECT session_id FROM sessions WHERE code=?", (code,)
+            ).fetchone()
+            if not row:
+                self.sessions.pop(code, None)
+                return False
+            conn.execute("BEGIN IMMEDIATE")
+            try:
                 conn.execute("DELETE FROM decisions WHERE session_code=?", (code,))
                 conn.execute("DELETE FROM results WHERE session_code=?", (code,))
-                conn.execute("DELETE FROM announcements WHERE session_id=?", (code,))
+                conn.execute(
+                    "DELETE FROM announcements WHERE session_id=?",
+                    (row["session_id"],),
+                )
                 conn.execute("DELETE FROM team_states WHERE session_code=?", (code,))
+                conn.execute(
+                    "DELETE FROM session_create_requests WHERE session_code=?", (code,)
+                )
                 conn.execute("DELETE FROM sessions WHERE code=?", (code,))
                 conn.commit()
-                return True
-        return False
+            except Exception:
+                conn.rollback()
+                raise
+            self.sessions.pop(code, None)
+            return True
 
     # ── Users ─────────────────────────────────────────────────────────────
 
@@ -956,7 +1306,13 @@ class Database:
 
     # ── Multi-tenant: Classes ──────────────────────────────────────────────
 
-    def create_class(self, professor_user_id: str, name: str, description: str = "") -> Dict[str, Any]:
+    def create_class(
+        self,
+        professor_user_id: str,
+        name: str,
+        description: str = "",
+        organization_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Professor creates a new class. Returns class dict with join_code."""
         with self._lock:
             conn = self._get_conn()
@@ -965,13 +1321,16 @@ class Database:
             while conn.execute("SELECT 1 FROM classes WHERE join_code=?", (join_code,)).fetchone():
                 join_code = _generate_code()
             conn.execute(
-                "INSERT INTO classes (id, professor_user_id, name, description, join_code) VALUES (?, ?, ?, ?, ?)",
-                (class_id, professor_user_id, name, description, join_code),
+                """INSERT INTO classes
+                   (id, professor_user_id, organization_id, name, description, join_code)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (class_id, professor_user_id, organization_id, name, description, join_code),
             )
             conn.commit()
         return {
             "id": class_id,
             "professor_user_id": professor_user_id,
+            "organization_id": organization_id,
             "name": name,
             "description": description,
             "join_code": join_code,

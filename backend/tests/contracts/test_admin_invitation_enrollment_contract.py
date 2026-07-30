@@ -349,6 +349,7 @@ def test_professor_portal_uses_http_only_cookie_and_filters_progress_by_owner():
     with TestClient(app, base_url="https://practenture.com") as portal:
         response = portal.post(
             "/api/professor-portal/activate",
+            headers={"Origin": "https://practenture.com"},
             json={
                 "professorCode": SECRET,
                 "username": "invited-professor",
@@ -394,11 +395,17 @@ def test_professor_portal_uses_http_only_cookie_and_filters_progress_by_owner():
             assert denied.status_code == 403
             assert denied.json() == {"detail": "Not your session"}
 
-        logout = portal.post("/api/professor-portal/logout")
+        csrf = portal.cookies.get("practenture_professor_csrf")
+        assert csrf
+        logout = portal.post(
+            "/api/professor-portal/logout",
+            headers={"X-CSRF-Token": csrf},
+        )
         assert logout.status_code == 204
         assert portal.get("/api/professor-portal/progress").status_code == 401
         login = portal.post(
             "/api/professor-portal/login",
+            headers={"Origin": "https://practenture.com"},
             json={
                 "provider": "password",
                 "username": "invited-professor",
@@ -409,10 +416,37 @@ def test_professor_portal_uses_http_only_cookie_and_filters_progress_by_owner():
         assert portal.get("/api/professor-portal/progress").status_code == 200
 
 
+def test_professor_portal_pre_authentication_mutations_require_same_origin():
+    with TestClient(app, base_url="https://practenture.com") as portal:
+        payload = {
+            "provider": "password",
+            "username": "nobody",
+            "password": "NotARealPassword123!",
+        }
+        missing = portal.post("/api/professor-portal/login", json=payload)
+        assert missing.status_code == 403
+        assert missing.json() == {"detail": "Invalid request origin"}
+        foreign = portal.post(
+            "/api/professor-portal/login",
+            headers={"Origin": "https://attacker.example"},
+            json=payload,
+        )
+        assert foreign.status_code == 403
+        assert foreign.json() == {"detail": "Invalid request origin"}
+
+
 def test_public_login_is_the_secure_professor_portal_shell():
     response = client.get("/login")
     assert response.status_code == 200
     assert "Professor portal" in response.text
+    assert 'id="activation-success"' in response.text
+    assert 'id="forgot-password"' in response.text
+    assert 'id="reset-form"' in response.text
+    assert 'id="reset-success"' in response.text
+    assert "portal.css?v=3" in response.text
+    assert "portal.js?v=7" in response.text
+    assert 'id="create-form"' in response.text
+    assert 'id="action-dialog"' in response.text
     assert "localhost:8000" not in response.text
     assert response.headers["cache-control"] == "no-store"
     assert "frame-ancestors 'none'" in response.headers["content-security-policy"]

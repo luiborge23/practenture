@@ -14,20 +14,25 @@ struct SessionListView: View {
     @State private var isSyncingFromBackend = false
     @State private var debugStatus: String = "Not loaded yet"
     @State private var debugError: String?
+    @State private var sessionPendingDeletion: SimulationSession?
+    @State private var backendSessionCodes: Set<String> = []
+    @State private var syncGeneration = 0
 
         /// Fetch sessions from the backend and merge with local list.
     private func syncSessionsFromBackend() async {
+        syncGeneration += 1
+        let generation = syncGeneration
         isSyncingFromBackend = true
-        defer { isSyncingFromBackend = false }
+        defer {
+            if generation == syncGeneration {
+                isSyncingFromBackend = false
+            }
+        }
         
         NSLog("🔍 SessionListView: syncSessionsFromBackend() START")
         NSLog("🔍 SessionListView: professorSessions count before = \(appState.professorSessions.count)")
         
-        let hasToken = AuthManager.shared.accessToken != nil
-        let tokenPreview = AuthManager.shared.accessToken?.prefix(20) ?? "nil"
-        await MainActor.run { 
-            debugStatus = "Loading... (token: \(hasToken) \(tokenPreview)..." 
-        }
+        await MainActor.run { debugStatus = "Loading…" }
         
         do {
             let backendSessions = try await NetworkService.shared.getDashboardSessions()
@@ -37,31 +42,39 @@ struct SessionListView: View {
             for bs in backendSessions {
                 NSLog("🔍 SessionListView: Processing session code='\(bs.code)' state='\(bs.state)'")
             }
-            
             await MainActor.run {
+                guard generation == syncGeneration else { return }
+                let backendCodes = Set(backendSessions.map(\.code))
+                appState.professorSessions.removeAll {
+                    $0.isBackendManaged &&
+                    !backendCodes.contains($0.sessionCode)
+                }
+                backendSessionCodes = backendCodes
+                if let active = appState.activeSession,
+                   active.isBackendManaged,
+                   !backendCodes.contains(active.sessionCode) {
+                    appState.clearActiveSession()
+                }
                 for bs in backendSessions {
                     if let existing = appState.professorSessions.first(where: { $0.code == bs.code || $0.sessionCode == bs.code }) {
                         // Update existing with backend state
                         NSLog("🔍 SessionListView: Found existing session '\(bs.code)', updating")
                         existing.currentRound = bs.currentRound
                         existing.state = mapBackendState(bs.state)
+                        existing.config = configuration(from: bs)
+                        // Dashboard counts are authoritative, but it does not return
+                        // roster identities. Never synthesize teams from capacity.
+                        existing.teams = []
+                        existing.isBackendManaged = true
                         existing.lastSyncedAt = Date()
                     } else {
                         NSLog("🔍 SessionListView: Creating new session '\(bs.code)'")
-                        let config = SessionConfiguration(
-                            name: "Session \(bs.code)",
-                            totalRounds: bs.totalRounds,
-                            startingCash: 500_000,
-                            marketType: .moderate,
-                            aiDifficulty: .medium,
-                            numberOfAICompetitors: 3,
-                            scoringMetric: .investorScore,
-                            courseCode: "",
-                            semester: ""
-                        )
+                        let config = configuration(from: bs)
                         // Create local session then immediately overwrite generated code with backend code
                         let session = SimulationSession(config: config)
                         session.code = bs.code
+                        session.teams = []
+                        session.isBackendManaged = true
                         session.currentRound = bs.currentRound
                         session.state = mapBackendState(bs.state)
                         session.lastSyncedAt = Date()
@@ -75,11 +88,48 @@ struct SessionListView: View {
         } catch {
             NSLog("🔍 SessionListView: ERROR syncing sessions: \(error)")
             await MainActor.run {
+                guard generation == syncGeneration else { return }
                 debugStatus = "ERROR"
                 debugError = "\(error)"
             }
             Logger.sync.error("Failed to sync sessions from backend: \(UserFriendlyError.message(for: error))")
         }
+    }
+
+    private func configuration(
+        from backend: NetworkService.DashboardSessionResponse
+    ) -> SessionConfiguration {
+        let scoring: ScoringMetric
+        switch backend.scoringMetric {
+        case "cumulative_profit": scoring = .cumulativeProfit
+        case "revenue": scoring = .revenue
+        case "composite": scoring = .composite
+        default: scoring = .investorScore
+        }
+        return SessionConfiguration(
+            name: backend.name ?? "Session \(backend.code)",
+            totalRounds: backend.totalRounds,
+            startingCash: backend.startingCash ?? 500_000,
+            marketType: MarketType(rawValue: backend.marketType ?? "") ?? .moderate,
+            aiDifficulty: AIDifficulty(rawValue: backend.aiDifficulty ?? "") ?? .medium,
+            numberOfAICompetitors: backend.aiTeamsCount,
+            scoringMetric: scoring,
+            randomSeed: backend.randomSeed ?? 42,
+            fixedCostsPerRound: backend.fixedCostsPerRound ?? 5_000,
+            baseCostPerUnit: backend.baseCostPerUnit ?? 30,
+            baseMarketDemand: backend.baseMarketDemand ?? 10_000,
+            sharesOutstanding: backend.sharesOutstanding ?? 10_000,
+            initialEquity: backend.initialEquity ?? 300_000,
+            baseInterestRate: backend.baseInterestRate ?? 0.06,
+            plantCapacity: backend.plantCapacity ?? 10_000,
+            courseCode: backend.courseCode ?? "",
+            semester: backend.semester ?? "",
+            maxHumanTeams: backend.maxHumanTeams ?? 30,
+            scenarioIdentity: ScenarioIdentity(
+                id: backend.scenarioId ?? ScenarioIdentity.athleticFootwearClassic.id,
+                version: backend.scenarioVersion ?? ScenarioIdentity.athleticFootwearClassic.version
+            )
+        )
     }
 
     private var filteredSessions: [SimulationSession] {
@@ -144,9 +194,39 @@ struct SessionListView: View {
                 .disabled(isSyncingFromBackend)
             }
         }
-        .sheet(isPresented: $showingCreateSession) {
+        .sheet(isPresented: $showingCreateSession, onDismiss: {
+            Task { await syncSessionsFromBackend() }
+        }) {
             CreateSessionView()
                 .environment(appState)
+        }
+        .alert(
+            "Unable to Update Sessions",
+            isPresented: Binding(
+                get: { debugError != nil },
+                set: { if !$0 { debugError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { debugError = nil }
+        } message: {
+            Text(debugError ?? "Please try again.")
+        }
+        .confirmationDialog(
+            "Delete this session permanently?",
+            isPresented: Binding(
+                get: { sessionPendingDeletion != nil },
+                set: { if !$0 { sessionPendingDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete Session", role: .destructive) {
+                guard let session = sessionPendingDeletion else { return }
+                sessionPendingDeletion = nil
+                deleteSession(session)
+            }
+            Button("Cancel", role: .cancel) { sessionPendingDeletion = nil }
+        } message: {
+            Text("This removes the session and its classroom data from Practenture. This action cannot be undone.")
         }
     }
 
@@ -170,13 +250,15 @@ struct SessionListView: View {
                         .buttonStyle(.borderless)
                         .contentShape(Rectangle())
                         .contextMenu {
-                            Button {
-                                cloneSession(session)
-                            } label: {
-                                Label("Clone Session", systemImage: "doc.on.doc")
+                            if !isBackendSession(session) {
+                                Button {
+                                    cloneSession(session)
+                                } label: {
+                                    Label("Clone Session", systemImage: "doc.on.doc")
+                                }
                             }
                             Button(role: .destructive) {
-                                appState.professorSessions.removeAll { $0.id == session.id }
+                                sessionPendingDeletion = session
                             } label: {
                                 Label("Delete", systemImage: "trash")
                             }
@@ -195,13 +277,15 @@ struct SessionListView: View {
                         .buttonStyle(.borderless)
                         .contentShape(Rectangle())
                         .contextMenu {
-                            Button {
-                                cloneSession(session)
-                            } label: {
-                                Label("Clone Session", systemImage: "doc.on.doc")
+                            if !isBackendSession(session) {
+                                Button {
+                                    cloneSession(session)
+                                } label: {
+                                    Label("Clone Session", systemImage: "doc.on.doc")
+                                }
                             }
                             Button(role: .destructive) {
-                                appState.professorSessions.removeAll { $0.id == session.id }
+                                sessionPendingDeletion = session
                             } label: {
                                 Label("Delete", systemImage: "trash")
                             }
@@ -364,5 +448,33 @@ struct SessionListView: View {
         )
         let cloned = SimulationSession(config: newConfig)
         appState.professorSessions.insert(cloned, at: 0)
+    }
+
+    private func isBackendSession(_ session: SimulationSession) -> Bool {
+        session.isBackendManaged || backendSessionCodes.contains(session.sessionCode)
+    }
+
+    private func deleteSession(_ session: SimulationSession) {
+        guard isBackendSession(session) else {
+            appState.professorSessions.removeAll { $0.id == session.id }
+            return
+        }
+        Task {
+            do {
+                try await NetworkService.shared.deleteSession(code: session.sessionCode)
+                await MainActor.run {
+                    appState.professorSessions.removeAll { $0.id == session.id }
+                    backendSessionCodes.remove(session.sessionCode)
+                    if appState.activeSession?.sessionCode == session.sessionCode {
+                        appState.clearActiveSession()
+                    }
+                    debugStatus = "Deleted \(session.sessionCode)"
+                }
+            } catch {
+                await MainActor.run {
+                    debugError = UserFriendlyError.message(for: error)
+                }
+            }
+        }
     }
 }

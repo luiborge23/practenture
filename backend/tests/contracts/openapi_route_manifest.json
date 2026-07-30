@@ -1806,7 +1806,7 @@
       "requestSchema": null,
       "responses": {
         "200": {
-          "$ref": "#/components/schemas/Session"
+          "$ref": "#/components/schemas/PublicSessionResponse"
         },
         "422": {
           "$ref": "#/components/schemas/HTTPValidationError"

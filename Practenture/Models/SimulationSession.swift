@@ -35,6 +35,9 @@ class SimulationSession: Identifiable {
     @Attribute(.unique)
     var code: String
 
+    /// True only when this session is backed by the Practenture server.
+    var isBackendManaged: Bool = false
+
     /// Current round number (1-based). Starts at 0 meaning "not yet started."
     var currentRound: Int
 
@@ -419,6 +422,7 @@ class SimulationSession: Identifiable {
     init(code: String, config: SessionConfiguration) {
         self.id = UUID()
         self.code = code
+        self.isBackendManaged = true
         self.currentRound = 0
         self.stateRaw = SessionState.waitingForPlayers.rawValue
         self.isPaused = false

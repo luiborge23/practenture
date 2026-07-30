@@ -249,9 +249,19 @@ final class AuthManager {
 
     @MainActor
     func loginProfessor(username: String, password: String, mfaCode: String? = nil) async throws -> AuthLoginResponse {
+        // A stale student/professor token must never be attached to a fresh
+        // password login or trigger refresh handling on the login endpoint.
+        stopTokenRefreshScheduler()
+        clearPersistedTokens()
+        clearAuthState()
         let response: AuthLoginResponse = try await network.post("/api/auth/login", body: AuthLoginRequest(provider: "password", username: username, password: password, idToken: nil, mfaCode: mfaCode))
         if response.mfaRequired == true {
             return response
+        }
+        guard response.role == "professor" else {
+            clearPersistedTokens()
+            clearAuthState()
+            throw AuthError.professorRequired
         }
         persistTokens(access: response.accessToken, refresh: response.refreshToken)
         isAuthenticated = true
@@ -271,7 +281,9 @@ final class AuthManager {
     @MainActor
     func loginStudent(username: String, password: String, mfaCode: String? = nil) async throws -> AuthLoginResponse {
         // Clear any stale tokens before login to avoid "session expired" errors
+        stopTokenRefreshScheduler()
         clearPersistedTokens()
+        clearAuthState()
         let response: AuthLoginResponse = try await network.post("/api/auth/login", body: AuthLoginRequest(provider: "password", username: username, password: password, idToken: nil, mfaCode: mfaCode))
         if response.mfaRequired == true {
             return response
