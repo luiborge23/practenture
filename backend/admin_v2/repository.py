@@ -223,7 +223,7 @@ class AdminSessionRepository:
         ``mfa_replayed``. Backup-code
         consumption is rolled back if session insertion fails.
         """
-        from mfa import resolve_totp_counter
+        from mfa import backup_code_matches, resolve_totp_counter
 
         with self._transaction() as conn:
             mfa_row = conn.execute(
@@ -270,7 +270,7 @@ class AdminSessionRepository:
                             index
                             for index, code in enumerate(backup_codes)
                             if isinstance(code, str)
-                            and hmac.compare_digest(code, candidate)
+                            and backup_code_matches(code, candidate)
                         ),
                         None,
                     )
@@ -324,7 +324,7 @@ class AdminSessionRepository:
         conn: sqlite3.Connection, user_id: str, code: str | None, accepted_at: str
     ) -> str:
         """Verify and consume a privileged MFA credential in the caller's transaction."""
-        from mfa import resolve_totp_counter
+        from mfa import backup_code_matches, resolve_totp_counter
 
         row = conn.execute(
             "SELECT secret, enabled, backup_codes FROM mfa_secrets WHERE user_id=?",
@@ -361,7 +361,7 @@ class AdminSessionRepository:
         except (TypeError, ValueError):
             codes = []
         index = next(
-            (i for i, value in enumerate(codes) if isinstance(value, str) and hmac.compare_digest(value, candidate)),
+            (i for i, value in enumerate(codes) if isinstance(value, str) and backup_code_matches(value, candidate)),
             None,
         )
         if index is None:

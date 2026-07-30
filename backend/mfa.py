@@ -18,6 +18,50 @@ import struct
 import time
 from typing import Optional
 
+_SECRET_PREFIX = "enc-v1$"
+
+
+def _secret_encryption_key() -> bytes | None:
+    """Derive an AES-256 key from a stable server secret when configured."""
+    material = (
+        os.environ.get("PRACTENTURE_MFA_ENCRYPTION_KEY")
+        or os.environ.get("PRACTENTURE_JWT_SECRET")
+        or os.environ.get("SECRET_KEY")
+    )
+    return hashlib.sha256(material.encode("utf-8")).digest() if material else None
+
+
+def protect_totp_secret(secret: str) -> str:
+    """Encrypt a TOTP seed at rest using AES-GCM.
+
+    Development environments without a configured application secret retain the
+    legacy plaintext format; production already requires a JWT secret.
+    """
+    key = _secret_encryption_key()
+    if key is None or secret.startswith(_SECRET_PREFIX):
+        return secret
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+    nonce = os.urandom(12)
+    ciphertext = AESGCM(key).encrypt(nonce, secret.encode("ascii"), b"practenture-mfa-v1")
+    token = base64.urlsafe_b64encode(nonce + ciphertext).decode("ascii")
+    return f"{_SECRET_PREFIX}{token}"
+
+
+def reveal_totp_secret(stored: str) -> str:
+    """Decrypt a versioned TOTP seed while accepting legacy plaintext rows."""
+    if not stored.startswith(_SECRET_PREFIX):
+        return stored
+    key = _secret_encryption_key()
+    if key is None:
+        raise ValueError("MFA encryption key is unavailable")
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+    raw = base64.urlsafe_b64decode(stored[len(_SECRET_PREFIX):].encode("ascii"))
+    if len(raw) <= 12:
+        raise ValueError("Invalid encrypted MFA secret")
+    return AESGCM(key).decrypt(raw[:12], raw[12:], b"practenture-mfa-v1").decode("ascii")
+
 
 def generate_totp_secret() -> str:
     """Generate a random 20-byte base32-encoded TOTP secret."""
@@ -61,6 +105,8 @@ def resolve_totp_counter(
     if not code or not secret or window < 0:
         return None
 
+    secret = reveal_totp_secret(secret)
+
     code = code.strip().replace(" ", "")
     if len(code) != 6 or not code.isdigit():
         return None
@@ -86,6 +132,39 @@ def get_totp_uri(secret: str, account_name: str, issuer: str = "Practenture") ->
     return f"otpauth://totp/{label}?secret={secret}&issuer={issuer_encoded}&algorithm=SHA1&digits=6&period=30"
 
 
-def generate_backup_codes(count: int = 10) -> list:
-    """Generate one-time-use backup codes (8 hex chars each)."""
-    return [secrets.token_hex(4).upper() for _ in range(count)]
+_BACKUP_HASH_PREFIX = "sha256$"
+
+
+def normalize_backup_code(code: str) -> str:
+    """Return the canonical representation used for recovery-code checks."""
+    return "".join(ch for ch in (code or "").upper() if ch.isalnum())
+
+
+def hash_backup_code(code: str) -> str:
+    """Hash a recovery code before persistence.
+
+    Recovery codes are bearer credentials.  Storing only a one-way digest keeps
+    a database read from immediately disclosing every remaining code.
+    """
+    digest = hashlib.sha256(normalize_backup_code(code).encode("ascii")).hexdigest()
+    return f"{_BACKUP_HASH_PREFIX}{digest}"
+
+
+def backup_code_matches(stored: str, candidate: str) -> bool:
+    """Compare hashed codes and legacy plaintext codes in constant time."""
+    normalized = normalize_backup_code(candidate)
+    if not normalized or not isinstance(stored, str):
+        return False
+    expected = hash_backup_code(normalized)
+    if stored.startswith(_BACKUP_HASH_PREFIX):
+        return hmac.compare_digest(stored, expected)
+    return hmac.compare_digest(normalize_backup_code(stored), normalized)
+
+
+def generate_backup_codes(count: int = 10) -> list[str]:
+    """Generate 10 one-time recovery codes with 48 bits of entropy each."""
+    codes = []
+    for _ in range(count):
+        raw = secrets.token_hex(6).upper()
+        codes.append(f"{raw[:4]}-{raw[4:8]}-{raw[8:]}")
+    return codes

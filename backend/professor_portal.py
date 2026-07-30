@@ -1,8 +1,10 @@
 """Secure browser portal for professor onboarding and progress visibility."""
 from __future__ import annotations
 
+import base64
 import hmac
 import hashlib
+import io
 import json
 import os
 import secrets
@@ -69,6 +71,35 @@ class PortalSession(BaseModel):
     userId: str
     role: str
     name: str | None = None
+
+
+class MfaStatusResponse(BaseModel):
+    enabled: bool
+    recoveryCodesRemaining: int
+
+
+class MfaSetupRequest(BaseModel):
+    password: str
+
+
+class MfaSetupResponse(BaseModel):
+    secret: str
+    otpauthUri: str
+    qrCodeDataUri: str
+
+
+class MfaCodeRequest(BaseModel):
+    code: str
+
+
+class MfaConfirmResponse(BaseModel):
+    status: str
+    recoveryCodes: list[str]
+
+
+class MfaProtectedMutationRequest(BaseModel):
+    password: str
+    code: str
 
 
 class ProgressItem(BaseModel):
@@ -216,6 +247,138 @@ def portal_login(
         role=result.role,
         name=user.get("name") if user else None,
     )
+
+
+def _require_password(user_id: str, password: str) -> None:
+    from security import verify_password
+
+    user = db.get_user(user_id)
+    if not user or not verify_password(password, str(user.get("password_hash") or "")):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+
+
+def _require_current_mfa(user_id: str, code: str) -> None:
+    result = db.verify_mfa_code(user_id, code)
+    if result == "required":
+        raise HTTPException(status_code=400, detail="Authenticator or recovery code is required")
+    if result == "replayed":
+        raise HTTPException(status_code=401, detail="That authenticator code was already used")
+    if result != "accepted":
+        raise HTTPException(status_code=401, detail="Invalid authenticator or recovery code")
+
+
+def _recovery_code_count(user_id: str) -> int:
+    record = db.get_mfa_secret(user_id)
+    if not record or not db.is_mfa_enabled(user_id):
+        return 0
+    try:
+        values = json.loads(record.get("backup_codes") or "[]")
+    except (TypeError, ValueError):
+        return 0
+    return len(values) if isinstance(values, list) else 0
+
+
+def _qr_data_uri(uri: str) -> str:
+    try:
+        import qrcode
+        from qrcode.image.svg import SvgPathImage
+    except ImportError as exc:
+        raise HTTPException(status_code=503, detail="MFA enrollment is temporarily unavailable") from exc
+    image = qrcode.make(uri, image_factory=SvgPathImage, box_size=8, border=3)
+    stream = io.BytesIO()
+    image.save(stream)
+    encoded = base64.b64encode(stream.getvalue()).decode("ascii")
+    return f"data:image/svg+xml;base64,{encoded}"
+
+
+@api_router.get("/mfa/status", response_model=MfaStatusResponse)
+def portal_mfa_status(
+    user: dict[str, Any] = Depends(require_professor_session),
+) -> MfaStatusResponse:
+    enabled = db.is_mfa_enabled(user["sub"])
+    return MfaStatusResponse(
+        enabled=enabled,
+        recoveryCodesRemaining=_recovery_code_count(user["sub"]) if enabled else 0,
+    )
+
+
+@api_router.post("/mfa/setup", response_model=MfaSetupResponse)
+def portal_mfa_setup(
+    payload: MfaSetupRequest,
+    user: dict[str, Any] = Depends(require_professor_session),
+    csrf: None = Depends(require_professor_csrf),
+) -> MfaSetupResponse:
+    del csrf
+    user_id = user["sub"]
+    _require_password(user_id, payload.password)
+    if db.is_mfa_enabled(user_id):
+        raise HTTPException(status_code=409, detail="MFA is already enabled")
+    from audit import log_event
+    from mfa import generate_totp_secret, get_totp_uri
+
+    secret = generate_totp_secret()
+    db.set_mfa_secret(user_id, secret)
+    uri = get_totp_uri(secret, user_id, "Practenture")
+    log_event(actor=user_id, action="mfa_enrollment_started")
+    return MfaSetupResponse(secret=secret, otpauthUri=uri, qrCodeDataUri=_qr_data_uri(uri))
+
+
+@api_router.post("/mfa/confirm", response_model=MfaConfirmResponse)
+def portal_mfa_confirm(
+    payload: MfaCodeRequest,
+    user: dict[str, Any] = Depends(require_professor_session),
+    csrf: None = Depends(require_professor_csrf),
+) -> MfaConfirmResponse:
+    del csrf
+    from audit import log_event
+    from mfa import generate_backup_codes, verify_totp
+
+    user_id = user["sub"]
+    record = db.get_mfa_secret(user_id)
+    if not record or int(record.get("enabled") or 0) == 1:
+        raise HTTPException(status_code=409, detail="Start a new MFA enrollment first")
+    if not verify_totp(str(record["secret"]), payload.code, window=1):
+        raise HTTPException(status_code=400, detail="The authenticator code is not valid")
+    recovery_codes = generate_backup_codes()
+    db.enable_mfa(user_id, recovery_codes)
+    log_event(actor=user_id, action="mfa_enabled")
+    return MfaConfirmResponse(status="enabled", recoveryCodes=recovery_codes)
+
+
+@api_router.post("/mfa/recovery-codes", response_model=MfaConfirmResponse)
+def portal_mfa_recovery_codes(
+    payload: MfaProtectedMutationRequest,
+    user: dict[str, Any] = Depends(require_professor_session),
+    csrf: None = Depends(require_professor_csrf),
+) -> MfaConfirmResponse:
+    del csrf
+    from audit import log_event
+    from mfa import generate_backup_codes
+
+    user_id = user["sub"]
+    _require_password(user_id, payload.password)
+    _require_current_mfa(user_id, payload.code)
+    recovery_codes = generate_backup_codes()
+    db.enable_mfa(user_id, recovery_codes)
+    log_event(actor=user_id, action="mfa_recovery_codes_regenerated")
+    return MfaConfirmResponse(status="regenerated", recoveryCodes=recovery_codes)
+
+
+@api_router.post("/mfa/disable", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+def portal_mfa_disable(
+    payload: MfaProtectedMutationRequest,
+    user: dict[str, Any] = Depends(require_professor_session),
+    csrf: None = Depends(require_professor_csrf),
+) -> Response:
+    del csrf
+    from audit import log_event
+
+    user_id = user["sub"]
+    _require_password(user_id, payload.password)
+    _require_current_mfa(user_id, payload.code)
+    db.disable_mfa(user_id)
+    log_event(actor=user_id, action="mfa_disabled")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @api_router.post("/activate", response_model=PortalSession, status_code=201)

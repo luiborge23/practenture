@@ -1533,21 +1533,26 @@ class Database:
     # ── SOTA Phase 2: MFA/TOTP ──────────────────────────────────────────
 
     def set_mfa_secret(self, user_id: str, secret: str) -> None:
+        from mfa import protect_totp_secret
         with self._lock:
             conn = self._get_conn()
             conn.execute(
                 "INSERT OR REPLACE INTO mfa_secrets (user_id, secret, enabled, backup_codes) VALUES (?, ?, 0, '[]')",
-                (user_id, secret),
+                (user_id, protect_totp_secret(secret)),
+            )
+            conn.execute(
+                "DELETE FROM admin_mfa_replay_state WHERE owner_user_id=?", (user_id,)
             )
             conn.commit()
 
-    def enable_mfa(self, user_id: str, backup_codes: list) -> None:
+    def enable_mfa(self, user_id: str, backup_codes: list[str]) -> None:
         import json
+        from mfa import hash_backup_code
         with self._lock:
             conn = self._get_conn()
             conn.execute(
                 "UPDATE mfa_secrets SET enabled=1, backup_codes=?, enabled_at=datetime('now') WHERE user_id=?",
-                (json.dumps(backup_codes), user_id),
+                (json.dumps([hash_backup_code(code) for code in backup_codes]), user_id),
             )
             conn.commit()
 
@@ -1555,6 +1560,9 @@ class Database:
         with self._lock:
             conn = self._get_conn()
             conn.execute("DELETE FROM mfa_secrets WHERE user_id=?", (user_id,))
+            conn.execute(
+                "DELETE FROM admin_mfa_replay_state WHERE owner_user_id=?", (user_id,)
+            )
             conn.commit()
 
     def get_mfa_secret(self, user_id: str) -> Optional[Dict[str, Any]]:
@@ -1568,18 +1576,102 @@ class Database:
 
     def verify_backup_code(self, user_id: str, code: str) -> bool:
         import json
-        mfa = self.get_mfa_secret(user_id)
-        if not mfa:
-            return False
-        codes = json.loads(mfa.get("backup_codes", "[]"))
-        if code in codes:
-            codes.remove(code)
-            with self._lock:
-                conn = self._get_conn()
-                conn.execute("UPDATE mfa_secrets SET backup_codes=? WHERE user_id=?", (json.dumps(codes), user_id))
-                conn.commit()
+        from mfa import backup_code_matches
+        with self._lock:
+            conn = self._get_conn()
+            row = conn.execute(
+                "SELECT backup_codes FROM mfa_secrets WHERE user_id=? AND enabled=1",
+                (user_id,),
+            ).fetchone()
+            if not row:
+                return False
+            try:
+                codes = json.loads(row[0] or "[]")
+            except (TypeError, ValueError):
+                return False
+            index = next(
+                (i for i, stored in enumerate(codes) if backup_code_matches(stored, code)),
+                None,
+            )
+            if index is None:
+                return False
+            del codes[index]
+            conn.execute(
+                "UPDATE mfa_secrets SET backup_codes=? WHERE user_id=?",
+                (json.dumps(codes), user_id),
+            )
+            conn.commit()
             return True
-        return False
+
+    def verify_mfa_code(self, user_id: str, code: str | None) -> str:
+        """Atomically verify TOTP/recovery code and reject TOTP replay.
+
+        Returns ``accepted``, ``required``, ``invalid``, ``replayed``, or
+        ``not_enabled``. Recovery codes are consumed in the same transaction.
+        """
+        from mfa import backup_code_matches, resolve_totp_counter
+
+        candidate = (code or "").strip()
+        with self._lock:
+            conn = self._get_conn()
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                row = conn.execute(
+                    "SELECT secret, enabled, backup_codes FROM mfa_secrets WHERE user_id=?",
+                    (user_id,),
+                ).fetchone()
+                if row is None or int(row[1] or 0) != 1:
+                    conn.rollback()
+                    return "not_enabled"
+                if not candidate:
+                    conn.rollback()
+                    return "required"
+
+                try:
+                    step = resolve_totp_counter(str(row[0]), candidate)
+                except (TypeError, ValueError, KeyError):
+                    step = None
+                if step is not None:
+                    replay = conn.execute(
+                        "SELECT last_accepted_totp_step FROM admin_mfa_replay_state WHERE owner_user_id=?",
+                        (user_id,),
+                    ).fetchone()
+                    if replay is not None and step <= int(replay[0]):
+                        conn.rollback()
+                        return "replayed"
+                    conn.execute(
+                        """INSERT INTO admin_mfa_replay_state
+                               (owner_user_id, last_accepted_totp_step, accepted_at)
+                           VALUES (?, ?, datetime('now'))
+                           ON CONFLICT(owner_user_id) DO UPDATE SET
+                               last_accepted_totp_step=excluded.last_accepted_totp_step,
+                               accepted_at=excluded.accepted_at""",
+                        (user_id, step),
+                    )
+                    conn.commit()
+                    return "accepted"
+
+                try:
+                    codes = json.loads(row[2] or "[]")
+                except (TypeError, ValueError):
+                    codes = []
+                index = next(
+                    (i for i, stored in enumerate(codes) if backup_code_matches(stored, candidate)),
+                    None,
+                )
+                if index is None:
+                    conn.rollback()
+                    return "invalid"
+                del codes[index]
+                conn.execute(
+                    "UPDATE mfa_secrets SET backup_codes=? WHERE user_id=?",
+                    (json.dumps(codes), user_id),
+                )
+                conn.commit()
+                return "accepted"
+            except Exception:
+                conn.rollback()
+                raise
 
     # ── SOTA Phase 2: SCIM user mapping ─────────────────────────────────
 

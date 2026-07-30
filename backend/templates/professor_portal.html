@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Practenture Professor Portal</title>
-  <link rel="stylesheet" href="/static/professor_portal/portal.css?v=3">
-  <script src="/static/professor_portal/portal.js?v=7" defer></script>
+  <link rel="stylesheet" href="/static/professor_portal/portal.css?v=4">
+  <script src="/static/professor_portal/portal.js?v=8" defer></script>
 </head>
 <body>
 <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -31,7 +31,8 @@
     <form id="login-form" class="form-stack" novalidate>
       <label>Username<input id="login-username" autocomplete="username" required></label>
       <label>Password<input id="login-password" type="password" autocomplete="current-password" required></label>
-      <label>MFA code <span class="optional">(if enabled)</span><input id="login-mfa" inputmode="numeric" autocomplete="one-time-code"></label>
+      <label id="login-mfa-wrap" hidden>Authenticator or recovery code<input id="login-mfa" autocomplete="one-time-code" aria-describedby="login-mfa-help"></label>
+      <p id="login-mfa-help" class="field-help" hidden>Enter the six-digit code from your authenticator, or one unused recovery code.</p>
       <button class="button button-primary" type="submit">Sign in securely</button>
       <button id="forgot-password" class="button button-link" type="button">Forgot password?</button>
     </form>
@@ -102,6 +103,7 @@
     <nav class="workspace-nav" aria-label="Professor workspace">
       <button id="nav-sessions" class="nav-item active" type="button">Sessions</button>
       <button id="nav-create" class="nav-item" type="button">Create session</button>
+      <button id="nav-security" class="nav-item" type="button">Security</button>
     </nav>
 
     <section id="sessions-view">
@@ -173,6 +175,32 @@
         <p>Share this join code with your students:</p>
         <output id="created-code" class="join-code"></output>
         <div class="button-row"><button id="copy-code" class="button button-primary" type="button">Copy join code</button><button id="open-created" class="button button-secondary" type="button">Open sessions</button><button id="create-another" class="button button-quiet" type="button">Create another</button></div>
+      </section>
+    </section>
+
+    <section id="security-view" class="security-workspace" aria-labelledby="security-title" hidden>
+      <div class="section-heading"><div><p class="eyebrow">ACCOUNT SECURITY</p><h2 id="security-title">Multi-factor authentication</h2><p>Protect your Professor account with an authenticator application and one-time recovery codes.</p></div></div>
+      <div id="security-alert" class="alert alert-error" role="alert" tabindex="-1" hidden></div>
+      <div id="security-status" class="alert alert-success" role="status" aria-live="polite" hidden></div>
+      <section id="mfa-disabled-panel" class="security-card" hidden>
+        <h3>MFA is not enabled</h3><p>Use any standards-compatible application, including Google Authenticator, Microsoft Authenticator, Authy, or your password manager.</p>
+        <form id="mfa-start-form" class="form-stack compact-form"><label>Confirm current password<input id="mfa-start-password" type="password" autocomplete="current-password" required></label><button class="button button-primary" type="submit">Set up authenticator</button></form>
+      </section>
+      <section id="mfa-setup-panel" class="security-card" hidden>
+        <h3>Connect your authenticator</h3><ol><li>Scan this QR code with your authenticator.</li><li>If scanning is unavailable, enter the setup key manually.</li><li>Enter the current six-digit code to confirm.</li></ol>
+        <img id="mfa-qr" class="mfa-qr" alt="Authenticator setup QR code">
+        <label class="secret-label">Manual setup key<output id="mfa-secret" class="secret-value"></output></label>
+        <form id="mfa-confirm-form" class="form-stack compact-form"><label>Six-digit authenticator code<input id="mfa-confirm-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required></label><button class="button button-primary" type="submit">Enable MFA</button></form>
+      </section>
+      <section id="mfa-enabled-panel" class="security-card" hidden>
+        <h3>MFA is enabled</h3><p id="mfa-recovery-count"></p><div class="button-row"><button id="mfa-regenerate" class="button button-secondary" type="button">Generate new recovery codes</button><button id="mfa-disable" class="button button-quiet" type="button">Disable MFA</button></div>
+      </section>
+      <section id="mfa-protected-panel" class="security-card" hidden>
+        <h3 id="mfa-protected-title"></h3><p id="mfa-protected-copy"></p>
+        <form id="mfa-protected-form" class="form-stack compact-form"><label>Current password<input id="mfa-protected-password" type="password" autocomplete="current-password" required></label><label>Authenticator or recovery code<input id="mfa-protected-code" autocomplete="one-time-code" required></label><div class="button-row"><button id="mfa-protected-submit" class="button button-primary" type="submit"></button><button id="mfa-protected-cancel" class="button button-secondary" type="button">Cancel</button></div></form>
+      </section>
+      <section id="mfa-recovery-panel" class="security-card recovery-card" hidden>
+        <h3>Save your recovery codes now</h3><p>Each code works once. Store them somewhere secure and separate from this device. Practenture cannot show these codes again.</p><pre id="mfa-recovery-codes" class="recovery-codes"></pre><div class="button-row"><button id="mfa-download-codes" class="button button-primary" type="button">Download codes</button><button id="mfa-codes-saved" class="button button-secondary" type="button">I saved these codes</button></div>
       </section>
     </section>
   </section>

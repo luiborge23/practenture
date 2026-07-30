@@ -263,6 +263,7 @@ class MFAVerifyRequest(BaseModel):
 
 class MFADisableRequest(BaseModel):
     password: Optional[str] = None
+    mfa_code: Optional[str] = None
 
 
 class MFAVerifyResponse(BaseModel):
@@ -281,16 +282,17 @@ class MFAStatusMutationResponse(BaseModel):
 @router.post("/mfa/setup", response_model=MFASetupResponse)
 async def setup_mfa(user=Depends(get_current_user)):
     """Generate a new TOTP secret for the current user (not yet enabled)."""
-    from mfa import generate_totp_secret, generate_backup_codes, get_totp_uri
+    from mfa import generate_totp_secret, get_totp_uri
     from database import db
 
     user_id = user["sub"]
+    if db.is_mfa_enabled(user_id):
+        raise HTTPException(status_code=409, detail="MFA is already enabled")
     secret = generate_totp_secret()
     db.set_mfa_secret(user_id, secret)
-    backup = generate_backup_codes()
-    # Store backup codes (not yet enabled — only on verify)
     qr_url = get_totp_uri(secret, user_id, "Practenture")
-    return MFASetupResponse(secret=secret, qr_code_url=qr_url, backup_codes=backup)
+    # Recovery codes become valid and are returned only after TOTP confirmation.
+    return MFASetupResponse(secret=secret, qr_code_url=qr_url, backup_codes=[])
 
 
 @router.post("/mfa/verify", response_model=MFAVerifyResponse)
@@ -316,16 +318,20 @@ async def verify_mfa(req: MFAVerifyRequest, user=Depends(get_current_user)):
 
 @router.post("/mfa/disable", response_model=MFAStatusMutationResponse)
 async def disable_mfa(req: MFADisableRequest, user=Depends(get_current_user)):
-    """Disable MFA for the current user. MFA disable does not require password re-authentication (MFA was already set up and verified)."""
+    """Disable MFA only after password and current second-factor reauthentication."""
     from database import db
     from audit import log_event
+    from security import verify_password
 
     user_id = user["sub"]
-    # MFA disable does not require password (user already proved ownership by setting up MFA)
-    # Just verify the user exists and is not locked
-    user_row = db.get_user(user_id)  # user["sub"] IS the username in this codebase
+    user_row = db.get_user(user_id)
     if not user_row:
         raise HTTPException(status_code=404, detail="User not found")
+    if not req.password or not verify_password(req.password, str(user_row.get("password_hash") or "")):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+    result = db.verify_mfa_code(user_id, req.mfa_code)
+    if result != "accepted":
+        raise HTTPException(status_code=401, detail="Invalid or already used MFA code")
     db.disable_mfa(user_id)
     log_event(actor=user_id, action="mfa_disabled")
     return {"status": "disabled"}

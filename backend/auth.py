@@ -338,7 +338,7 @@ def verify_student_or_professor(user: Dict[str, Any] = Depends(get_current_user)
 
 # ── Login / Register ───────────────────────────────────────────────────────
 
-def login(req: LoginRequest) -> LoginResponse:
+def login(req: LoginRequest) -> LoginResponse | Dict[str, Any]:
     """Authenticate and return JWT token."""
     from rate_limiter import check_login_rate, record_login_failure, record_login_success
     from audit import log_event
@@ -362,14 +362,12 @@ def login(req: LoginRequest) -> LoginResponse:
             user = db_module.db.verify_user(req.username, req.password)
             if user and user["role"] == "owner":
                 _require_not_suspended(user)
-                # MFA check (if enabled)
-                if db_module.db.is_mfa_enabled(req.username):
-                    if not req.mfa_code:
-                        return {"mfaRequired": True, "accessToken": "", "tokenType": "bearer", "role": "owner", "userId": req.username, "mustChangePassword": False}
-                    from mfa import verify_totp
-                    mfa_data = db_module.db.get_mfa_secret(req.username)
-                    if not mfa_data or not verify_totp(mfa_data["secret"], req.mfa_code):
-                        raise HTTPException(status_code=401, detail="Invalid MFA code")
+                mfa_status = db_module.db.verify_mfa_code(req.username, req.mfa_code)
+                if mfa_status == "required":
+                    return {"mfaRequired": True, "accessToken": "", "tokenType": "bearer", "role": "owner", "userId": req.username, "mustChangePassword": False}
+                if mfa_status in {"invalid", "replayed"}:
+                    record_login_failure(req.username)
+                    raise HTTPException(status_code=401, detail="Invalid or already used MFA code")
                 record_login_success(req.username)
                 log_event(actor=req.username, action="login_success", details={"role": "owner"})
                 token = _create_access_token({
@@ -388,14 +386,12 @@ def login(req: LoginRequest) -> LoginResponse:
         user = db_module.db.verify_user(req.username, req.password)
         if user and user["role"] == "professor":
             _require_not_suspended(user)
-            # MFA check (if enabled)
-            if db_module.db.is_mfa_enabled(req.username):
-                if not req.mfa_code:
-                    return {"mfaRequired": True, "accessToken": "", "tokenType": "bearer", "role": "professor", "userId": req.username, "mustChangePassword": False}
-                from mfa import verify_totp
-                mfa_data = db_module.db.get_mfa_secret(req.username)
-                if not mfa_data or not verify_totp(mfa_data["secret"], req.mfa_code):
-                    raise HTTPException(status_code=401, detail="Invalid MFA code")
+            mfa_status = db_module.db.verify_mfa_code(req.username, req.mfa_code)
+            if mfa_status == "required":
+                return {"mfaRequired": True, "accessToken": "", "tokenType": "bearer", "role": "professor", "userId": req.username, "mustChangePassword": False}
+            if mfa_status in {"invalid", "replayed"}:
+                record_login_failure(req.username)
+                raise HTTPException(status_code=401, detail="Invalid or already used MFA code")
             record_login_success(req.username)
             # Derive tenantId from primary organization (if exists)
             org = db_module.db.get_primary_org(req.username)
@@ -424,14 +420,12 @@ def login(req: LoginRequest) -> LoginResponse:
                     status_code=403,
                     detail="Student access is currently unavailable. Please contact your professor or try again later.",
                 )
-            # MFA check (if enabled)
-            if db_module.db.is_mfa_enabled(user["username"]):
-                if not req.mfa_code:
-                    return {"mfaRequired": True, "accessToken": "", "tokenType": "bearer", "role": "student", "userId": user["username"], "mustChangePassword": False}
-                from mfa import verify_totp
-                mfa_data = db_module.db.get_mfa_secret(user["username"])
-                if not mfa_data or not verify_totp(mfa_data["secret"], req.mfa_code):
-                    raise HTTPException(status_code=401, detail="Invalid MFA code")
+            mfa_status = db_module.db.verify_mfa_code(user["username"], req.mfa_code)
+            if mfa_status == "required":
+                return {"mfaRequired": True, "accessToken": "", "tokenType": "bearer", "role": "student", "userId": user["username"], "mustChangePassword": False}
+            if mfa_status in {"invalid", "replayed"}:
+                record_login_failure(req.username)
+                raise HTTPException(status_code=401, detail="Invalid or already used MFA code")
             record_login_success(req.username)
             log_event(actor=req.username, action="login_success", details={"role": "student"})
             token = _create_access_token({

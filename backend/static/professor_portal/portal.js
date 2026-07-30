@@ -6,6 +6,8 @@ let sessions = [];
 let createdCode = "";
 let pendingAction = null;
 let createIdempotencyKey = crypto.randomUUID();
+let protectedMfaAction = "";
+let currentRecoveryCodes = [];
 
 function cookie(name) {
   const prefix = `${encodeURIComponent(name)}=`;
@@ -85,21 +87,75 @@ function recoveryView(mode) {
 function showSessions() {
   $("sessions-view").hidden = false;
   $("create-view").hidden = true;
+  $("security-view").hidden = true;
   $("nav-sessions").classList.add("active");
   $("nav-create").classList.remove("active");
+  $("nav-security").classList.remove("active");
 }
 
 async function showCreate() {
   $("sessions-view").hidden = true;
   $("create-view").hidden = false;
+  $("security-view").hidden = true;
   $("create-form").hidden = false;
   $("create-success").hidden = true;
   $("nav-sessions").classList.remove("active");
   $("nav-create").classList.add("active");
+  $("nav-security").classList.remove("active");
   setMessage("create-alert");
   updateReview();
   await loadCreationOptions();
   $("create-name").focus();
+}
+
+function showMfaPanel(panel) {
+  for (const id of ["mfa-disabled-panel", "mfa-setup-panel", "mfa-enabled-panel", "mfa-protected-panel", "mfa-recovery-panel"]) {
+    $(id).hidden = id !== panel;
+  }
+}
+
+async function loadMfaStatus() {
+  setMessage("security-alert");
+  try {
+    const status = await request(`${API}/mfa/status`);
+    if (status.enabled) {
+      $("mfa-recovery-count").textContent = `${status.recoveryCodesRemaining} unused recovery code${status.recoveryCodesRemaining === 1 ? " remains" : "s remain"}.`;
+      showMfaPanel("mfa-enabled-panel");
+    } else {
+      showMfaPanel("mfa-disabled-panel");
+    }
+  } catch (error) {
+    if (error.status === 401) return showAuth();
+    setMessage("security-alert", error.message);
+  }
+}
+
+async function showSecurity() {
+  $("sessions-view").hidden = true;
+  $("create-view").hidden = true;
+  $("security-view").hidden = false;
+  $("nav-sessions").classList.remove("active");
+  $("nav-create").classList.remove("active");
+  $("nav-security").classList.add("active");
+  setMessage("security-alert"); setMessage("security-status");
+  await loadMfaStatus();
+}
+
+function showRecoveryCodes(codes) {
+  currentRecoveryCodes = [...codes];
+  $("mfa-recovery-codes").textContent = codes.join("\n");
+  showMfaPanel("mfa-recovery-panel");
+}
+
+function beginProtectedMfa(action) {
+  protectedMfaAction = action;
+  const regenerate = action === "regenerate";
+  $("mfa-protected-title").textContent = regenerate ? "Replace recovery codes?" : "Disable MFA?";
+  $("mfa-protected-copy").textContent = regenerate ? "Every previous recovery code will stop working immediately." : "Your account will return to password-only protection.";
+  $("mfa-protected-submit").textContent = regenerate ? "Generate new codes" : "Disable MFA";
+  $("mfa-protected-submit").className = `button ${regenerate ? "button-primary" : "button-danger"}`;
+  $("mfa-protected-password").value = ""; $("mfa-protected-code").value = "";
+  showMfaPanel("mfa-protected-panel");
 }
 
 async function loadCreationOptions() {
@@ -313,8 +369,13 @@ $("login-form").addEventListener("submit", async (event) => {
   event.preventDefault(); setMessage("auth-alert");
   try {
     const session = await request(`${API}/login`, { method: "POST", body: JSON.stringify({ provider: "password", username: $("login-username").value.trim(), password: $("login-password").value, mfa_code: $("login-mfa").value.trim() || null }) });
-    $("login-password").value = ""; showDashboard(session);
-  } catch (error) { setMessage("auth-alert", error.message); }
+    $("login-password").value = ""; $("login-mfa").value = ""; $("login-mfa-wrap").hidden = true; $("login-mfa-help").hidden = true; showDashboard(session);
+  } catch (error) {
+    if (error.status === 409) {
+      $("login-mfa-wrap").hidden = false; $("login-mfa-help").hidden = false; $("login-mfa").focus();
+    }
+    setMessage("auth-alert", error.message);
+  }
 });
 
 $("activate-form").addEventListener("submit", async (event) => {
@@ -353,6 +414,7 @@ $("logout").addEventListener("click", async () => {
 $("refresh").addEventListener("click", loadProgress);
 $("nav-sessions").addEventListener("click", showSessions);
 $("nav-create").addEventListener("click", showCreate);
+$("nav-security").addEventListener("click", showSecurity);
 $("create-session").addEventListener("click", showCreate);
 $("empty-create").addEventListener("click", showCreate);
 $("create-cancel").addEventListener("click", showSessions);
@@ -361,6 +423,48 @@ $("create-another").addEventListener("click", () => { $("create-success").hidden
 $("copy-code").addEventListener("click", async () => { await navigator.clipboard.writeText(createdCode); setMessage("workspace-status", `Join code ${createdCode} copied.`); });
 $("create-form").addEventListener("input", updateReview);
 $("create-form").addEventListener("change", updateReview);
+
+$("mfa-start-form").addEventListener("submit", async (event) => {
+  event.preventDefault(); setMessage("security-alert");
+  try {
+    const result = await request(`${API}/mfa/setup`, { method: "POST", body: JSON.stringify({ password: $("mfa-start-password").value }) }, true);
+    $("mfa-start-password").value = ""; $("mfa-qr").src = result.qrCodeDataUri; $("mfa-secret").textContent = result.secret;
+    showMfaPanel("mfa-setup-panel"); $("mfa-confirm-code").focus();
+  } catch (error) { setMessage("security-alert", error.message); }
+});
+
+$("mfa-confirm-form").addEventListener("submit", async (event) => {
+  event.preventDefault(); setMessage("security-alert");
+  try {
+    const result = await request(`${API}/mfa/confirm`, { method: "POST", body: JSON.stringify({ code: $("mfa-confirm-code").value.trim() }) }, true);
+    $("mfa-confirm-code").value = ""; setMessage("security-status", "MFA is now enabled."); showRecoveryCodes(result.recoveryCodes);
+  } catch (error) { setMessage("security-alert", error.message); }
+});
+
+$("mfa-regenerate").addEventListener("click", () => beginProtectedMfa("regenerate"));
+$("mfa-disable").addEventListener("click", () => beginProtectedMfa("disable"));
+$("mfa-protected-cancel").addEventListener("click", loadMfaStatus);
+$("mfa-protected-form").addEventListener("submit", async (event) => {
+  event.preventDefault(); setMessage("security-alert");
+  const body = JSON.stringify({ password: $("mfa-protected-password").value, code: $("mfa-protected-code").value.trim() });
+  try {
+    if (protectedMfaAction === "regenerate") {
+      const result = await request(`${API}/mfa/recovery-codes`, { method: "POST", body }, true);
+      showRecoveryCodes(result.recoveryCodes);
+    } else {
+      await request(`${API}/mfa/disable`, { method: "POST", body }, true);
+      setMessage("security-status", "MFA was disabled."); await loadMfaStatus();
+    }
+    $("mfa-protected-password").value = ""; $("mfa-protected-code").value = "";
+  } catch (error) { setMessage("security-alert", error.message); }
+});
+
+$("mfa-download-codes").addEventListener("click", () => {
+  const text = `Practenture recovery codes\nGenerated: ${new Date().toISOString()}\n\n${currentRecoveryCodes.join("\n")}\n`;
+  const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+  const link = document.createElement("a"); link.href = url; link.download = "practenture-recovery-codes.txt"; link.click(); URL.revokeObjectURL(url);
+});
+$("mfa-codes-saved").addEventListener("click", async () => { currentRecoveryCodes = []; $("mfa-recovery-codes").textContent = ""; await loadMfaStatus(); });
 
 $("create-form").addEventListener("submit", async (event) => {
   event.preventDefault(); setMessage("create-alert");

@@ -443,9 +443,12 @@ def test_public_login_is_the_secure_professor_portal_shell():
     assert 'id="forgot-password"' in response.text
     assert 'id="reset-form"' in response.text
     assert 'id="reset-success"' in response.text
-    assert "portal.css?v=3" in response.text
-    assert "portal.js?v=7" in response.text
+    assert "portal.css?v=4" in response.text
+    assert "portal.js?v=8" in response.text
     assert 'id="create-form"' in response.text
+    assert 'id="nav-security"' in response.text
+    assert 'id="mfa-start-form"' in response.text
+    assert 'id="mfa-recovery-panel"' in response.text
     assert 'id="action-dialog"' in response.text
     assert "localhost:8000" not in response.text
     assert response.headers["cache-control"] == "no-store"

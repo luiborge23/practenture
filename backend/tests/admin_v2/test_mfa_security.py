@@ -93,7 +93,7 @@ def test_mfa_enabled_password_only_requires_mfa_without_creating_session(
 
     assert_error(response, "ADMIN_MFA_REQUIRED")
     assert session_rows(owner) == []
-    assert backup_codes(owner) == [BACKUP_CODE]
+    assert backup_codes(owner) == [mfa.hash_backup_code(BACKUP_CODE)]
 
 
 def test_invalid_totp_is_rejected_without_creating_session(
@@ -105,7 +105,7 @@ def test_invalid_totp_is_rejected_without_creating_session(
 
     assert_error(response, "ADMIN_INVALID_MFA")
     assert session_rows(owner) == []
-    assert backup_codes(owner) == [BACKUP_CODE]
+    assert backup_codes(owner) == [mfa.hash_backup_code(BACKUP_CODE)]
 
 
 def test_invalid_backup_preserves_code_and_existing_active_session(
@@ -119,7 +119,7 @@ def test_invalid_backup_preserves_code_and_existing_active_session(
     response = login(client, owner, "NOT-A-BACKUP")
 
     assert_error(response, "ADMIN_INVALID_MFA")
-    assert backup_codes(owner) == [BACKUP_CODE]
+    assert backup_codes(owner) == [mfa.hash_backup_code(BACKUP_CODE)]
     assert session_rows(owner) == original
 
 
@@ -136,7 +136,7 @@ def test_valid_current_totp_creates_exactly_one_active_session(
     rows = session_rows(owner)
     assert len(rows) == 1
     assert rows[0]["revoked_at"] is None
-    assert backup_codes(owner) == [BACKUP_CODE]
+    assert backup_codes(owner) == [mfa.hash_backup_code(BACKUP_CODE)]
 
 
 def test_valid_backup_is_consumed_once_and_reuse_cannot_rotate_session(
@@ -146,14 +146,14 @@ def test_valid_backup_is_consumed_once_and_reuse_cannot_rotate_session(
 
     accepted = login(client, owner, BACKUP_CODE)
     assert accepted.status_code == 200, accepted.text
-    assert backup_codes(owner) == ["E5F6A7B8"]
+    assert backup_codes(owner) == [mfa.hash_backup_code("E5F6A7B8")]
     original = session_rows(owner)
     assert len(original) == 1 and original[0]["revoked_at"] is None
 
     rejected = login(client, owner, BACKUP_CODE)
 
     assert_error(rejected, "ADMIN_INVALID_MFA")
-    assert backup_codes(owner) == ["E5F6A7B8"]
+    assert backup_codes(owner) == [mfa.hash_backup_code("E5F6A7B8")]
     assert session_rows(owner) == original
 
 
@@ -189,7 +189,7 @@ def test_backup_consumption_and_rotation_roll_back_if_session_insert_fails(
             client_signal="transaction-test",
         )
 
-    assert backup_codes(owner) == [BACKUP_CODE]
+    assert backup_codes(owner) == [mfa.hash_backup_code(BACKUP_CODE)]
     assert session_rows(owner) == original
     assert hashlib.sha256(b"fresh-token-that-does-not-collide").hexdigest() not in {
         row["token_hash"] for row in session_rows(owner)
