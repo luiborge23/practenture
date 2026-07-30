@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -55,12 +56,12 @@ def test_migration_000_structure():
 
 def test_migration_graph_heads():
     """Test that the migration graph has a single head."""
-    venv_bin = ROOT / ".venv" / "bin" / "alembic"
     result = subprocess.run(
-        [str(venv_bin), "heads"],
+        [sys.executable, "-m", "alembic", "heads"],
         cwd=str(ROOT),
         capture_output=True,
-        text=True
+        text=True,
+        check=True,
     )
 
     # Should have exactly one head
