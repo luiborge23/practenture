@@ -94,11 +94,15 @@ final class GoldenFormulaParityTests: XCTestCase {
 // compiles the same Swift source via swiftc and enforces 0.1% tolerance — it passes
 // with 0 mismatches. This snapshot-based test is kept for regression detection.
 func testProductionSwiftFormulasMatchPythonGoldenOutputsWithinPointOnePercent() throws {
+        checkpoint("start")
         let fixture = try decodeResource("golden_cases", as: Fixture.self)
+        checkpoint("fixture-decoded")
         let expected = try decodeResource("python_expected_outputs", as: ExpectedDocument.self)
+        checkpoint("expected-decoded")
         var comparisonCount = 0
 
         for testCase in fixture.cases {
+            checkpoint("case=\(testCase.name):start")
             let configInput = testCase.config
             let config = SessionConfiguration(
                 name: testCase.name,
@@ -114,6 +118,7 @@ func testProductionSwiftFormulasMatchPythonGoldenOutputsWithinPointOnePercent() 
                 initialEquity: configInput.initialEquity,
                 plantCapacity: configInput.plantCapacity
             )
+            checkpoint("case=\(testCase.name):config")
             let teams = try testCase.teams.map { input in
                 TeamStatus(
                     id: try XCTUnwrap(UUID(uuidString: input.id)),
@@ -132,11 +137,13 @@ func testProductionSwiftFormulasMatchPythonGoldenOutputsWithinPointOnePercent() 
                     roundsScored: input.roundsScored
                 )
             }
+            checkpoint("case=\(testCase.name):teams")
             var decisions: [UUID: PlayerDecision] = [:]
             for team in teams {
                 let input = try XCTUnwrap(testCase.decisions[team.name], "Missing decision for \(team.name)")
                 decisions[team.id] = try makeDecision(input, teamID: team.id, round: testCase.round)
             }
+            checkpoint("case=\(testCase.name):decisions")
 
             let snapshot = SimulationSnapshot(
                 config: config,
@@ -146,7 +153,9 @@ func testProductionSwiftFormulasMatchPythonGoldenOutputsWithinPointOnePercent() 
                 previousRoundDecisions: [:],
                 roundResults: [:]
             )
+            checkpoint("case=\(testCase.name):snapshot")
             let output = SimulationEngine().processRoundPure(snapshot: snapshot, decisions: decisions)
+            checkpoint("case=\(testCase.name):engine")
             let expectedTeams = try XCTUnwrap(expected.cases[testCase.name])
 
             for result in output.results {
@@ -155,6 +164,7 @@ func testProductionSwiftFormulasMatchPythonGoldenOutputsWithinPointOnePercent() 
                 let golden = try XCTUnwrap(expectedTeams[teamName])
                 comparisonCount += compare(result: result, update: update, expected: golden, context: "\(testCase.name)/\(teamName)")
             }
+            checkpoint("case=\(testCase.name):compared")
         }
 
         XCTAssertEqual(comparisonCount, 155, "The golden gate must cover all fields for all five fixture teams")
@@ -258,6 +268,10 @@ func testProductionSwiftFormulasMatchPythonGoldenOutputsWithinPointOnePercent() 
     private func rounded(_ value: Double, places: Int) -> Double {
         let scale = pow(10.0, Double(places))
         return (value * scale).rounded() / scale
+    }
+
+    private func checkpoint(_ message: String) {
+        FileHandle.standardError.write(Data("GoldenFormulaParityTests checkpoint: \(message)\n".utf8))
     }
 
     private func decodeResource<T: Decodable>(_ name: String, as type: T.Type) throws -> T {
