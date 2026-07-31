@@ -147,9 +147,8 @@ jobs:
     needs: backend-contracts
     runs-on: macos-latest
     env:
-      # Xcode 26.6 deterministically aborts the GoldenFormulaParity XCTest host
-      # on GitHub's arm64 runner (malloc invalid-free). Pin the known-good 26.5
-      # toolchain until that upstream runner/Xcode regression is resolved.
+      # The hosted image's preinstalled iOS 26.2 runtime aborts the parity XCTest
+      # host. Keep the Xcode toolchain pinned and provision a current iOS runtime.
       DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
       PRACTENTURE_PARITY_DIAGNOSTICS: "1"
     steps:
@@ -159,16 +158,18 @@ jobs:
           set -euo pipefail
           xcodebuild -version | tee "$RUNNER_TEMP/xcode-version.log"
           xcodebuild -version | grep -Fx 'Xcode 26.5'
-      - name: Select an available iPhone simulator
+      - name: Provision current clean iPhone simulator
         id: simulator
         run: |
           set -euo pipefail
-          UDID=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; rows=[x for runtime in d.values() for x in runtime if x.get("isAvailable") and x["name"].startswith("iPhone")]; print(rows[-1]["udid"] if rows else "")')
+          xcodebuild -downloadPlatform iOS | tee "$RUNNER_TEMP/ios-platform-download.log"
+          RUNTIME=$(xcrun simctl list runtimes --json | python3 -c 'import json,sys; runtimes=json.load(sys.stdin)["runtimes"]; candidates=[r for r in runtimes if r.get("isAvailable") and r.get("platform")=="iOS"]; candidates.sort(key=lambda r: tuple(map(int, r["version"].split("."))), reverse=True); print(candidates[0]["identifier"] if candidates else "")')
+          test -n "$RUNTIME"
+          export RUNTIME
+          xcrun simctl list runtimes --json | python3 -c 'import json,os,sys; runtimes=json.load(sys.stdin)["runtimes"]; r=next(r for r in runtimes if r["identifier"] == os.environ["RUNTIME"]); print("selected_runtime={} ({})".format(r["version"], r["identifier"])); assert tuple(map(int, r["version"].split("."))) > (26, 2), "iOS 26.2 is prohibited by the allocator-crash regression"' | tee "$RUNNER_TEMP/simulator-runtime.log"
+          UDID=$(xcrun simctl create "Practenture CI iPhone" "iPhone 16e" "$RUNTIME")
           test -n "$UDID"
-          # CI runners may retain simulator state from setup tooling. Reset the selected
-          # device before building so the test process always starts from a known state.
-          xcrun simctl shutdown "$UDID" || true
-          xcrun simctl erase "$UDID"
+          # A newly created device is isolated from runner setup-tool state.
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
           # GitHub's arm64 image exposes this UDID for both arm64 and x86_64.
@@ -203,6 +204,8 @@ jobs:
             ${{ runner.temp }}/ios-build.log
             ${{ runner.temp }}/ios-test.log
             ${{ runner.temp }}/xcode-version.log
+            ${{ runner.temp }}/ios-platform-download.log
+            ${{ runner.temp }}/simulator-runtime.log
             ${{ runner.temp }}/PractentureTests.xcresult
 
   docker-build:
