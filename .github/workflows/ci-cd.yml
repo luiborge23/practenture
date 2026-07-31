@@ -28,8 +28,8 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -58,7 +58,7 @@ jobs:
             --cov=. --cov-report=xml:coverage.xml
       - name: Upload backend evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: backend-contract-evidence
           path: |
@@ -73,8 +73,8 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -99,7 +99,7 @@ jobs:
             test_ai.py \
             --junitxml=pytest-regression.xml
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: backend-regression-evidence
           path: backend/pytest-regression.xml
@@ -112,8 +112,8 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -137,7 +137,7 @@ jobs:
           zricethezav/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
           dir /repo --no-banner --redact --config /repo/.gitleaks.toml
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: admin-v2-security-evidence
           path: backend/pytest-admin-v2.xml
@@ -147,7 +147,7 @@ jobs:
     needs: backend-contracts
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Select an available iPhone simulator
         id: simulator
         run: |
@@ -176,7 +176,7 @@ jobs:
             -resultBundlePath "$RUNNER_TEMP/PractentureTests.xcresult" | tee "$RUNNER_TEMP/ios-test.log"
       - name: Upload iOS evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ios-test-evidence
           path: |
@@ -189,7 +189,7 @@ jobs:
     needs: [backend-regression, admin-v2-security, ios-build-and-test]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: docker/setup-buildx-action@v3
       - name: Build without publishing
         uses: docker/build-push-action@v6
