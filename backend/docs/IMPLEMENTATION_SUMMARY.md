@@ -1,5 +1,7 @@
 # Practenture Owner Administration Implementation Summary
 
+> **Current-state note — 2026-07-31:** The legacy Owner implementation summarized below was superseded by the deployed Admin V2 control plane. Admin V2 uses consolidated `backend/admin_v2/` routes, schemas, services, and repositories with opaque sessions, CSRF, durable throttling, immutable audits, and production-enrolled Administrator TOTP MFA. See [`ADMIN_V2_OPERATIONS.md`](ADMIN_V2_OPERATIONS.md) and [`../../docs/architecture/ADMIN_MFA_LLD.md`](../../docs/architecture/ADMIN_MFA_LLD.md). Historical paths and test totals below are retained as implementation history, not current release evidence.
+
 ## Overview
 This document summarizes the complete implementation of the Owner Administration and Database Operations control plane for Practenture across 6 phases (0-3 initially, extended to 5-6).
 

@@ -19,13 +19,14 @@ Professors need a **lightweight, self-hostable** simulation tool that lets stude
 
 ## 2. What It Is
 
-Practenture is a **three-component platform**:
+Practenture is a **four-component platform**:
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
 | **iOS App** | SwiftUI + Combine (67 Swift files, 15,652 lines) | Student-facing: login, join sessions, submit decisions, view live dashboards |
-|| **Backend API** | FastAPI + SQLite + WebSockets (1,777 lines Python) | Server-side: session management, simulation engine, auth, real-time broadcast |
-|| **Professor Dashboard** | HTML/JS (served by FastAPI) | Professor-facing: create/manage sessions, monitor rounds, export grades |
+| **Backend API** | FastAPI + SQLite + WebSockets | Server-side: session management, simulation engine, auth, real-time broadcast |
+| **Professor Dashboard** | HTML/JS (served by FastAPI) | Professor-facing: create/manage sessions, monitor rounds, export grades |
+| **Admin V2 Control Plane** | FastAPI + HTML/JS + opaque sessions | Administrator-facing: organizations, Professor access, users, operations, audit, backup/health, and MFA account security |
 
 ### Core Simulation Mechanics
 
@@ -103,9 +104,19 @@ The **deterministic simulation engine** (`simulation_engine.py`) processes all d
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Owner Administration and Database Operations
+### Administrator Control Plane and Database Operations
 
-The target architecture includes a separate Owner control plane for Professor invitation lifecycle, organization and account administration, database-health evidence, audited scoped cleanup, and backup/restore status. Routine operations use Owner-authorized APIs rather than direct SQL. Production and staging use separate databases and secrets. See [`docs/architecture/SYSTEM_ARCHITECTURE.md`](docs/architecture/SYSTEM_ARCHITECTURE.md) and [`docs/architecture/ADMIN_DATABASE_LLD.md`](docs/architecture/ADMIN_DATABASE_LLD.md).
+Admin V2 is deployed at `/admin/v2/` as a separate privileged control plane for Professor invitation lifecycle, organization and account administration, database-health evidence, audited scoped cleanup, backup/restore status, and account security. It uses server-managed opaque sessions, CSRF protection, recent authentication, durable throttling, immutable audit events, and Administrator TOTP MFA. Routine operations use Admin-authorized APIs rather than direct SQL. Production and staging use separate databases and secrets. See [`docs/architecture/SYSTEM_ARCHITECTURE.md`](docs/architecture/SYSTEM_ARCHITECTURE.md), [`docs/architecture/ADMIN_DATABASE_LLD.md`](docs/architecture/ADMIN_DATABASE_LLD.md), and [`docs/architecture/ADMIN_MFA_LLD.md`](docs/architecture/ADMIN_MFA_LLD.md).
+
+### Administrator MFA Journey
+
+1. Administrator signs in to Admin V2 with the platform password.
+2. **Account security** starts a pending TOTP enrollment after CSRF-protected password verification.
+3. Administrator scans the QR code and confirms a fresh authenticator code.
+4. Backend atomically enables MFA, records replay state, and returns ten recovery codes once.
+5. Administrator stores those codes securely; only hashes remain in Practenture.
+6. Future login returns a one-time challenge and creates the opaque Admin session only after a fresh TOTP or one-time recovery code succeeds.
+7. Replay, concurrent use, password guessing, regeneration, disablement, and reauthentication are protected by transactional state checks and durable account-wide throttling.
 
 ### Data Flow: One Simulation Round
 
@@ -319,11 +330,11 @@ iOS stores in Keychain, attaches to all future API requests
 |---------------------|---------|---------|
 | `PRACTENTURE_JWT_SECRET` | *(required)* | JWT signing key |
 | `PRACTENTURE_JWT_EXPIRY_HOURS` | `24` | Token lifetime |
-| `PRACTENTURE_CORS_ORIGINS` | `*` | Allowed CORS origins |
+| `PRACTENTURE_CORS_ORIGINS` | deployment configuration | Explicit allowed browser origins; wildcard is not approved for production |
 | `PRACTENTURE_HOST` | `0.0.0.0` | Bind address |
-| `PRACTENTURE_PORT` | `8000` | HTTP port |
-| `PRACTENTURE_PROFESSOR_USERNAME` | `professor` | Default professor username |
-| `PRACTENTURE_PROFESSOR_PASSWORD` | `practenture2026` | Default professor password |
+| `PRACTENTURE_PORT` | `8005` | Backend container HTTP port |
+| `PRACTENTURE_PROFESSOR_USERNAME` | deployment secret | Bootstrap professor username; never document production values |
+| `PRACTENTURE_PROFESSOR_PASSWORD` | deployment secret | Generated/managed outside Git; no production default |
 
 ---
 
@@ -348,22 +359,18 @@ iOS stores in Keychain, attaches to all future API requests
   - SyncService with offline-first queue & conflict resolution
   - WebSocketManager with session-based rooms, heartbeat, auto-reconnect
   - All Swift 6 concurrency issues resolved (actor isolation, captured `self`, unused variables)
-- Backend — 1,777 lines of Python across 467 files
-- 42 backend tests passing (test_backend.py + test_phase5.py)
-- Manual E2E verified: professor login, session creation, start, process round, end, leaderboard, results, grade export, dashboard API, announcements
+- Backend — FastAPI with persistent production SQLite, deterministic simulation, WebSockets, Professor workflows, and Admin V2 control plane
+- Full backend/release suite: 502 tests passing for the deployed Administrator MFA baseline
+- Exact-SHA CI: all five jobs passing, including mandatory iOS Golden Formula parity, with zero GitHub Check annotations
+- Production E2E: health, Professor flows, Admin V2 enrollment, and fresh Administrator TOTP login verified
 
 ### 🔄 In Progress
 - None — all build errors resolved. Project is in a fully clean build state.
 
-### ⏳ Remaining (Minor Polish & Deployment)
-- **E2E test helpers**: 16 of 58 e2e tests failing due to missing auth headers in test helpers (`_submit()`, `_process()` need `Authorization: Bearer ***` headers) — not backend bugs. Fix: ~1 hour
-- **Professor Dashboard HTML template**: API endpoints work, HTML page needs to be created in `templates/dashboard.html` — ~2-4 hours
-- **iOS `SessionListViewModel.loadSessions()`**: currently in-memory only, needs backend API integration — ~1 hour
-- **GoogleSignIn SPM dependency**: needs to be added to Xcode project for runtime Google auth — ~30 min
-- **Session status polling timer**: iOS app relies on WebSocket; HTTP polling for status not yet implemented — ~1 hour
-- **iOS UI tests**: login, session join, decision submission flows — ~2-4 hours
-- **Production deployment**: no Dockerfile, nginx config, or SSL setup yet — ~2-4 hours
-- **Total remaining effort: ~10-16 hours**
+### ⏭ Next planned work
+- Maintain recovery-code custody and monitor redacted Administrator authentication/audit events.
+- Keep documentation, API manifests, client contracts, rollback evidence, and exact-SHA CI qualification synchronized with every future change.
+- Prioritize additional product roadmap work separately; there is no unresolved Administrator MFA implementation or deployment blocker.
 
 ---
 
@@ -447,11 +454,15 @@ xcodebuild -project Practenture.xcodeproj -scheme Practenture \
 - ✅ iOS build succeeds on iPhone 17 Pro simulator
 - ✅ 3-mode login (Apple, Google, Professor) — all flows implemented
 
-### Remaining Test Work
-- Fix `test_e2e.py` helpers (`_submit()`, `_process()`) to include JWT auth headers — 16 tests will pass
-- Add iOS UI tests for login, session join, decision submission flows
+### Current Release Verification
+- ✅ Full local backend and release suite: 502 passed
+- ✅ Exact-SHA GitHub Actions: all five required jobs passed
+- ✅ Mandatory iOS Golden Formula parity passed
+- ✅ GitHub Check annotations: zero
+- ✅ Administrator MFA enrollment and fresh TOTP login verified in production
+- ✅ Public HTTPS, source revision, backup/restore, rollback image, database integrity, and foreign-key checks passed
 
 ---
 
 *Document created: 2026-05-23*
-*Last updated: 2026-05-27 — All Swift 6 build errors resolved. iOS BUILD SUCCEEDED with zero errors, zero warnings. Project is ~95% complete. 42/58 backend tests pass. 16 e2e test failures are test harness issues (missing auth headers), not backend bugs. Remaining work estimated at 10-16 hours focused on E2E fix, dashboard HTML, GoogleSignIn SPM, session polling, UI tests, and production deployment.*
+*Last updated: 2026-07-31 — Admin V2 and Administrator MFA are implemented, exact-SHA CI-qualified, deployed, enrolled, and verified through a fresh production TOTP login. See the linked HLD, database LLD, MFA LLD, and operations runbook for authoritative technical and operational detail.*

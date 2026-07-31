@@ -43,7 +43,7 @@
       "description": "As a developer, I want to implement secure authentication and session management so that professors and students can securely access the platform",
       "acceptanceCriteria": [
         "Create auth.py with JWT-based authentication",
-        "Implement professor login with default credentials (professor/practenture2026)",
+        "Implement professor login with deployment-configured credentials and no production default",
         "Implement student registration and team creation",
         "Create session management with unique session codes (BIZ-XXXXXX format)",
         "Add role-based access control (professor vs student)",

@@ -11,7 +11,7 @@
 **Access the Platform**
 1. Open Practenture on iOS device or web dashboard
 2. Select "Professor Login" mode
-3. Enter credentials (default: `professor` / `practenture2026`)
+3. Enter the deployment-configured Professor credentials received through the approved onboarding channel; production has no documented default
 4. Or use Apple/Google Sign-In for single-sign-on
 5. Token stored securely in iOS Keychain (24h expiry)
 6. App auto-redirects to Professor Dashboard

@@ -1,5 +1,7 @@
 # Owner Console — Quick Reference Card
 
+> **Superseded for live operations — 2026-07-31:** Use [`ADMIN_V2_OPERATIONS.md`](ADMIN_V2_OPERATIONS.md). Admin V2 is served at `https://practenture.com/admin/v2/` and uses opaque cookie sessions plus CSRF and TOTP MFA; the legacy `/owner` routes and bearer-token examples below are historical.
+
 ## Access
 **URL:** `https://practenture.com/owner`  
 **API:** `https://api.practenture.com/api/owner`  

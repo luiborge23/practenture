@@ -1,6 +1,8 @@
-|# Practenture System Architecture
+# Practenture System Architecture
 
-**Status:** Implementation complete - Owner Administration and Database Operations control plane deployed  \n**Updated:** 2026-07-28  \n**Scope:** Production, staging, Owner administration, database operations, audit, backup, and scaling
+**Status:** Implementation complete — Admin V2 control plane and Administrator MFA deployed
+**Updated:** 2026-07-31
+**Scope:** Production, staging, Administrator control plane, database operations, audit, backup, and scaling
 
 ## 1. Architectural Principles
 
@@ -14,13 +16,13 @@
 
 ## 2. Current Deployed Baseline
 
-- Public API: `https://api.practenture.com`
-- Active backend host: AWS EC2 at `3.85.35.73`
+- Public application and API origin: `https://practenture.com`
+- Active backend host: AWS EC2 at `100.58.36.238` (operational detail; clients use DNS)
 - Edge: nginx terminates HTTPS and proxies `/api/*` and `/ws/*`
 - Application: FastAPI in the `practenture-backend` container
 - Current persistence: SQLite on a persistent Docker mount, WAL enabled
 - Native client: SwiftUI iOS application
-- Administrative API: Owner-protected Professor invitation lifecycle, account management, audit logging, health reporting, backup/restore status, and scoped cleanup
+- Administrative API: Admin V2 opaque-session control plane with Administrator TOTP MFA, Professor invitation lifecycle, account management, audit logging, health reporting, backup/restore status, and scoped cleanup
 
 IP addresses are operational implementation details. Clients use DNS, not embedded production IPs.
 
@@ -32,7 +34,7 @@ IP addresses are operational implementation details. Clients use DNS, not embedd
                      | Owner / Professor / Student   |
                      +---------------+---------------+
                                      |
-                         HTTPS + MFA | short-lived JWT
+                  HTTPS + role auth | Admin opaque session + MFA
                                      v
 +-------------------+       +--------+---------+       +--------------------+
 | iOS Student /     |       | nginx / WAF      |       | Owner Admin Console|
@@ -90,12 +92,15 @@ The Owner console is a separate route and authorization surface from the Profess
 - **Scoped cleanup workflow**: explicitly tagged disposable data with dry-run preview
 - **Searchable administrative audit log**: all Owner actions recorded
 
-Every Owner endpoint requires:
-1. Valid JWT with `role: owner`
-2. MFA verification (via `X-Auth-MFA` header)
-3. Recent authentication (within 15 minutes for sensitive operations)
-4. Idempotency key for mutation operations
-5. Structured audit event emission
+Every Admin V2 endpoint requires the assurance appropriate to its operation:
+1. A server-managed opaque session in a `Secure`, `HttpOnly`, `SameSite=Strict` cookie with `role: owner`.
+2. CSRF validation for every mutation.
+3. Recent password plus current TOTP/recovery-factor proof for high-assurance changes.
+4. Durable account/client throttling around password and factor verification.
+5. Idempotency where retrying a mutation could duplicate work.
+6. Structured, redacted audit event emission in the mutation transaction.
+
+Administrator MFA uses a pending-enrollment state, AES-GCM-protected TOTP seeds, hashed one-time recovery codes, transactional replay protection, and atomic challenge/session creation. See [Administrator MFA LLD](ADMIN_MFA_LLD.md).
 
 Hiding an Owner button is not authorization - all endpoints enforce server-side checks.
 
@@ -179,17 +184,19 @@ All administrative actions emit structured audit events with:
 - Used for final validation before production deployment
 
 ### Production Deployment
-1. Run backup-gated migration script
-2. Verify backup exists and is valid
-3. Apply database migrations (Alembic)
-4. Deploy new application version
-5. Run health checks
-6. Monitor for errors
+1. Qualify the exact source SHA through all five required CI jobs with zero Check annotations.
+2. Build and compare deterministic release artifacts.
+3. Promote only with `./ec2-deploy.sh deploy`.
+4. Verify the predeployment backup checksum and isolated restore drill.
+5. Apply Alembic migrations through the deployment transaction.
+6. Atomically promote the release symlink and immutable image.
+7. Verify internal containers, public HTTPS/TLS, source/image revision, database integrity, and rollback evidence.
 
 ### Rollback Plan
-- If deployment fails, revert to previous application version
-- Database migrations are additive only (no destructive changes)
-- Emergency DBA access available for manual recovery
+- Use the rollback operation provided by `ec2-deploy.sh`; do not replace containers manually.
+- Roll back to the previous exact-SHA-qualified immutable image and release manifest.
+- Restore database state only from a verified predeployment backup after isolated restore validation.
+- Re-run public/internal health, source revision, database integrity, Admin login, and audit checks.
 
 ## 11. Implementation Status
 
@@ -209,26 +216,16 @@ All administrative actions emit structured audit events with:
 | Owner console shell (HTML/CSS/JS) | ✅ Complete |
 | Invitation and Professor UI | ✅ Complete |
 | Health, backup, audit, cleanup UI | ✅ Complete |
+| Administrator MFA lifecycle and Account security UI | ✅ Complete and enrolled in production |
+| Durable MFA throttling, replay, and recovery-code races | ✅ Complete |
 
 ## 12. Testing Results
 
-| Category | Passed | Failed |
-|---|---|---|
-| Contract tests (professor/admin) | 24/24 | 0 |
-| Owner authorization contract | 16/16 | 0 |
-| OpenAPI inventory tests | 7/7 | 0 |
-| Migration tests | 4/4 | 0 |
-| Schema validation tests | 12/12 | 0 |
-| Session lifecycle tests | 9/9 | 0 |
-| Gameplay contract tests | 14/14 | 0 |
-| Dashboard export tests | 8/8 | 0 |
-
-**Total: 89/90 tests passing (98.9%)**
-
-The one failing test (`test_production_swift_and_python_engines_are_within_fixture_tolerance`) is an external Swift tool issue, not related to our implementation.
+Release `1abb1aaee2dd49b59790a4b3c232cacdb3e2848a` passed the full local backend/release suite (**502 tests**) and all five exact-SHA CI jobs in run `30670330492`, with zero GitHub Check annotations. The required iOS Golden Formula parity test passed on Xcode 26.5 with iOS runtime 26.5. Production deployment, Administrator enrollment, fresh TOTP login, database integrity, public HTTPS health, backup, and rollback evidence all passed.
 
 ## 13. References
 
 - [Implementation plan](../plans/2026-07-26-owner-admin-database-operations.md)
+- [Administrator MFA LLD](ADMIN_MFA_LLD.md)
 - [`PRD.md`](../../PRD.md)
 - [`Practenture-MASTER-BLUEPRINT-July2026.md`](../../Practenture-MASTER-BLUEPRINT-July2026.md)

@@ -85,18 +85,19 @@ All 31 tests should pass.
 
 ## Running the Server
 ```bash
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn main:app --host 0.0.0.0 --port 8005 --reload
 ```
 
 ## Environment Variables
-- `SECRET_KEY` — JWT signing key (auto-generated if not set)
-- `DATABASE_URL` — SQLite path (default: data.db)
-- `PROFESSOR_USERNAME` — Default professor username (default: professor)
-- `PROFESSOR_PASSWORD` — Default professor password (default: practenture2026)
+- `PRACTENTURE_JWT_SECRET` — Required JWT signing secret; no production default
+- `DATABASE_URL` — Database connection/path; production uses persistent SQLite
+- `PRACTENTURE_PROFESSOR_USERNAME` / `PRACTENTURE_PROFESSOR_PASSWORD` — Deployment-managed Professor bootstrap credentials; never commit or document values
+- `PRACTENTURE_OWNER_USERNAME` / `PRACTENTURE_OWNER_PASSWORD` — Deployment-managed Administrator credentials; never commit or document values
+- `PRACTENTURE_MFA_ENCRYPTION_KEY` — Optional dedicated MFA protection key; otherwise the configured application secret is used
 
 ## iOS Integration Notes
 - All API endpoints use `/api/` prefix
-- Auth tokens passed via `Authorization: Bearer <token>` header
+- Auth tokens passed via the `Authorization: Bearer <token>` header
 - WebSocket connections use query param `?token=<jwt>`
 - Session codes are 10 chars: `BIZ-XXXXXX` format
 - All responses are JSON

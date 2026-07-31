@@ -1,5 +1,7 @@
 # Practenture Admin Console V2 — Architecture, LLD, and Implementation Plan
 
+> **Status update — 2026-07-31:** Implemented, exact-SHA CI-qualified, transactionally deployed, and production Administrator MFA enrolled. The detailed delivered MFA design is [`../architecture/ADMIN_MFA_LLD.md`](../architecture/ADMIN_MFA_LLD.md). Historical target paths and backlog below are retained as planning context; the live implementation uses the consolidated `backend/admin_v2/` modules.
+
 > **Execution:** Use subagent-driven development with TDD, spec review, code-quality review, and controller-run integration gates.
 
 **Goal:** Replace the incomplete `practenture.com/admin` console with a secure, complete, responsive Owner control plane while preserving all simulation behavior and production data.

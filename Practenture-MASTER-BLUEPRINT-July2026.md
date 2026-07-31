@@ -1,7 +1,7 @@
 Practenture — Master Strategy Blueprint
 PRD + HLD + User Journey + What/Why/Value + Competitive Advantage + SWOT + GTM + Executive Summary
 Document ID: 1nBYwiSsAYcEIF5kEdtlYicRLWLVYynV98PDXwBy51GA
-Created: July 10, 2026 | Author: Paul for Luis Borges | Status: LIVE at http://18.215.180.58
+Created: July 10, 2026 | Updated: July 31, 2026 | Author: Paul for Luis Borges | Status: LIVE at https://practenture.com
 Folder: https://drive.google.com/drive/folders/1kwxGJ1MicrlmY1NcmDqe_KtnaWJDMHNl
 Sources: System Arch Doc 1UFOSXm2GvBTKtOei_ThPkwqIolhRwpJIpX2e3l1ndVU + MOP Doc 10xj3NgeOU59FqoTWfwQRvmfcrj9but4PZt8LIaA5bcY + Drive folder + live codebase
 
@@ -15,12 +15,15 @@ Mission: Turn professors from simulation administrators into coaches, and studen
 
 Vision: Become the open-source standard for business education simulations — zero per-student fees, full data ownership, LMS-native, mobile-first.
 
-Current Status — LIVE & Production Ready (July 2026):
-• Backend: FastAPI + SQLite/PostgreSQL dual-mode, 1,777+ lines, 60/60 tests passing (18 unit + 13 phase5 + 29 e2e), Docker multi-stage (python:3.12-slim, non-root, tini), Nginx 1.25-alpine reverse proxy, AWS EC2 t3.micro AL2023 us-east-1 at 18.215.180.58, health check /api/health healthy.
+Current Status — LIVE & Production Ready (July 31, 2026):
+• Backend: FastAPI with persistent SQLite production storage and a PostgreSQL scale path, Docker multi-stage non-root runtime, Nginx reverse proxy, AWS EC2 t3.micro in us-east-1, and healthy public /api/health at https://practenture.com.
 • iOS App: 83 Swift files, 19,303 lines, Swift 6 fully compliant, BUILD SUCCEEDED zero errors/warnings on iPhone 17 Pro sim, SwiftUI+Combine, @Observable, offline-first SyncService with queue & conflict resolution, NetworkService retry + auth injection + token refresh coalescing, WebSocketManager with heartbeat 30s + auto-reconnect exponential backoff.
 • Auth: JWT HS256 24h expiry, Keychain storage, 3 providers — password (bcrypt), Apple Sign-In (RSA RS256 JWKS https://appleid.apple.com/auth/keys, 6h TTL cache, verify_aud=False when no audience configured — RCA fixed), Google Sign-In (JWKS https://www.googleapis.com/oauth2/v3/certs), professor-only gate 403.
 • Features: Session CRUD BIZ-XXXXXX (10-char, easy verbal share), join/ start/ pause/ resume/ end, decision submission across 6 areas (pricing, production, marketing, R&D, financing, inventory) with 25+ sub-variables, deterministic engine with seeded RNG + 5% noise, round results + leaderboard real-time, announcements, CSV exports (grades + leaderboard), PDF reports via UIGraphicsPDFRenderer, Analytics dashboard (6 overview cards, round trends Chart API, team comparison, strategy distribution), i18n 8 languages (en, es, fr, de, ja, zh-Hans, ko, pt), AI competitors (LowCostLeader, Differentiator, BestCost, Adaptive — counter-plays player), push notifications (APNs + FCM), MFA TOTP, multi-tenant, Alembic migrations.
-• Deployment: ec2-deploy.sh 3 commands provision/deploy/destroy, 9 issues fixed (PyJWT missing, docker-compose vs docker compose, nginx 127.0.0.1→backend:8005 service name, SSL removal for raw IP, curl-minimal conflict, ATS NSExceptionDomains fix ExceptionDomains→NSExceptionDomains + explicit 18.215.180.58 exception + NSAllowsArbitraryLoads).
+• Deployment: ./ec2-deploy.sh deploy is the only approved production promotion path; it verifies deterministic release manifests, backup/restore evidence, migrations, atomic release symlinks, immutable rollback images, internal container health, public TLS health, and exact source/image revision.
+• Administrator control plane: Admin V2 is deployed at /admin/v2/ with opaque Secure/HttpOnly/SameSite=Strict sessions, CSRF, recent authentication, durable account-wide throttling, immutable redacted audits, organization/user/Professor-access operations, health/backup evidence, and scoped cleanup.
+• Administrator MFA: production TOTP enrollment and fresh login verified; pending enrollment requires possession confirmation, seeds are encrypted, recovery codes are one-time and stored only as hashes, and TOTP/recovery replay checks are transactional.
+• Qualified release: exact SHA 1abb1aaee2dd49b59790a4b3c232cacdb3e2848a passed 502 local backend/release tests and all five CI jobs, including iOS Golden Formula parity, with zero GitHub Check annotations before transactional deployment.
 
 Market Opportunity:
 • Business Simulation Games: $12.4B in 2025 → $26.8B by 2034, CAGR 8.9%, North America 38.2% ($4.7B).
@@ -280,11 +283,11 @@ Business: # active sessions, # students served, institutional conversions, cost 
 | IP 18.215.180.58 SG 80/443/22 | practenture-net bridge isol + DNS backend:8005 |
 +--------------------------------------------------------------------------------+
 
-5.1.1 Active Architecture Correction and Owner Control Plane (2026-07-26):
-• Authoritative public API: https://api.practenture.com; active backend host: 3.85.35.73. Clients use DNS rather than a production IP.
-• The target design adds an MFA-protected Owner console and Owner APIs for Professor invitations, organizations, account status, health, backup/restore evidence, audit, and backup-gated scoped test cleanup.
+5.1.1 Active Architecture Correction and Administrator Control Plane (2026-07-31):
+• Authoritative public origin: https://practenture.com; active backend host: 100.58.36.238. Clients use DNS rather than a production IP.
+• The deployed Admin V2 control plane provides MFA-protected Administrator APIs for Professor invitations, organizations, account status, health, backup/restore evidence, audit, and backup-gated scoped test cleanup.
 • Routine administration must not use ad hoc SQL. SQLite remains the current single-writer store with online encrypted backups and restore drills; managed PostgreSQL is the scale/HA target.
-• Authoritative details: docs/architecture/SYSTEM_ARCHITECTURE.md, docs/architecture/ADMIN_DATABASE_LLD.md, and docs/plans/2026-07-26-owner-admin-database-operations.md.
+• Authoritative details: docs/architecture/SYSTEM_ARCHITECTURE.md, docs/architecture/ADMIN_DATABASE_LLD.md, docs/architecture/ADMIN_MFA_LLD.md, and docs/plans/2026-07-26-owner-admin-database-operations.md.
 
 Flow 1 round: Professor creates POST /api/sessions → BIZ-XXXXXX → Students join POST /join → Team assignment Alpha/Beta... → Round begins POST /start → Students submit POST /submit_decision → Professor monitors dashboard live submission counts via WS → Professor triggers POST /process_round → Engine processes all simultaneously → store_results + update_team_state → WS broadcast round_complete → Students see live leaderboard+individual results → currentRound increments → repeat until totalRounds → POST /end → final results → Export grades CSV LMS.
 
@@ -350,11 +353,12 @@ Next (100 concurrent sessions): t3.small, PostgreSQL RDS or self-host postgres c
 Future (1000+ sessions): Kubernetes EKS or ECS, sharded WS by session code consistent hash, read replicas, CDN CloudFront.
 
 5.4 Security:
-Authz: JWT HS256 secret 32-byte hex generated at deploy ideally >64 chars entropy, 24h expiry refresh token rotation, role professor/student enforced verify_professor dep dependency, bcrypt password hashing passlib, Keychain encrypted iOS.
-Transport: Current HTTP-only raw IP; next step domain + certbot HTTPS + HSTS, wss:// for WS. ATS fix correct NSExceptionDomains + NSExceptionAllowsInsecureHTTPLoads true for 18.215.180.58 + NSAllowsArbitraryLoads fallback true (but malformed ExceptionDomains without NS prefix caused -1022 error previously).
+Authz: JWT role enforcement remains authoritative for iOS/Professor APIs. Admin V2 uses separate opaque revocable sessions, CSRF protection, recent authentication, bcrypt with legacy-hash migration/equalized failure work, durable account-wide throttling, and server-side Owner authorization.
+Administrator MFA: shared backend/mfa.py TOTP primitives; AES-256-GCM protected seeds; possession-confirmed pending enrollment; hashed one-time recovery codes; transactional TOTP counter/recovery consumption; immutable redacted audits; no seed or recovery material in persistent browser storage.
+Transport: practenture.com uses HTTPS with HSTS through Nginx; HTTP redirects to HTTPS. Public TLS and internal container health are deployment gates.
 Data: No PII beyond studentId name, FERPA OK self-host, GDPR delete cascade session→teams→decisions→results, SQL injection protected SQLAlchemy ORM, XSS protected via SwiftUI auto-escape + FastAPI validation.
-Rate limiting future: SlowAPI.
-CORS currently * dev, restrict to specific origins prod via PRACTENTURE_CORS_ORIGINS env.
+Rate limiting: Admin V2 uses durable SQLite-backed account/client/challenge buckets; public and classroom APIs use their route-specific policies.
+CORS: production origins are explicitly configured through PRACTENTURE_CORS_ORIGINS; wildcard origins are not an approved production configuration.
 
 5.5 File Structure (current live):
 Practenture-ios/Practenture/
@@ -411,7 +415,7 @@ Practenture-ios/Practenture/
 6.1 PROFESSOR JOURNEY — Prof Sarah Mitchell, Business Admin, moderate tech, goals classroom sims monitor progress grade fairly export, pain joining issues lack visibility manual grading.
 
 PRE-CLASS PREPARATION (5 mins):
-Sarah opens browser http://18.215.180.58/dashboard enters professor/practenture2026 or SSO Apple/Google clicks Create New Session configures name "MBA Strategy Fall 2026 Sec A" rounds 6 total (4-12 typical) teams 6 (4-8 rec) starting cash $500k equity $300k plantCapacity 10000 maxOvertime 25% AI difficulty Medium numberOfAICompetitors 3 seed 42 optional complexity High School/Undergrad/MBA industry Generic/Retail/Tech/Manufacturing/Healthcare random events enable/disable market shocks clicks Create system generates BIZ-XXXXXX code e.g. BIZ-K8P2Q9 saves to Firestore SQLite state CREATING optional upload custom market conditions learning objectives. Sarah saves code.
+Sarah opens the Practenture Professor dashboard over HTTPS, enters her deployment-provisioned credentials or approved SSO identity, and clicks **Create New Session**. She configures the class name, rounds, teams, starting finances/capacity, AI difficulty, optional deterministic seed, audience complexity, industry, and market-shock settings. The backend creates the session and returns its `BIZ-XXXXXX` code, which Sarah stores for classroom distribution.
 
 CLASS LAUNCH (2 mins):
 Sarah projects code BIZ-K8P2Q9 QR via LMS/email/in-class. Opens Monitor view live overview number teams joined avg decision submission time market volatility leaderboard anonymized option. Watches WebSocket live team formation notifications Phoenix Inc etc online/offline indicators session status current round teams submitted. Confirms all 6 teams ready clicks Start simulation round 1 begins immediately students notified.
@@ -710,6 +714,7 @@ Completed (Phases 1-9):
 • Phase 8 i18n 8 languages 140 lines L10n 60+ keys SettingsView.
 • Phase 9 AI Strategies 418 lines 4 strategies 3 difficulties Adaptive counter-play.
 • Plus: Push notifications APNs+FCM, MFA TOTP, multi-tenant, Alembic migrations, customization, CI/CD GitHub Actions backend+iOS+lint+Docker+Heroku.
+• Admin V2: secure Administrator control plane, Professor-access lifecycle, organizations/users/operations/audit/health/backup UI, opaque sessions, and complete TOTP MFA lifecycle deployed and production verified.
 
 Remaining Polish (10-16h est):
 • E2E test helpers auth headers (_submit,_process) fix 11→29 passing 60 total already fixed 2026 produce fully green.
@@ -829,7 +834,7 @@ A+ Excellent, A Strong, A- Good, B+ Adequate, B Fair, B- Marginal, C+ Weak, C Po
 • Competitors: Capstone 15-min, Marketplace 5-min, Cesim 10-min, Hubro 8-min, StratX large cohort scalability stratxsim.com
 
 14.6 Environment Variables Full List:
-PRACTENTURE_JWT_SECRET required JWT signing; PRACTENTURE_JWT_EXPIRY_HOURS default 24; PRACTENTURE_CORS_ORIGINS default *; PRACTENTURE_HOST default 0.0.0.0; PRACTENTURE_PORT default 8005; PRACTENTURE_PROFESSOR_USERNAME default professor; PRACTENTURE_PROFESSOR_PASSWORD default generated at deploy time was practenture2026; PRACTENTURE_APPLE_AUDIENCE optional Apple audience; PRACTENTURE_GOOGLE_AUDIENCE optional Google audience; DATABASE_URL optional sqlite/file/postgres; NGINX_HTTP_PORT default 80; plus MFA etc.
+PRACTENTURE_JWT_SECRET configures JWT signing; PRACTENTURE_JWT_EXPIRY_HOURS configures expiry; PRACTENTURE_CORS_ORIGINS configures approved browser origins; PRACTENTURE_HOST/PRACTENTURE_PORT configure the service listener; Administrator and Professor bootstrap credentials are required deployment secrets with no documented defaults; PRACTENTURE_APPLE_AUDIENCE and PRACTENTURE_GOOGLE_AUDIENCE configure OAuth audiences; DATABASE_URL configures persistence; NGINX_HTTP_PORT configures the edge listener; MFA protection keys and throttle policy are deployment secrets/configuration. Values never belong in source documentation.
 
 14.7 iOS 4-Location Backend URL Update Runbook (from MOP):
 File1 Debug.xcconfig PRACTENTURE_BACKEND_URL = http://18.215.180.58 highest priority overrides everything baked build time need clean Cmd+Shift+K→Cmd+R.
@@ -855,9 +860,9 @@ Apple Sign-In 500 InvalidAudienceError + KeyError x — RCA RSA vs EC keys Apple
 ATS -1022 NSExceptionDomains fix ExceptionDomains→NSExceptionDomains + explicit IP exception + NSAllowsArbitraryLoads true fallback.
 
 14.10 Current Live Deployment:
-Instance i-0486ccaada7f1af8b t3.micro AL2023 ami-0c101f26f147fa7fd 20GB gp3 us-east-1 SG sg-0051248e09678e39e practenture-sg ports 80/443/22 public IP 18.215.180.58 Docker Docker Compose v2.24.0 containers practenture-backend healthy practenture-nginx up practenture-net bridge. SSH ssh -i ~/.ssh/practenture ec2-user@18.215.180.58 docker ps logs docker-compose logs -f restart docker-compose restart rebuild docker-compose up -d --build.
+Public origin https://practenture.com; AWS instance i-0f2ce26d05e4439cd at 100.58.36.238; containers practenture-backend and practenture-nginx healthy; persistent SQLite integrity verified; exact deployed source/image revision 1abb1aaee2dd49b59790a4b3c232cacdb3e2848a. All production changes use ./ec2-deploy.sh deploy; manual container replacement is not an approved release path.
 
 14.11 Testing Verification (manual E2E passed):
 Professor login → valid JWT; Session creation → BIZ-XXXXXX; Start → teamsSubmitted 0; Process round 0 results no submissions; End → status ended; Leaderboard empty (no rounds); Results empty; Grade export "No results available" expected; Dashboard sessions returns all; Announcements create+retrieve working; iOS build iPhone 17 Pro sim succeeded; 3-mode login Apple Google Professor implemented; EC2 live healthy professor login confirmed working.
 
-END OF MASTER STRATEGY BLUEPRINT — This document is the single source of truth for Practenture strategic narrative, PRD, HLD, journeys, competitive, SWOT, GTM, and execution status as of July 10, 2026.
+END OF MASTER STRATEGY BLUEPRINT — Strategic narrative, PRD, HLD, journeys, competitive, SWOT, and GTM source as updated July 31, 2026. Detailed live technical authority resides in docs/architecture/SYSTEM_ARCHITECTURE.md and its linked LLDs.

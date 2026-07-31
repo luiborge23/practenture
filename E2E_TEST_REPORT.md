@@ -50,8 +50,8 @@ All critical end-to-end workflows have been successfully tested. The Practenture
 POST /api/auth/login
 {
   "provider": "password",
-  "username": "professor", 
-  "password": "practenture2026"
+  "username": "<test-professor>",
+  "password": "<test-password>"
 }
 ```
 **Result:** Returns JWT token with role: professor

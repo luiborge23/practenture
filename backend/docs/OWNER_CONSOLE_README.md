@@ -1,5 +1,7 @@
 # Practenture Owner Console — Operations Manual
 
+> **Superseded for live operations — 2026-07-31:** Admin V2 replaced the legacy `/owner` control plane. Use [`ADMIN_V2_OPERATIONS.md`](ADMIN_V2_OPERATIONS.md) for the production URL, opaque-session model, Administrator MFA lifecycle, exact-SHA release gates, deployment, verification, and rollback. The content below is retained as legacy implementation history and must not be used as a live route/API runbook.
+
 **Version:** 1.0  
 **Date:** 2026-07-26  
 **Status:** Production Deployed

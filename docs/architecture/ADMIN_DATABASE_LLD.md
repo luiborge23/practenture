@@ -1,6 +1,8 @@
-|# Administrator Control Plane and Database Operations LLD
+# Administrator Control Plane and Database Operations LLD
 
-**Status:** Implementation complete - Owner Administration and Database Operations control plane deployed  \n**Updated:** 2026-07-28  \n**Parent:** [Practenture System Architecture](SYSTEM_ARCHITECTURE.md)
+**Status:** Implementation complete — Admin V2 control plane and Administrator MFA deployed
+**Updated:** 2026-07-31
+**Parent:** [Practenture System Architecture](SYSTEM_ARCHITECTURE.md)
 
 ## 1. Scope
 
@@ -253,12 +255,14 @@ Invitation redemption, pre-creation, cleanup execution, and account-state mutati
 
 ## 8. Authentication and Session Security
 
-- Owner MFA required at login.
-- Owner access token target lifetime: 15 minutes.
-- Rotating refresh token is bound to device/session and revocable.
-- Sensitive operations require authentication age under five minutes or explicit re-authentication.
-- Passwords, access/refresh tokens, MFA secrets, invitation secrets, and database credentials never enter logs or audit JSON.
-- Rate limit login, invitation redemption, password reset, and Owner mutation endpoints.
+- Admin V2 uses opaque server-managed sessions in `Secure`, `HttpOnly`, `SameSite=Strict` cookies, not privileged browser bearer tokens.
+- Administrator TOTP MFA is required at login after enrollment and is active in production.
+- Sensitive mutations require CSRF validation and recent authentication or explicit password/current-factor proof according to the route contract.
+- Durable SQLite-backed account/client throttles reserve attempts before password or factor verification; successful strong verification resets the applicable reservation.
+- TOTP seeds are AES-GCM protected, recovery codes are stored only as hashes, and TOTP/recovery replay prevention is transactional.
+- Active-session, active-account, and current-password state are rechecked in the same `BEGIN IMMEDIATE` transaction as MFA management mutations.
+- Passwords, opaque session tokens, CSRF tokens, MFA seeds, OTPs, recovery codes, invitation secrets, and database credentials never enter logs or audit JSON.
+- See [Administrator MFA LLD](ADMIN_MFA_LLD.md) for the lifecycle, routes, state machine, and release evidence.
 
 ## 9. Database Health Checks
 
@@ -358,85 +362,40 @@ Every response includes `requestId`; internal SQL and secrets are never returned
 | Owner console shell (HTML/CSS/JS) | ✅ Complete |
 | Invitation and Professor UI | ✅ Complete |
 | Health, backup, audit, cleanup UI | ✅ Complete |
+| Admin V2 opaque sessions, CSRF, and durable throttling | ✅ Complete |
+| Administrator MFA lifecycle and Account security UI | ✅ Complete and active in production |
 
 ## 16. Test Results
 
-| Category | Passed | Failed |
-|---|---|---|
-| Contract tests (professor/admin) | 24/24 | 0 |
-| Owner authorization contract | 16/16 | 0 |
-| OpenAPI inventory tests | 7/7 | 0 |
-| Migration tests | 4/4 | 0 |
-| Schema validation tests | 12/12 | 0 |
-| Session lifecycle tests | 9/9 | 0 |
-| Gameplay contract tests | 14/14 | 0 |
-| Dashboard export tests | 8/8 | 0 |
+Release `1abb1aaee2dd49b59790a4b3c232cacdb3e2848a` passed the complete local backend/release suite (**502 tests**) and all five exact-SHA GitHub Actions jobs in run `30670330492`. The mandatory iOS Golden Formula parity job passed, and GitHub Check annotations were zero.
 
-**Total: 89/90 tests passing (98.9%)**
+## 17. Production Deployment (2026-07-31)
 
-The one failing test (`test_production_swift_and_python_engines_are_within_fixture_tolerance`) is an external Swift tool issue, not related to our implementation.
-
-## 17. Production Deployment (2026-07-26)
-
-### 17.1 Infrastructure
+### 17.1 Infrastructure and release identity
 
 | Component | Value |
 |---|---|
-| EC2 Instance ID | i-0f2ce26d05e4439cd |
-| Elastic IP | 100.58.36.238 (persists across stop/start) |
-| OS | Amazon Linux 2023 |
-| Docker | Docker Compose v2 |
-| Volume | practenture_db-data mounted at /data |
+| Public origin | `https://practenture.com` |
+| EC2 Instance ID | `i-0f2ce26d05e4439cd` |
+| Host | `100.58.36.238` (operational detail; clients use DNS) |
+| Runtime | Docker Compose; `practenture-backend` and `practenture-nginx` |
+| Database | Persistent SQLite at `/data/practenture.db` |
+| Exact source/image SHA | `1abb1aaee2dd49b59790a4b3c232cacdb3e2848a` |
 
-### 17.2 DNS Configuration (Spaceship)
+### 17.2 Approved promotion path
 
-| Record | Type | Value |
-|---|---|---|
-| practenture.com | A | 100.58.36.238 |
-| www.practenture.com | A | 100.58.36.238 |
-| api.practenture.com | A | 100.58.36.238 |
+Production promotion uses only `./ec2-deploy.sh deploy`. The transaction verifies the release manifest, predeployment backup, isolated restore drill, Alembic state, immutable release/rollback images, atomic release symlink, internal health, public HTTPS health, and exact source/image revision. Manual container replacement is not approved.
 
-### 17.3 Database Migration
+### 17.3 Verified state
 
-| Item | Value |
-|---|---|
-| Migration Applied | 000_initial_schema (merged head) |
-| Alembic Version | da3998328629 |
-| Database File | /data/practenture.db (SQLite on Docker volume) |
-| New Tables Created | professor_invitations, audit_events, cleanup_plans, backup_runs, restore_drills |
-| Users Table Updates | Added: status, disabled_at, disabled_by, disable_reason, last_login_at, password_changed_at, created_by, created_at |
+- Public HTTPS health and HTTP-to-HTTPS redirect passed.
+- TLS certificate validation and Admin security headers passed.
+- Backend and Nginx containers were healthy.
+- SQLite integrity returned `ok`; foreign-key check returned zero violations.
+- Predeployment backup, restore-drill evidence, release pointer, and immutable rollback image were present.
+- Administrator MFA enrollment and a fresh password-plus-TOTP login passed.
+- TOTP seed protection, recovery-code hash format/count, replay state, and redacted success audits were verified without exposing or consuming recovery material.
 
-### 17.4 Docker Deployment
+### 17.4 Rollback
 
-| Component | Detail |
-|---|---|
-| Backend Image | practenture-backend:stable |
-| Backend Port | 8000 |
-| Nginx Ports | 80 (HTTP), 443 (HTTPS) |
-| Volume | practenture_db-data → /data |
-| Health Check | /api/health (30s interval) |
-
-### 17.5 Health Verification
-
-| Endpoint | Status | Response |
-|---|---|---|
-| https://api.practenture.com/api/health | ✅ Healthy | `{"status":"healthy","service":"practenture-backend"}` |
-| https://www.practenture.com/ | ✅ Loads | HTML page served |
-| Alembic current | ✅ Head | `da3998328629 (head)` |
-| Contract tests | ✅ 72/72 pass | All passing |
-| Database schema | ✅ Verified | All new tables and columns present |
-
-### 17.6 Rollback Capability
-
-- **Pre-deployment backup**: `/tmp/pre_deploy_backup_*.sqlite3` on EC2
-- **Rollback procedure**: Documented in `docs/ROLLBACK_PLAN.md`
-- **Alembic downgrade**: Available if needed
-- **Data volume**: Can be restored from snapshot
-
-### 17.7 Security Hardening Applied
-
-- Nginx security headers (CSP, HSTS, X-Frame-Options, etc.)
-- Rate limiting on API endpoints
-- Owner console requires MFA + recent auth
-- Idempotency keys required for mutations
-- Audit logging on all Owner operations
+Use the rollback operation supplied by `ec2-deploy.sh` and the prior exact-SHA-qualified immutable image. Restore database state only from the verified predeployment backup when required, then repeat source revision, internal/public health, database integrity, Admin login, and audit checks. See [`../../backend/docs/ADMIN_V2_OPERATIONS.md`](../../backend/docs/ADMIN_V2_OPERATIONS.md).

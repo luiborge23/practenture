@@ -1,7 +1,26 @@
 # PRD: Practenture Auth Modernization — SOTA Multi-Tenant Authentication
 
 **Date:** 2026-07-11  
+**Last implementation update:** 2026-07-31
 **Research basis:** RALPH 13-step methodology, SOTA analysis of 8 major auth platforms (Descope, Auth0, WorkOS, Frontegg, Ory, Keycloak, Cognito, SuperTokens) + LMS multi-tenancy patterns
+
+---
+
+## 0. Current implementation status
+
+The tables and unchecked acceptance criteria below preserve the original July 11 gap analysis. They are not the current production-status dashboard.
+
+As of release `1abb1aaee2dd49b59790a4b3c232cacdb3e2848a`:
+
+- password storage uses bcrypt with equalized legacy-hash migration paths;
+- durable login and Administrator MFA throttling are implemented;
+- Admin V2 uses opaque, revocable, CSRF-protected sessions;
+- immutable redacted administrative audit events are implemented;
+- organizations, memberships, Professor invitation lifecycle, account status, health, backup, restore-drill, and scoped-cleanup controls are implemented;
+- Administrator TOTP enrollment, login challenge, replay protection, hashed one-time recovery codes, regeneration, disablement, and reauthentication are implemented and active in production;
+- all 502 local backend/release tests and all five exact-SHA CI jobs passed, including mandatory iOS Golden Formula parity, with zero GitHub Check annotations.
+
+The authoritative Administrator MFA design is [`architecture/ADMIN_MFA_LLD.md`](architecture/ADMIN_MFA_LLD.md).
 
 ---
 
@@ -50,7 +69,7 @@
 - Migrating from SQLite to PostgreSQL (future phase)
 - Implementing SAML SSO (enterprise feature, not needed for classroom)
 - Implementing SCIM provisioning (enterprise feature)
-- Adding MFA (future phase, not critical for classroom)
+- Requiring MFA for student classroom accounts; Administrator MFA is implemented as a separate privileged-control-plane requirement
 - Changing the iOS client auth flow (keep same API contract)
 
 ---
@@ -224,3 +243,21 @@
 - bcrypt hashing: verify no SHA-256 hashes remain after all users have logged in
 - Rate limiting: 6th login attempt returns 429 within 1ms
 - Audit logs: every auth event produces exactly 1 log entry
+
+## 8. Administrator MFA requirement — delivered
+
+**User story:** As the platform Administrator, I require a second factor so a stolen password cannot immediately expose the privileged control plane.
+
+**Acceptance criteria:**
+
+- [x] Enrollment creates a pending encrypted seed and does not enable MFA before valid TOTP confirmation.
+- [x] Setup is resumable without silently replacing a seed already scanned by the Administrator.
+- [x] Login uses an opaque, expiring, single-use MFA challenge and creates the privileged session only after factor verification.
+- [x] TOTP counters and recovery codes enforce one-winner semantics under concurrent requests.
+- [x] Recovery codes are disclosed only at creation/regeneration and stored only as hashes.
+- [x] Setup, regeneration, disablement, and reauthentication require CSRF plus current password/current factor as appropriate.
+- [x] Password and factor checks are inside durable account-wide throttling boundaries.
+- [x] Successful management and challenge verification reset applicable throttle reservations rather than accumulating toward self-lockout.
+- [x] Active session, active Owner account, and current password are rechecked transactionally with sensitive state changes.
+- [x] Seeds, passwords, OTPs, recovery codes, cookies, and CSRF values are absent from logs, audit metadata, and persistent browser storage.
+- [x] Production enrollment and a fresh password-plus-TOTP login were verified without consuming a recovery code.
