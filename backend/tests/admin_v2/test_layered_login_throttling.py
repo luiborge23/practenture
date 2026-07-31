@@ -155,7 +155,7 @@ def test_success_reset_only_removes_its_client_reservation():
     assert bucket("client", client)["attempt_count"] == 4
 
     with repo._transaction() as conn:
-        repo._reset_login_attempt(
+        repo.reset_login_attempt_in_transaction(
             conn,
             "SUCCESSFUL-OWNER",
             client,

@@ -18,7 +18,7 @@ def test_shell_references_only_local_versioned_assets_and_is_not_cached():
     assert "default-src 'self'" in response.headers["content-security-policy"]
     assert 'href="/static/admin_v2/admin-v2.css?v=3"' in response.text
     assert 'href="/static/admin_v2/admin-workspaces.css?v=2"' in response.text
-    assert 'src="/static/admin_v2/admin-workspaces.js?v=4"' in response.text
+    assert 'src="/static/admin_v2/admin-workspaces.js?v=5"' in response.text
     assert 'src="/static/admin_v2/admin-v2.js?v=13"' in response.text
     assert "http://" not in response.text
     assert "https://" not in response.text
@@ -77,6 +77,24 @@ def test_admin_workspaces_expose_complete_operator_actions():
     ):
         assert marker in script
     assert 'request(`/sessions/${' not in script
+
+
+def test_account_workspace_exposes_complete_administrator_mfa_lifecycle():
+    script = (BACKEND / "static" / "admin_v2" / "admin-workspaces.js").read_text(encoding="utf-8")
+    for marker in (
+        'request("/auth/mfa/status")',
+        'request("/auth/mfa/setup"',
+        'request("/auth/mfa/confirm"',
+        'request("/auth/mfa/recovery-codes"',
+        'request("/auth/mfa/disable"',
+        "Set up Administrator MFA",
+        "Replace recovery codes",
+        "Disable Administrator MFA",
+        "I saved these one-time recovery codes securely.",
+    ):
+        assert marker in script
+    assert "localStorage" not in script
+    assert "sessionStorage" not in script
 
 
 def test_shell_has_accessible_landmarks_and_no_inline_executable_code():

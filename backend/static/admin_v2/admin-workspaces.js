@@ -95,6 +95,130 @@ function wsDialog({ title, description = "", fields = [], submitLabel = "Save", 
   });
 }
 
+function wsShowRecoveryCodes(codes, title = "Save your recovery codes") {
+  return new Promise((resolve) => {
+    const dialog = document.createElement("dialog");
+    const panel = wsElement("section", "dialog-card stack");
+    panel.append(
+      wsElement("h2", "", title),
+      wsElement("p", "muted", "Each code works once. Store them in a password manager now; Practenture stores only one-way hashes and cannot show these codes again."),
+    );
+    const output = document.createElement("textarea");
+    output.className = "secret-output";
+    output.readOnly = true;
+    output.rows = Math.min(12, Math.max(6, codes.length));
+    output.spellcheck = false;
+    output.value = codes.join("\n");
+    output.setAttribute("aria-label", "Administrator MFA recovery codes");
+    const copy = button("Copy recovery codes");
+    const copyStatus = wsElement("p", "muted");
+    copyStatus.setAttribute("aria-live", "polite");
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(output.value);
+        copyStatus.textContent = "Recovery codes copied. Store them securely.";
+      } catch {
+        output.focus();
+        output.select();
+        copyStatus.textContent = "Copy was unavailable. Select and copy the codes manually.";
+      }
+    });
+    const acknowledgement = wsElement("label", "field");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    acknowledgement.append(checkbox, document.createTextNode(" I saved these one-time recovery codes securely."));
+    const close = button("Finish MFA setup", "button-primary");
+    close.disabled = true;
+    checkbox.addEventListener("change", () => { close.disabled = !checkbox.checked; });
+    const finish = () => {
+      if (!checkbox.checked) return;
+      output.value = "";
+      dialog.close();
+      dialog.remove();
+      resolve();
+    };
+    close.addEventListener("click", finish);
+    dialog.addEventListener("cancel", (event) => event.preventDefault());
+    panel.append(output, copy, copyStatus, acknowledgement, close);
+    dialog.append(panel);
+    document.body.append(dialog);
+    dialog.showModal();
+    output.focus();
+  });
+}
+
+function wsConfirmMfaEnrollment(enrollment) {
+  return new Promise((resolve) => {
+    const dialog = document.createElement("dialog");
+    const form = wsElement("form", "dialog-card stack");
+    const qr = document.createElement("img");
+    qr.src = enrollment.qrCodeDataUri;
+    qr.alt = "QR code for the Practenture Administrator authenticator account";
+    const secret = document.createElement("textarea");
+    secret.className = "secret-output";
+    secret.readOnly = true;
+    secret.rows = 2;
+    secret.spellcheck = false;
+    secret.value = enrollment.secret;
+    secret.setAttribute("aria-label", "Manual authenticator setup key");
+    const codeField = wsField("Six-digit code from your authenticator", "code", {
+      required: true,
+      minLength: 6,
+      maxLength: 64,
+      autocomplete: "one-time-code",
+    });
+    const codeInput = codeField.querySelector("input");
+    codeInput.inputMode = "numeric";
+    const error = wsElement("div", "alert alert-error");
+    error.hidden = true;
+    error.setAttribute("role", "alert");
+    const actions = wsElement("div", "button-row");
+    const cancel = button("Cancel");
+    const confirm = button("Verify and enable MFA", "button-primary");
+    confirm.type = "submit";
+    actions.append(cancel, confirm);
+    form.append(
+      wsElement("h2", "", "Set up Administrator MFA"),
+      wsElement("p", "muted", "Scan this QR code with your authenticator app, or enter the setup key manually. MFA remains disabled until the first code is verified."),
+      qr,
+      wsElement("p", "field-label", "Manual setup key"),
+      secret,
+      codeField,
+      error,
+      actions,
+    );
+    const finish = (value) => {
+      secret.value = "";
+      dialog.close();
+      dialog.remove();
+      resolve(value);
+    };
+    cancel.addEventListener("click", () => finish(null));
+    dialog.addEventListener("cancel", (event) => { event.preventDefault(); finish(null); });
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      confirm.disabled = true;
+      error.hidden = true;
+      try {
+        const result = await request("/auth/mfa/confirm", {
+          method: "POST",
+          body: JSON.stringify({ code: codeInput.value.trim() }),
+        });
+        finish(result.recoveryCodes);
+      } catch (failure) {
+        error.textContent = failure.message;
+        error.hidden = false;
+        confirm.disabled = false;
+        codeInput.focus();
+      }
+    });
+    dialog.append(form);
+    document.body.append(dialog);
+    dialog.showModal();
+    codeInput.focus();
+  });
+}
+
 function wsTable(columns, rows, rowActions) {
   if (!rows.length) return $("empty-template").content.cloneNode(true);
   const card = wsElement("div", "table-card");
@@ -884,7 +1008,10 @@ async function renderAccountWorkspace() {
   loading();
   notice("");
   try {
-    const current = await request("/auth/session");
+    const [current, mfaState] = await Promise.all([
+      request("/auth/session"),
+      request("/auth/mfa/status"),
+    ]);
     if (current?.session) {
       state.session = current.session;
       state.csrf = current.session.csrfToken;
@@ -929,7 +1056,91 @@ async function renderAccountWorkspace() {
       finally { change.disabled = false; }
     });
     passwordCard.append(change);
-    fragment.append(sessionCard, passwordCard);
+    const mfaCard = wsElement("section", "card stack");
+    mfaCard.append(
+      wsElement("h2", "", "Multi-factor authentication"),
+      wsElement("p", "muted", mfaState.enabled
+        ? "Administrator sign-in and sensitive reauthentication require an authenticator or one-time recovery code."
+        : "Protect the Administrator account with the same authenticator and one-time recovery-code controls used by professor accounts."),
+    );
+    const mfaSummary = wsElement("div", "button-row");
+    mfaSummary.append(badge(mfaState.enabled ? "Enabled" : "Not enabled"));
+    if (mfaState.enabled) {
+      mfaSummary.append(wsElement("span", "muted", `${mfaState.recoveryCodesRemaining} recovery codes remaining`));
+    }
+    mfaCard.append(mfaSummary);
+    if (!mfaState.enabled) {
+      const start = button("Set up Administrator MFA", "button-primary");
+      start.addEventListener("click", async () => {
+        const credentials = await wsDialog({
+          title: "Confirm your Administrator password",
+          description: "MFA setup creates a new authenticator secret. It is not enabled until you verify the first code.",
+          submitLabel: "Continue",
+          fields: [
+            { label: "Current password", name: "password", type: "password", autocomplete: "current-password", required: true, maxLength: 1024 },
+          ],
+        });
+        if (!credentials) return;
+        start.disabled = true;
+        try {
+          const enrollment = await request("/auth/mfa/setup", { method: "POST", body: JSON.stringify({ password: credentials.password }) });
+          const recoveryCodes = await wsConfirmMfaEnrollment(enrollment);
+          if (!recoveryCodes) return;
+          await wsShowRecoveryCodes(recoveryCodes);
+          await renderAccountWorkspace();
+          notice("Administrator MFA is enabled. Future sign-ins require a second factor.");
+        } catch (error) { if (!/cancelled/i.test(error.message)) notice(error.message, true); }
+        finally { start.disabled = false; }
+      });
+      mfaCard.append(start);
+    } else {
+      const controls = wsElement("div", "button-row");
+      const regenerate = button("Replace recovery codes");
+      regenerate.addEventListener("click", async () => {
+        const values = await wsDialog({
+          title: "Replace Administrator recovery codes",
+          description: "Every existing recovery code will stop working. Use your password and a fresh authenticator or recovery code.",
+          submitLabel: "Replace codes",
+          fields: [
+            { label: "Current password", name: "password", type: "password", autocomplete: "current-password", required: true, maxLength: 1024 },
+            { label: "Fresh authenticator or recovery code", name: "code", autocomplete: "one-time-code", required: true, minLength: 6, maxLength: 64 },
+          ],
+        });
+        if (!values) return;
+        regenerate.disabled = true;
+        try {
+          const result = await request("/auth/mfa/recovery-codes", { method: "POST", body: JSON.stringify(values) });
+          await wsShowRecoveryCodes(result.recoveryCodes, "Save your replacement recovery codes");
+          await renderAccountWorkspace();
+          notice("Administrator recovery codes replaced. Previous codes no longer work.");
+        } catch (error) { if (!/cancelled/i.test(error.message)) notice(error.message, true); }
+        finally { regenerate.disabled = false; }
+      });
+      const disable = button("Disable MFA", "button-danger");
+      disable.addEventListener("click", async () => {
+        const values = await wsDialog({
+          title: "Disable Administrator MFA",
+          description: "This reduces protection for the highest-privilege account. Confirm with your password and a fresh authenticator or recovery code.",
+          submitLabel: "Disable MFA",
+          danger: true,
+          fields: [
+            { label: "Current password", name: "password", type: "password", autocomplete: "current-password", required: true, maxLength: 1024 },
+            { label: "Fresh authenticator or recovery code", name: "code", autocomplete: "one-time-code", required: true, minLength: 6, maxLength: 64 },
+          ],
+        });
+        if (!values) return;
+        disable.disabled = true;
+        try {
+          await request("/auth/mfa/disable", { method: "POST", body: JSON.stringify(values) });
+          await renderAccountWorkspace();
+          notice("Administrator MFA disabled.", true);
+        } catch (error) { if (!/cancelled/i.test(error.message)) notice(error.message, true); }
+        finally { disable.disabled = false; }
+      });
+      controls.append(regenerate, disable);
+      mfaCard.append(controls);
+    }
+    fragment.append(sessionCard, mfaCard, passwordCard);
     page.replaceChildren(fragment);
     status("Account security loaded");
   } catch (error) { renderError("account", error); }

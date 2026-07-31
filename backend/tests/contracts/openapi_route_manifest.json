@@ -53,7 +53,7 @@
       "path": "/api/sessions/{code}"
     }
   ],
-  "operationCount": 104,
+  "operationCount": 109,
   "operations": [
     {
       "method": "GET",
@@ -133,6 +133,91 @@
         "204": null,
         "422": {
           "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "operationId": "confirm_mfa_api_admin_v2_auth_mfa_confirm_post",
+      "path": "/api/admin/v2/auth/mfa/confirm",
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/MfaCodeRequest"
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/MfaRecoveryCodesResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "operationId": "disable_mfa_api_admin_v2_auth_mfa_disable_post",
+      "path": "/api/admin/v2/auth/mfa/disable",
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/MfaProtectedMutationRequest"
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/MfaDisableResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "operationId": "regenerate_mfa_recovery_codes_api_admin_v2_auth_mfa_recovery_codes_post",
+      "path": "/api/admin/v2/auth/mfa/recovery-codes",
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/MfaProtectedMutationRequest"
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/MfaRecoveryCodesResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "POST",
+      "operationId": "setup_mfa_api_admin_v2_auth_mfa_setup_post",
+      "path": "/api/admin/v2/auth/mfa/setup",
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/MfaSetupRequest"
+      },
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/MfaSetupResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+      },
+      "security": []
+    },
+    {
+      "method": "GET",
+      "operationId": "get_mfa_status_api_admin_v2_auth_mfa_status_get",
+      "path": "/api/admin/v2/auth/mfa/status",
+      "requestBodyRequired": false,
+      "requestSchema": null,
+      "responses": {
+        "200": {
+          "$ref": "#/components/schemas/MfaStatusResponse"
         }
       },
       "security": []

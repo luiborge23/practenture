@@ -1,17 +1,30 @@
 """Authentication routes for the Admin Console V2 API."""
 
+import base64
 from datetime import datetime
+import io
 import os
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response, status
 
-from .dependencies import require_csrf_session, require_recent_auth_session
+from .dependencies import (
+    require_admin_session,
+    require_csrf_session,
+    require_recent_auth_session,
+)
 from .repository import AdminSessionRecord
 from .schemas import (
     AdminSession,
     LoginRequest,
+    MfaCodeRequest,
     MfaChallengeVerifyRequest,
+    MfaDisableResponse,
+    MfaProtectedMutationRequest,
+    MfaRecoveryCodesResponse,
+    MfaSetupRequest,
+    MfaSetupResponse,
+    MfaStatusResponse,
     PasswordChangeRequest,
     PasswordChangeResponse,
     ReauthenticateRequest,
@@ -118,11 +131,121 @@ def verify_mfa_challenge(
 
 @router.post("/reauthenticate", response_model=ReauthenticateResponse)
 def reauthenticate(
+    request: Request,
     payload: ReauthenticateRequest,
     session: AuthenticatedSession = Depends(require_csrf_session),
 ) -> ReauthenticateResponse:
-    expires = auth_service.reauthenticate(session, payload.password, payload.mfa_code)
+    expires = auth_service.reauthenticate(
+        session,
+        payload.password,
+        payload.mfa_code,
+        request.client.host if request.client is not None else None,
+        _request_id(request),
+    )
     return ReauthenticateResponse(recentAuthExpiresAt=expires)
+
+
+def _mfa_qr_data_uri(uri: str) -> str:
+    try:
+        import qrcode
+        from qrcode.image.svg import SvgPathImage
+    except ImportError as exc:
+        from .errors import AdminError
+
+        raise AdminError(
+            503,
+            "ADMIN_MFA_SETUP_UNAVAILABLE",
+            "MFA enrollment is temporarily unavailable",
+        ) from exc
+    image = qrcode.make(uri, image_factory=SvgPathImage, box_size=8, border=3)
+    stream = io.BytesIO()
+    image.save(stream)
+    return f"data:image/svg+xml;base64,{base64.b64encode(stream.getvalue()).decode('ascii')}"
+
+
+@router.get("/mfa/status", response_model=MfaStatusResponse)
+def get_mfa_status(
+    response: Response,
+    session: AuthenticatedSession = Depends(require_admin_session),
+) -> MfaStatusResponse:
+    enabled, remaining = auth_service.mfa_status(session)
+    response.headers["Cache-Control"] = "no-store"
+    return MfaStatusResponse(enabled=enabled, recoveryCodesRemaining=remaining)
+
+
+@router.post("/mfa/setup", response_model=MfaSetupResponse)
+def setup_mfa(
+    request: Request,
+    response: Response,
+    payload: MfaSetupRequest,
+    session: AuthenticatedSession = Depends(require_csrf_session),
+) -> MfaSetupResponse:
+    secret, uri, qr_code = auth_service.start_mfa_enrollment(
+        session,
+        payload.password,
+        _request_id(request),
+        request.client.host if request.client is not None else None,
+        _mfa_qr_data_uri,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return MfaSetupResponse(
+        secret=secret,
+        otpauthUri=uri,
+        qrCodeDataUri=qr_code,
+    )
+
+
+@router.post("/mfa/confirm", response_model=MfaRecoveryCodesResponse)
+def confirm_mfa(
+    request: Request,
+    response: Response,
+    payload: MfaCodeRequest,
+    session: AuthenticatedSession = Depends(require_csrf_session),
+) -> MfaRecoveryCodesResponse:
+    codes = auth_service.confirm_mfa_enrollment(
+        session,
+        payload.code,
+        _request_id(request),
+        request.client.host if request.client is not None else None,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return MfaRecoveryCodesResponse(status="enabled", recoveryCodes=codes)
+
+
+@router.post("/mfa/recovery-codes", response_model=MfaRecoveryCodesResponse)
+def regenerate_mfa_recovery_codes(
+    request: Request,
+    response: Response,
+    payload: MfaProtectedMutationRequest,
+    session: AuthenticatedSession = Depends(require_csrf_session),
+) -> MfaRecoveryCodesResponse:
+    codes = auth_service.regenerate_mfa_recovery_codes(
+        session,
+        payload.password,
+        payload.code,
+        _request_id(request),
+        request.client.host if request.client is not None else None,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return MfaRecoveryCodesResponse(status="regenerated", recoveryCodes=codes)
+
+
+@router.post("/mfa/disable", response_model=MfaDisableResponse)
+def disable_mfa(
+    request: Request,
+    response: Response,
+    payload: MfaProtectedMutationRequest,
+    session: AuthenticatedSession = Depends(require_csrf_session),
+) -> MfaDisableResponse:
+    auth_service.disable_mfa(
+        session,
+        payload.password,
+        payload.code,
+        _request_id(request),
+        request.client.host if request.client is not None else None,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return MfaDisableResponse()
 
 
 @router.post("/password/change", response_model=PasswordChangeResponse)

@@ -178,7 +178,7 @@ class AdminSessionRepository:
                 lock_created=lock_created,
             )
 
-    def _reset_login_attempt(
+    def reset_login_attempt_in_transaction(
         self,
         conn,
         identity: str,
@@ -209,6 +209,22 @@ class AdminSessionRepository:
                    WHERE scope_type='client' AND scope_key=?
                      AND window_started_at=? AND attempt_count=0""",
                 (client_key, client_window_started_at),
+            )
+
+    def reset_login_attempt(
+        self,
+        identity: str,
+        client_signal: str | None,
+        *,
+        client_window_started_at: float | None,
+    ) -> None:
+        """Clear a successful reservation without erasing unrelated client failures."""
+        with self._transaction() as conn:
+            self.reset_login_attempt_in_transaction(
+                conn,
+                identity,
+                client_signal,
+                client_window_started_at=client_window_started_at,
             )
 
     def create_after_mfa(
@@ -322,7 +338,7 @@ class AdminSessionRepository:
                     absolute_expires_at,
                 ),
             )
-            self._reset_login_attempt(
+            self.reset_login_attempt_in_transaction(
                 conn,
                 login_identity,
                 client_signal,
@@ -331,7 +347,7 @@ class AdminSessionRepository:
             return "created"
 
     @staticmethod
-    def _verify_mfa_in_transaction(
+    def verify_mfa_in_transaction(
         conn: sqlite3.Connection, user_id: str, code: str | None, accepted_at: str
     ) -> str:
         """Verify and consume a privileged MFA credential in the caller's transaction."""
@@ -423,6 +439,10 @@ class AdminSessionRepository:
         self, *, challenge_token_hash: str, mfa_code: str, session_id: str,
         token_hash: str, csrf_hash: str, created_at: str,
         idle_expires_at: str, absolute_expires_at: str,
+        challenge_throttle_identity: str,
+        owner_throttle_identity: str,
+        client_signal: str | None,
+        owner_client_window_started_at: float | None,
     ) -> tuple[str, str | None]:
         """Consume one challenge/MFA credential and create one session atomically."""
         with self._transaction() as conn:
@@ -434,7 +454,7 @@ class AdminSessionRepository:
             if challenge is None:
                 return "invalid_challenge", None
             user_id = str(challenge[0])
-            mfa_status = self._verify_mfa_in_transaction(conn, user_id, mfa_code, created_at)
+            mfa_status = self.verify_mfa_in_transaction(conn, user_id, mfa_code, created_at)
             if mfa_status not in {"accepted", "not_required"}:
                 return mfa_status, None
             consumed = conn.execute(
@@ -452,6 +472,18 @@ class AdminSessionRepository:
                 (session_id, token_hash, csrf_hash, user_id, created_at, created_at,
                  idle_expires_at, absolute_expires_at),
             )
+            self.reset_login_attempt_in_transaction(
+                conn,
+                challenge_throttle_identity,
+                None,
+                client_window_started_at=None,
+            )
+            self.reset_login_attempt_in_transaction(
+                conn,
+                owner_throttle_identity,
+                client_signal,
+                client_window_started_at=owner_client_window_started_at,
+            )
             return "created", user_id
 
     def record_recent_auth(
@@ -466,7 +498,7 @@ class AdminSessionRepository:
             ).fetchone()
             if active is None:
                 return "invalid_session"
-            status = self._verify_mfa_in_transaction(conn, user_id, mfa_code, authenticated_at)
+            status = self.verify_mfa_in_transaction(conn, user_id, mfa_code, authenticated_at)
             if status not in {"accepted", "not_required"}:
                 return status
             conn.execute(

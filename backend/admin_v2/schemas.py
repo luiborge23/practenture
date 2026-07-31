@@ -34,6 +34,39 @@ class MfaChallengeVerifyRequest(CamelModel):
     mfa_code: str = Field(alias="mfaCode", min_length=6, max_length=64)
 
 
+class MfaStatusResponse(CamelModel):
+    enabled: bool
+    recovery_codes_remaining: int = Field(alias="recoveryCodesRemaining", ge=0)
+
+
+class MfaSetupRequest(CamelModel):
+    password: str = Field(min_length=1, max_length=1024)
+
+
+class MfaSetupResponse(CamelModel):
+    secret: str
+    otpauth_uri: str = Field(alias="otpauthUri")
+    qr_code_data_uri: str = Field(alias="qrCodeDataUri")
+
+
+class MfaCodeRequest(CamelModel):
+    code: str = Field(min_length=6, max_length=64)
+
+
+class MfaProtectedMutationRequest(CamelModel):
+    password: str = Field(min_length=1, max_length=1024)
+    code: str = Field(min_length=6, max_length=64)
+
+
+class MfaRecoveryCodesResponse(CamelModel):
+    status: Literal["enabled", "regenerated"]
+    recovery_codes: list[str] = Field(alias="recoveryCodes")
+
+
+class MfaDisableResponse(CamelModel):
+    status: Literal["disabled"] = "disabled"
+
+
 class ReauthenticateRequest(CamelModel):
     password: str = Field(min_length=1, max_length=1024)
     mfa_code: str | None = Field(default=None, alias="mfaCode", min_length=6, max_length=64)

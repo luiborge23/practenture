@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
+import json
 import os
 import secrets
 import sqlite3
@@ -278,6 +279,10 @@ class AdminAuthService:
             created_at=now.isoformat(),
             idle_expires_at=idle_expires.isoformat(),
             absolute_expires_at=(now + ABSOLUTE_TIMEOUT).isoformat(),
+            challenge_throttle_identity=f"mfa-challenge:{challenge_hash}",
+            owner_throttle_identity=f"mfa-owner:{owner_user_id.casefold()}",
+            client_signal=client_signal,
+            owner_client_window_started_at=owner_decision.client_window_started_at,
         )
         error_map = {
             "invalid_challenge": (401, "ADMIN_MFA_CHALLENGE_INVALID", "MFA challenge is invalid or expired"),
@@ -347,27 +352,445 @@ class AdminAuthService:
         if not revoked:
             raise AdminError(401, "ADMIN_AUTH_REQUIRED", "Authentication required")
 
-    def reauthenticate(
-        self, session: AuthenticatedSession, password: str, mfa_code: str | None
-    ) -> datetime:
-        user = self._verify_owner_password(session.record.owner_user_id, password)
-        if user is None:
-            raise AdminError(401, "ADMIN_REAUTH_FAILED", "Reauthentication failed")
-        now = self._now()
-        status = self.repository.record_recent_auth(
-            session_id=session.record.id,
-            user_id=session.record.owner_user_id,
-            mfa_code=mfa_code,
-            authenticated_at=now.isoformat(),
+    def _reserve_mfa_owner_attempt(
+        self,
+        owner_user_id: str,
+        client_signal: str | None,
+        now: datetime,
+    ):
+        decision = self.repository.reserve_login_attempt(
+            f"mfa-owner:{owner_user_id.casefold()}",
+            client_signal,
+            now=now.timestamp(),
+            threshold=self.mfa_owner_threshold,
+            window_seconds=self.mfa_challenge_window_seconds,
+            identity_threshold=self.mfa_owner_threshold,
+            client_threshold=self.login_client_threshold,
+            identity_window_seconds=self.mfa_challenge_window_seconds,
+            client_window_seconds=self.login_window_seconds,
         )
-        if status == "mfa_required":
-            raise AdminError(401, "ADMIN_MFA_REQUIRED", "MFA verification required")
-        if status == "mfa_replayed":
-            raise AdminError(401, "ADMIN_MFA_REPLAYED", "MFA code has already been used")
-        if status == "invalid_mfa":
-            raise AdminError(401, "ADMIN_INVALID_MFA", "Invalid MFA code")
-        if status != "accepted":
+        if not decision.allowed:
+            raise AdminError(
+                429,
+                "ADMIN_MFA_THROTTLED",
+                "Too many MFA verification attempts",
+                headers={"Retry-After": str(decision.retry_after)},
+            )
+        return decision
+
+    def _reserve_mfa_management_attempt(
+        self,
+        owner_user_id: str,
+        client_signal: str | None,
+        now: datetime,
+    ):
+        identity = f"mfa-management:{owner_user_id.casefold()}"
+        decision = self.repository.reserve_login_attempt(
+            identity,
+            client_signal,
+            now=now.timestamp(),
+            threshold=self.login_threshold,
+            window_seconds=self.login_window_seconds,
+            identity_threshold=self.login_identity_threshold,
+            client_threshold=self.login_client_threshold,
+        )
+        if not decision.allowed:
+            raise AdminError(
+                429,
+                "ADMIN_REAUTH_THROTTLED",
+                "Too many authentication attempts",
+                headers={"Retry-After": str(decision.retry_after)},
+            )
+        return identity, decision
+
+    @staticmethod
+    def _verify_active_management_session(
+        conn: sqlite3.Connection,
+        session: AuthenticatedSession,
+        now: datetime,
+    ) -> str:
+        owner_user_id = session.record.owner_user_id
+        row = conn.execute(
+            """SELECT u.password_hash, u.role, u.status
+               FROM admin_sessions AS s
+               JOIN users AS u ON u.username=s.owner_user_id
+               WHERE s.id=? AND s.owner_user_id=? AND s.revoked_at IS NULL
+                 AND s.idle_expires_at>? AND s.absolute_expires_at>?""",
+            (session.record.id, owner_user_id, now.isoformat(), now.isoformat()),
+        ).fetchone()
+        if row is None:
             raise AdminError(401, "ADMIN_AUTH_REQUIRED", "Authentication required")
+        if str(row[1]) != "owner" or str(row[2] or "active") != "active":
+            raise AdminError(403, "ADMIN_OWNER_REQUIRED", "Active Owner role required")
+        return str(row[0] or "")
+
+    @classmethod
+    def _verify_management_authorization(
+        cls,
+        conn: sqlite3.Connection,
+        session: AuthenticatedSession,
+        password: str,
+        now: datetime,
+    ) -> None:
+        owner_user_id = session.record.owner_user_id
+        stored_hash = cls._verify_active_management_session(conn, session, now)
+        password_valid = False
+        if is_legacy_hash(stored_hash):
+            password_valid = verify_password(password, stored_hash)
+            if password_valid:
+                conn.execute(
+                    "UPDATE users SET password_hash=? WHERE username=? AND password_hash=?",
+                    (hash_password(password), owner_user_id, stored_hash),
+                )
+            else:
+                verify_password(password, _DUMMY_PASSWORD_HASH)
+        elif is_bcrypt_hash(stored_hash):
+            password_valid = verify_password(password, stored_hash)
+        else:
+            verify_password(password, _DUMMY_PASSWORD_HASH)
+        if not password_valid:
+            raise AdminError(401, "ADMIN_REAUTH_FAILED", "Reauthentication failed")
+
+    @staticmethod
+    def _recovery_code_count(owner_user_id: str) -> int:
+        record = db.get_mfa_secret(owner_user_id)
+        if not record or int(record.get("enabled") or 0) != 1:
+            return 0
+        try:
+            codes = json.loads(record.get("backup_codes") or "[]")
+        except (TypeError, ValueError):
+            return 0
+        return len(codes) if isinstance(codes, list) else 0
+
+    def mfa_status(self, session: AuthenticatedSession) -> tuple[bool, int]:
+        owner_user_id = session.record.owner_user_id
+        enabled = db.is_mfa_enabled(owner_user_id)
+        return enabled, self._recovery_code_count(owner_user_id) if enabled else 0
+
+    def start_mfa_enrollment(
+        self,
+        session: AuthenticatedSession,
+        password: str,
+        request_id: str,
+        client_signal: str | None,
+        qr_code_factory: Callable[[str], str],
+    ) -> tuple[str, str, str]:
+        from mfa import (
+            generate_totp_secret,
+            get_totp_uri,
+            protect_totp_secret,
+            reveal_totp_secret,
+        )
+
+        owner_user_id = session.record.owner_user_id
+        candidate_secret = generate_totp_secret()
+        protected_secret = protect_totp_secret(candidate_secret)
+        now = self._now()
+        throttle_identity, throttle_decision = self._reserve_mfa_management_attempt(
+            owner_user_id,
+            client_signal,
+            now,
+        )
+
+        def mutation(conn: sqlite3.Connection) -> StoredResponse:
+            self._verify_management_authorization(conn, session, password, now)
+            current = conn.execute(
+                "SELECT secret, enabled FROM mfa_secrets WHERE user_id=?",
+                (owner_user_id,),
+            ).fetchone()
+            if current is not None and int(current[1] or 0) == 1:
+                raise AdminError(409, "ADMIN_MFA_ALREADY_ENABLED", "MFA is already enabled")
+            enrollment_secret = candidate_secret
+            if current is None:
+                conn.execute(
+                    """INSERT INTO mfa_secrets (user_id, secret, enabled, backup_codes)
+                       VALUES (?, ?, 0, '[]')""",
+                    (owner_user_id, protected_secret),
+                )
+                conn.execute(
+                    "DELETE FROM admin_mfa_replay_state WHERE owner_user_id=?",
+                    (owner_user_id,),
+                )
+            else:
+                try:
+                    enrollment_secret = reveal_totp_secret(str(current[0]))
+                except (TypeError, ValueError, KeyError) as exc:
+                    raise AdminError(
+                        500,
+                        "ADMIN_MFA_SECRET_INVALID",
+                        "Stored MFA enrollment cannot be resumed",
+                    ) from exc
+            uri = get_totp_uri(enrollment_secret, owner_user_id, "Practenture")
+            qr_code = qr_code_factory(uri)
+            self.repository.reset_login_attempt_in_transaction(
+                conn,
+                throttle_identity,
+                client_signal,
+                client_window_started_at=throttle_decision.client_window_started_at,
+            )
+            return StoredResponse(
+                200,
+                {
+                    "status": "enrollment_started",
+                    "secret": enrollment_secret,
+                    "uri": uri,
+                    "qrCode": qr_code,
+                },
+                {},
+            )
+
+        result = self.mutations.execute(
+            request_id=request_id,
+            actor={"id": owner_user_id, "role": "owner"},
+            target={"type": "owner", "id": owner_user_id},
+            action="admin.auth.mfa_enrollment_started",
+            outcome="succeeded",
+            metadata={},
+            mutation=mutation,
+            now=now,
+        )
+        secret = str(result.response.body["secret"])
+        return (
+            secret,
+            str(result.response.body["uri"]),
+            str(result.response.body["qrCode"]),
+        )
+
+    def confirm_mfa_enrollment(
+        self,
+        session: AuthenticatedSession,
+        code: str,
+        request_id: str,
+        client_signal: str | None,
+    ) -> list[str]:
+        from mfa import generate_backup_codes, hash_backup_code, resolve_totp_counter
+
+        owner_user_id = session.record.owner_user_id
+        now = self._now()
+        throttle_identity = f"mfa-owner:{owner_user_id.casefold()}"
+        throttle_decision = self._reserve_mfa_owner_attempt(
+            owner_user_id, client_signal, now
+        )
+        recovery_codes = generate_backup_codes()
+        encoded_codes = json.dumps([hash_backup_code(value) for value in recovery_codes])
+
+        def mutation(conn: sqlite3.Connection) -> StoredResponse:
+            self._verify_active_management_session(conn, session, now)
+            record = conn.execute(
+                "SELECT secret, enabled FROM mfa_secrets WHERE user_id=?",
+                (owner_user_id,),
+            ).fetchone()
+            if record is None or int(record[1] or 0) == 1:
+                raise AdminError(
+                    409,
+                    "ADMIN_MFA_ENROLLMENT_REQUIRED",
+                    "Start a new MFA enrollment first",
+                )
+            try:
+                step = resolve_totp_counter(str(record[0]), code)
+            except (TypeError, ValueError, KeyError):
+                step = None
+            if step is None:
+                raise AdminError(400, "ADMIN_INVALID_MFA", "Invalid authenticator code")
+            updated = conn.execute(
+                """UPDATE mfa_secrets
+                   SET enabled=1, backup_codes=?, enabled_at=?
+                   WHERE user_id=? AND enabled=0""",
+                (encoded_codes, now.isoformat(), owner_user_id),
+            )
+            if updated.rowcount != 1:
+                raise AdminError(
+                    409,
+                    "ADMIN_MFA_ENROLLMENT_REQUIRED",
+                    "Start a new MFA enrollment first",
+                )
+            conn.execute(
+                """INSERT INTO admin_mfa_replay_state
+                       (owner_user_id, last_accepted_totp_step, accepted_at)
+                   VALUES (?, ?, ?)
+                   ON CONFLICT(owner_user_id) DO UPDATE SET
+                       last_accepted_totp_step=excluded.last_accepted_totp_step,
+                       accepted_at=excluded.accepted_at""",
+                (owner_user_id, step, now.isoformat()),
+            )
+            self.repository.reset_login_attempt_in_transaction(
+                conn,
+                throttle_identity,
+                client_signal,
+                client_window_started_at=throttle_decision.client_window_started_at,
+            )
+            return StoredResponse(200, {"status": "enabled"}, {})
+
+        self.mutations.execute(
+            request_id=request_id,
+            actor={"id": owner_user_id, "role": "owner"},
+            target={"type": "owner", "id": owner_user_id},
+            action="admin.auth.mfa_enabled",
+            outcome="succeeded",
+            metadata={"recoveryCodesIssued": len(recovery_codes)},
+            mutation=mutation,
+            now=now,
+        )
+        return recovery_codes
+
+    def _verify_mfa_management_factor(
+        self,
+        conn: sqlite3.Connection,
+        owner_user_id: str,
+        code: str,
+        accepted_at: str,
+    ) -> None:
+        result = self.repository.verify_mfa_in_transaction(
+            conn, owner_user_id, code, accepted_at
+        )
+        if result == "not_required":
+            raise AdminError(409, "ADMIN_MFA_NOT_ENABLED", "MFA is not enabled")
+        if result == "mfa_replayed":
+            raise AdminError(401, "ADMIN_MFA_REPLAYED", "MFA code has already been used")
+        if result != "accepted":
+            raise AdminError(401, "ADMIN_INVALID_MFA", "Invalid MFA code")
+
+    def regenerate_mfa_recovery_codes(
+        self,
+        session: AuthenticatedSession,
+        password: str,
+        code: str,
+        request_id: str,
+        client_signal: str | None,
+    ) -> list[str]:
+        from mfa import generate_backup_codes, hash_backup_code
+
+        owner_user_id = session.record.owner_user_id
+        now = self._now()
+        throttle_identity, throttle_decision = self._reserve_mfa_management_attempt(
+            owner_user_id, client_signal, now
+        )
+        recovery_codes = generate_backup_codes()
+        encoded_codes = json.dumps([hash_backup_code(value) for value in recovery_codes])
+
+        def mutation(conn: sqlite3.Connection) -> StoredResponse:
+            self._verify_management_authorization(conn, session, password, now)
+            self._verify_mfa_management_factor(
+                conn, owner_user_id, code, now.isoformat()
+            )
+            conn.execute(
+                "UPDATE mfa_secrets SET backup_codes=? WHERE user_id=? AND enabled=1",
+                (encoded_codes, owner_user_id),
+            )
+            self.repository.reset_login_attempt_in_transaction(
+                conn,
+                throttle_identity,
+                client_signal,
+                client_window_started_at=throttle_decision.client_window_started_at,
+            )
+            return StoredResponse(200, {"status": "regenerated"}, {})
+
+        self.mutations.execute(
+            request_id=request_id,
+            actor={"id": owner_user_id, "role": "owner"},
+            target={"type": "owner", "id": owner_user_id},
+            action="admin.auth.mfa_recovery_codes_regenerated",
+            outcome="succeeded",
+            metadata={"recoveryCodesIssued": len(recovery_codes)},
+            mutation=mutation,
+            now=now,
+        )
+        return recovery_codes
+
+    def disable_mfa(
+        self,
+        session: AuthenticatedSession,
+        password: str,
+        code: str,
+        request_id: str,
+        client_signal: str | None,
+    ) -> None:
+        owner_user_id = session.record.owner_user_id
+        now = self._now()
+        throttle_identity, throttle_decision = self._reserve_mfa_management_attempt(
+            owner_user_id, client_signal, now
+        )
+
+        def mutation(conn: sqlite3.Connection) -> StoredResponse:
+            self._verify_management_authorization(conn, session, password, now)
+            self._verify_mfa_management_factor(
+                conn, owner_user_id, code, now.isoformat()
+            )
+            conn.execute("DELETE FROM mfa_secrets WHERE user_id=?", (owner_user_id,))
+            conn.execute(
+                "DELETE FROM admin_mfa_replay_state WHERE owner_user_id=?",
+                (owner_user_id,),
+            )
+            self.repository.reset_login_attempt_in_transaction(
+                conn,
+                throttle_identity,
+                client_signal,
+                client_window_started_at=throttle_decision.client_window_started_at,
+            )
+            return StoredResponse(200, {"status": "disabled"}, {})
+
+        self.mutations.execute(
+            request_id=request_id,
+            actor={"id": owner_user_id, "role": "owner"},
+            target={"type": "owner", "id": owner_user_id},
+            action="admin.auth.mfa_disabled",
+            outcome="succeeded",
+            metadata={},
+            mutation=mutation,
+            now=now,
+        )
+
+    def reauthenticate(
+        self,
+        session: AuthenticatedSession,
+        password: str,
+        mfa_code: str | None,
+        client_signal: str | None,
+        request_id: str,
+    ) -> datetime:
+        owner_user_id = session.record.owner_user_id
+        now = self._now()
+        throttle_identity, throttle_decision = self._reserve_mfa_management_attempt(
+            owner_user_id, client_signal, now
+        )
+
+        def mutation(conn: sqlite3.Connection) -> StoredResponse:
+            self._verify_management_authorization(conn, session, password, now)
+            status = self.repository.verify_mfa_in_transaction(
+                conn, owner_user_id, mfa_code, now.isoformat()
+            )
+            if status == "mfa_required":
+                raise AdminError(401, "ADMIN_MFA_REQUIRED", "MFA verification required")
+            if status == "mfa_replayed":
+                raise AdminError(401, "ADMIN_MFA_REPLAYED", "MFA code has already been used")
+            if status == "invalid_mfa":
+                raise AdminError(401, "ADMIN_INVALID_MFA", "Invalid MFA code")
+            if status not in {"accepted", "not_required"}:
+                raise AdminError(401, "ADMIN_AUTH_REQUIRED", "Authentication required")
+            conn.execute(
+                """INSERT INTO admin_recent_auth (session_id, authenticated_at)
+                   VALUES (?, ?) ON CONFLICT(session_id) DO UPDATE SET
+                   authenticated_at=excluded.authenticated_at""",
+                (session.record.id, now.isoformat()),
+            )
+            self.repository.reset_login_attempt_in_transaction(
+                conn,
+                throttle_identity,
+                client_signal,
+                client_window_started_at=throttle_decision.client_window_started_at,
+            )
+            return StoredResponse(200, {"status": "reauthenticated"}, {})
+
+        self.mutations.execute(
+            request_id=request_id,
+            actor={"id": owner_user_id, "role": "owner"},
+            target={"type": "owner", "id": owner_user_id},
+            action="admin.auth.reauthenticated",
+            outcome="succeeded",
+            metadata={},
+            mutation=mutation,
+            now=now,
+        )
         return now + timedelta(minutes=5)
 
     def require_recent_auth(self, session: AuthenticatedSession) -> None:
