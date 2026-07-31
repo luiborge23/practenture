@@ -565,7 +565,6 @@ final class SimulationEngine: SimulationEngineProtocol {
 
             teamContexts.append((team, decision))
         }
-        pureCheckpoint("contexts")
 
         // 2. Compute total market demand
         let demandGrowth = min(2.0, 1.0 + 0.05 * Double(round))
@@ -926,10 +925,6 @@ final class SimulationEngine: SimulationEngineProtocol {
         sq += min(0.5, trainingHours / 80.0)
         let blended = 0.4 * previousSQ + 0.6 * sq
         return min(10.0, max(1.0, blended))
-    }
-
-    private func pureCheckpoint(_ message: String) {
-        FileHandle.standardError.write(Data("SimulationEngine.processRoundPure checkpoint: \(message)\n".utf8))
     }
 
     // MARK: - Rejection Rate (defect rate)
