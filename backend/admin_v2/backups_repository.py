@@ -2,11 +2,38 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import sqlite3
 from typing import Any
 
-from database import db
+from database import Database, db
+from .errors import AdminError
+
+
+def _encode_cursor(offset: int, collection: str) -> str:
+    raw = json.dumps(
+        {"v": 1, "offset": offset, "collection": collection},
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
+
+
+def _decode_cursor(cursor: str | None, collection: str) -> int:
+    if cursor is None:
+        return 0
+    try:
+        padded = cursor + "=" * (-len(cursor) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(padded).decode())
+        offset = payload["offset"]
+        if payload != {"collection": collection, "offset": offset, "v": 1}:
+            raise ValueError("cursor context mismatch")
+        if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
+            raise ValueError("cursor offset invalid")
+        return offset
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise AdminError(400, "ADMIN_CURSOR_INVALID", "Cursor is invalid") from exc
 
 
 class BackupRepository:
@@ -63,7 +90,10 @@ class BackupRepository:
             "restoreDrillId": row[9],
         }
 
-    def list_backups(self, limit: int) -> tuple[list[dict[str, Any]], int]:
+    def list_backups(
+        self, limit: int, cursor: str | None
+    ) -> tuple[list[dict[str, Any]], int, str | None]:
+        offset = _decode_cursor(cursor, "backups")
         conn = self._db.connect()
         try:
             rows = conn.execute(
@@ -73,26 +103,35 @@ class BackupRepository:
                           (SELECT r.id FROM restore_drills r WHERE r.backup_id=b.id
                            ORDER BY r.started_at DESC, r.id DESC LIMIT 1)
                    FROM backup_runs b
-                   ORDER BY b.started_at DESC, b.id DESC LIMIT ?""",
-                (limit,),
+                   ORDER BY b.started_at DESC, b.id DESC LIMIT ? OFFSET ?""",
+                (limit + 1, offset),
             ).fetchall()
             total = int(conn.execute("SELECT COUNT(*) FROM backup_runs").fetchone()[0])
         finally:
             conn.close()
-        return [self._map_backup(row) for row in rows], total
+        has_next = len(rows) > limit
+        return (
+            [self._map_backup(row) for row in rows[:limit]],
+            total,
+            _encode_cursor(offset + limit, "backups") if has_next else None,
+        )
 
-    def list_restore_drills(self, limit: int) -> tuple[list[dict[str, Any]], int]:
+    def list_restore_drills(
+        self, limit: int, cursor: str | None
+    ) -> tuple[list[dict[str, Any]], int, str | None]:
+        offset = _decode_cursor(cursor, "restore-drills")
         conn = self._db.connect()
         try:
             rows = conn.execute(
                 """SELECT id, backup_id, started_at, ended_at, status, error_message
                    FROM restore_drills
-                   ORDER BY started_at DESC, id DESC LIMIT ?""",
-                (limit,),
+                   ORDER BY started_at DESC, id DESC LIMIT ? OFFSET ?""",
+                (limit + 1, offset),
             ).fetchall()
             total = int(conn.execute("SELECT COUNT(*) FROM restore_drills").fetchone()[0])
         finally:
             conn.close()
+        has_next = len(rows) > limit
         items = [
             {
                 "id": row[0],
@@ -104,9 +143,13 @@ class BackupRepository:
                 # expose them through this operational endpoint.
                 "errorMessage": "Backup verification failed" if row[5] else None,
             }
-            for row in rows
+            for row in rows[:limit]
         ]
-        return items, total
+        return (
+            items,
+            total,
+            _encode_cursor(offset + limit, "restore-drills") if has_next else None,
+        )
 
     @staticmethod
     def insert_verified_backup(

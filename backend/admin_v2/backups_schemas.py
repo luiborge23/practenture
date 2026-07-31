@@ -44,9 +44,17 @@ class BackupCreateResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, frozen=True)
 
 
+class PageInfo(BaseModel):
+    next_cursor: str | None = Field(default=None, alias="nextCursor")
+    has_next_page: bool = Field(alias="hasNextPage")
+
+    model_config = ConfigDict(populate_by_name=True, frozen=True)
+
+
 class BackupListResponse(BaseModel):
     items: list[BackupResponse]
     total_count: int = Field(alias="totalCount", ge=0)
+    page_info: PageInfo = Field(alias="pageInfo")
 
     model_config = ConfigDict(populate_by_name=True, frozen=True)
 
@@ -65,5 +73,6 @@ class RestoreDrillResponse(BaseModel):
 class RestoreDrillListResponse(BaseModel):
     items: list[RestoreDrillResponse]
     total_count: int = Field(alias="totalCount", ge=0)
+    page_info: PageInfo = Field(alias="pageInfo")
 
     model_config = ConfigDict(populate_by_name=True, frozen=True)

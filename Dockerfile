@@ -2,7 +2,7 @@
 # Multi-stage build for minimal image size
 
 # ---- Stage 1: Build ----
-FROM python:3.11-slim AS builder
+FROM python:3.11-slim@sha256:db3ff2e1800a8581e2c48a27c3995339d47bdf046da21c7627accd3d51053a93 AS builder
 
 WORKDIR /app
 
@@ -18,7 +18,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # ---- Stage 2: Production ----
-FROM python:3.11-slim AS production
+FROM python:3.11-slim@sha256:db3ff2e1800a8581e2c48a27c3995339d47bdf046da21c7627accd3d51053a93 AS production
 
 # Add non-root user
 RUN groupadd -r bizsim && useradd -r -g bizsim bizsim

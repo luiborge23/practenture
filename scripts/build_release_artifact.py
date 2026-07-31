@@ -70,13 +70,14 @@ def tar_entry(name: str, data: bytes, mode: int) -> tuple[tarfile.TarInfo, io.By
     return info, io.BytesIO(data)
 
 
-def build(root: Path, output: Path) -> str:
+def build(root: Path, output: Path, source_revision: str | None = None) -> str:
     root = root.resolve()
     output = output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     files = collect(root, output)
     manifest = {
         "formatVersion": 1,
+        "sourceRevision": source_revision,
         "files": [
             {"path": path, "sha256": sha256(data), "size": len(data)}
             for path, data, _mode in files
@@ -103,8 +104,9 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--source-revision")
     args = parser.parse_args()
-    digest = build(args.root, args.output)
+    digest = build(args.root, args.output, args.source_revision)
     print(f"artifact={args.output}")
     print(f"sha256={digest}")
 

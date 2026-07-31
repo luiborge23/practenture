@@ -199,7 +199,7 @@ EOF
 
 # ── Deploy App to EC2 ────────────────────────────────────────────
 cmd_deploy() {
-    local state
+    local state SOURCE_REVISION
     state=$(load_state)
     local PUBLIC_IP
     PUBLIC_IP=$(echo "$state" | jq -r '.public_ip')
@@ -208,13 +208,30 @@ cmd_deploy() {
         error "No EC2 state found. Run ./ec2-deploy.sh provision first."
     fi
 
+    if [ -n "$(git -C "$SCRIPT_DIR" status --porcelain)" ]; then
+        error "Deployment requires a clean Git worktree. Commit and verify the release first."
+    fi
+    SOURCE_REVISION=$(git -C "$SCRIPT_DIR" rev-parse HEAD)
+    if [ "$SOURCE_REVISION" != "$(git -C "$SCRIPT_DIR" rev-parse origin/main)" ]; then
+        error "Deployment requires HEAD to match origin/main exactly."
+    fi
+
     info "=== Deploying Practenture to EC2 ($PUBLIC_IP) ==="
 
     # Stable .env — only generate if missing; never rotate on re-deploy
     # Loads existing .env if present so JWT_SECRET + PROFESSOR_PASSWORD persist
-    local JWT_SECRET PROF_PASSWORD OWNER_USER OWNER_PASS OWNER_USERNAME
+    local JWT_SECRET PROF_PASSWORD OWNER_USER OWNER_PASS OWNER_USERNAME credential normalized
+    local EXPLICIT_JWT_SECRET EXPLICIT_PROF_PASSWORD EXPLICIT_OWNER_PASSWORD EXPLICIT_OWNER_USERNAME
     local EMAIL_PROVIDER SES_REGION SES_SENDER PUBLIC_ORIGIN
-    OWNER_USERNAME="${PRACTENTURE_OWNER_USERNAME:-owner}"
+    EXPLICIT_JWT_SECRET="${PRACTENTURE_JWT_SECRET:-}"
+    EXPLICIT_PROF_PASSWORD="${PRACTENTURE_PROFESSOR_PASSWORD:-}"
+    EXPLICIT_OWNER_PASSWORD="${PRACTENTURE_OWNER_PASSWORD:-}"
+    EXPLICIT_OWNER_USERNAME="${PRACTENTURE_OWNER_USERNAME:-}"
+    JWT_SECRET="$EXPLICIT_JWT_SECRET"
+    PROF_PASSWORD="$EXPLICIT_PROF_PASSWORD"
+    OWNER_PASS="$EXPLICIT_OWNER_PASSWORD"
+    OWNER_USERNAME="${EXPLICIT_OWNER_USERNAME:-owner}"
+    OWNER_USER="$OWNER_USERNAME"
     # Capture explicit release-time values before sourcing the preserved .env,
     # whose older deployments may contain blank email settings.
     EMAIL_PROVIDER="${PRACTENTURE_EMAIL_PROVIDER:-}"
@@ -225,13 +242,21 @@ cmd_deploy() {
     if [ -f "$SCRIPT_DIR/.env" ]; then
         # Source existing env (ignore errors)
         set -a; . "$SCRIPT_DIR/.env" 2>/dev/null || true; set +a
-        JWT_SECRET="${PRACTENTURE_JWT_SECRET:-}"
-        PROF_PASSWORD="${PRACTENTURE_PROFESSOR_PASSWORD:-}"
-        OWNER_USER="${PRACTENTURE_OWNER_USERNAME:-owner}"
-        OWNER_PASS="${PRACTENTURE_OWNER_PASSWORD:-}"
+        JWT_SECRET="${EXPLICIT_JWT_SECRET:-${PRACTENTURE_JWT_SECRET:-}}"
+        PROF_PASSWORD="${EXPLICIT_PROF_PASSWORD:-${PRACTENTURE_PROFESSOR_PASSWORD:-}}"
+        OWNER_USER="${EXPLICIT_OWNER_USERNAME:-${PRACTENTURE_OWNER_USERNAME:-owner}}"
+        OWNER_PASS="${EXPLICIT_OWNER_PASSWORD:-${PRACTENTURE_OWNER_PASSWORD:-}}"
         EMAIL_PROVIDER="${EMAIL_PROVIDER:-${PRACTENTURE_EMAIL_PROVIDER:-}}"
         SES_REGION="${SES_REGION:-${PRACTENTURE_SES_REGION:-us-east-1}}"
         SES_SENDER="${SES_SENDER:-${PRACTENTURE_SES_SENDER:-}}"
+    fi
+
+    # Never rotate authentication state merely because a deployment host is
+    # missing its untracked environment file. Bootstrap generation is reserved
+    # for an explicitly acknowledged first deployment.
+    if { [ -z "${JWT_SECRET:-}" ] || [ -z "${OWNER_PASS:-}" ] || [ -z "${PROF_PASSWORD:-}" ]; } \
+        && [ "${PRACTENTURE_ALLOW_BOOTSTRAP_SECRETS:-0}" != "1" ]; then
+        error "Deployment credentials are incomplete. Supply the ignored .env or explicit environment values; set PRACTENTURE_ALLOW_BOOTSTRAP_SECRETS=1 only for first provisioning."
     fi
 
     if [ -z "${JWT_SECRET:-}" ]; then
@@ -254,6 +279,19 @@ cmd_deploy() {
     else
         ok "Reusing existing owner password (stable)"
     fi
+
+    # Reject recognizable example/test credentials without ever printing them.
+    if [ "${#JWT_SECRET}" -lt 32 ] || [ "${#OWNER_PASS}" -lt 16 ] || [ "${#PROF_PASSWORD}" -lt 16 ]; then
+        error "Deployment credentials do not meet minimum length requirements."
+    fi
+    for credential in "$JWT_SECRET" "$OWNER_PASS" "$PROF_PASSWORD"; do
+        normalized=$(printf '%s' "$credential" | tr '[:upper:]' '[:lower:]')
+        case "$normalized" in
+            *test*|*example*|*change-me*|*changeme*|*practenture2026*|*ci-only*)
+                error "Deployment credentials contain a forbidden test/example marker."
+                ;;
+        esac
+    done
 
     PRACTENTURE_JWT_SECRET="$JWT_SECRET" \
     PRACTENTURE_OWNER_USERNAME="$OWNER_USER" \
@@ -298,7 +336,9 @@ PY
     info "Building immutable release artifact..."
     RELEASE_DIR=$(mktemp -d)
     python3 "$SCRIPT_DIR/scripts/build_release_artifact.py" \
-        --root "$SCRIPT_DIR" --output "$RELEASE_DIR/practenture-release.tar.gz"
+        --root "$SCRIPT_DIR" \
+        --source-revision "$SOURCE_REVISION" \
+        --output "$RELEASE_DIR/practenture-release.tar.gz"
     RELEASE_SHA=$(awk '{print $1}' "$RELEASE_DIR/practenture-release.tar.gz.sha256")
 
     info "Uploading verified release artifact..."
@@ -316,9 +356,12 @@ RELEASE_PATH="\$HOME/practenture-releases/$RELEASE_SHA"
 test ! -e "\$RELEASE_PATH"
 mkdir "\$RELEASE_PATH"
 tar -xzf practenture-release.tar.gz -C "\$RELEASE_PATH"
+MANIFEST_SOURCE_REVISION=\$(python3 -c "import json; print(json.load(open('RELEASE-MANIFEST.json', encoding='utf-8'))['sourceRevision'])" < "\$RELEASE_PATH/RELEASE-MANIFEST.json")
+test "\$MANIFEST_SOURCE_REVISION" = "$SOURCE_REVISION"
+printf '%s\n' "\$MANIFEST_SOURCE_REVISION" > "\$RELEASE_PATH/.source-revision"
 install -m 600 .env "\$RELEASE_PATH/.env"
 readlink "\$HOME/practenture-current" > previous-release 2>/dev/null || true
-ln -sfn "\$RELEASE_PATH" "\$HOME/practenture-current"
+printf '%s\n' "\$RELEASE_PATH" > candidate-release
 REMOTE_STAGE
     rm -rf "$RELEASE_DIR"
 
@@ -327,18 +370,28 @@ REMOTE_STAGE
     # Create a transactionally consistent SQLite backup and retain the current image.
     # Backups live outside the rsync --delete target and are preserved across deployments.
     info "Creating pre-deploy database backup and rollback image..."
-    ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP <<'REMOTE_DEPLOY'
+    REMOTE_DEPLOY_FAILED=0
+    if ! ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP <<'REMOTE_DEPLOY'
 set -euo pipefail
-cd ~/practenture-current
+CANDIDATE_RELEASE=$(cat "$HOME/practenture-artifacts/candidate-release")
+PREVIOUS_RELEASE=$(cat "$HOME/practenture-artifacts/previous-release" 2>/dev/null || true)
+cd "$CANDIDATE_RELEASE"
 # Resolve the immutable release symlink before asking BuildKit for a context.
 # Reusing the logical symlink path can make Docker read the previous target.
 cd "$(pwd -P)"
 DEPLOY_ID=$(date -u +%Y%m%dT%H%M%SZ)
+SOURCE_REVISION=$(cat .source-revision)
+case "$SOURCE_REVISION" in
+    *[!0-9a-f]*|???????????????????????????????????????|?????????????????????????????????????????)
+        echo "Invalid source revision in release manifest" >&2; exit 1 ;;
+esac
+printf '%s\n' "$DEPLOY_ID" > .deploy-id
 mkdir -p ~/practenture-backups
+PREVIOUS_IMAGE=""
 if docker inspect practenture-backend >/dev/null 2>&1; then
     PREVIOUS_IMAGE=$(docker inspect practenture-backend --format '{{.Image}}')
-    printf '%s\n' "$PREVIOUS_IMAGE" > .rollback-image
     docker tag "$PREVIOUS_IMAGE" "practenture-backend:rollback-$DEPLOY_ID"
+    printf '%s\n' "practenture-backend:rollback-$DEPLOY_ID" > .rollback-image
     docker exec practenture-backend python -c "import os,sqlite3; src=os.environ.get('PRACTENTURE_DB_PATH','/data/practenture.db'); a=sqlite3.connect(src); b=sqlite3.connect('/data/predeploy-$DEPLOY_ID.db'); a.backup(b); b.close(); a.close()"
     docker cp "practenture-backend:/data/predeploy-$DEPLOY_ID.db" "$HOME/practenture-backups/predeploy-$DEPLOY_ID.db"
     python3 -c "import sqlite3; c=sqlite3.connect('$HOME/practenture-backups/predeploy-$DEPLOY_ID.db'); assert c.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'; print('BACKUP_OK')"
@@ -356,12 +409,13 @@ cp -a backend/. "$BUILD_CONTEXT/"
 cp Dockerfile "$BUILD_CONTEXT/Dockerfile"
 docker build \
     --no-cache-filter production \
-    --build-arg "PRACTENTURE_RELEASE_SHA=$(basename "$(pwd -P)")" \
+    --build-arg "PRACTENTURE_RELEASE_SHA=$SOURCE_REVISION" \
     --file "$BUILD_CONTEXT/Dockerfile" \
     --tag practenture-backend:stable \
     "$BUILD_CONTEXT"
 rm -rf "$BUILD_CONTEXT"
 trap - EXIT
+touch .activation-started
 docker-compose -p practenture stop practenture-backend
 if ! docker-compose -p practenture run --rm --no-deps \
     -e DATABASE_URL=sqlite:////data/practenture.db \
@@ -369,7 +423,10 @@ if ! docker-compose -p practenture run --rm --no-deps \
     echo "MIGRATION_FAILED_RESTORING_BACKUP"
     docker-compose -p practenture run --rm --no-deps practenture-backend \
         python -c "import sqlite3; a=sqlite3.connect('/data/predeploy-$DEPLOY_ID.db'); b=sqlite3.connect('/data/practenture.db'); a.backup(b); b.close(); a.close()" </dev/null
-    docker start practenture-backend
+    if [ -n "$PREVIOUS_IMAGE" ]; then
+        docker tag "$PREVIOUS_IMAGE" practenture-backend:stable
+        docker start practenture-backend
+    fi
     exit 1
 fi
 # Compose does not always recreate a stopped service when a mutable image tag
@@ -377,40 +434,71 @@ fi
 # image is actually activated, then reconcile the proxy separately.
 docker-compose -p practenture up -d --no-build --force-recreate practenture-backend
 docker-compose -p practenture up -d --no-build nginx
-docker exec practenture-backend rm -f "/data/predeploy-$DEPLOY_ID.db"
 echo "DEPLOY_DONE"
 REMOTE_DEPLOY
+    then
+        REMOTE_DEPLOY_FAILED=1
+        warn "Candidate preparation or activation failed; rolling back."
+    fi
 
-    # Wait for health check
-    info "Waiting for service to be healthy..."
-    for i in $(seq 1 30); do
-        if ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP \
-            "curl -sf http://127.0.0.1:8000/api/health" &>/dev/null; then
-            ok "=== Deployment Complete ==="
-            echo ""
-            echo -e "\033[1;32mPractenture is LIVE at: http://$PUBLIC_IP\033[0m"
-            info "Credentials are preserved and are not printed. HTTPS remains the public entry point."
-            return 0
-        fi
-        sleep 3
-    done
+    if [ "$REMOTE_DEPLOY_FAILED" -eq 0 ]; then
+        # Wait for health check
+        info "Waiting for service to be healthy..."
+        for i in $(seq 1 30); do
+            if ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP \
+                "curl --fail --silent --show-error --resolve practenture.com:443:127.0.0.1 https://practenture.com/api/health" &>/dev/null; then
+                if ! ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP <<'REMOTE_PROMOTE'
+set -euo pipefail
+CANDIDATE_RELEASE=$(cat "$HOME/practenture-artifacts/candidate-release")
+DEPLOY_ID=$(cat "$CANDIDATE_RELEASE/.deploy-id")
+LINK_TMP="$HOME/.practenture-current.$DEPLOY_ID.$$"
+ln -s "$CANDIDATE_RELEASE" "$LINK_TMP"
+mv -Tf "$LINK_TMP" "$HOME/practenture-current"
+docker exec practenture-backend rm -f "/data/predeploy-$DEPLOY_ID.db"
+REMOTE_PROMOTE
+                then
+                    warn "Candidate was healthy but release promotion failed; rolling back."
+                    break
+                fi
+                ok "=== Deployment Complete ==="
+                echo ""
+                echo -e "\033[1;32mPractenture is LIVE at: http://$PUBLIC_IP\033[0m"
+                info "Credentials are preserved and are not printed. HTTPS remains the public entry point."
+                return 0
+            fi
+            sleep 3
+        done
+    fi
 
-    warn "Health check timed out; rolling back to the retained application image..."
+    warn "Candidate failed a deployment gate; restoring retained application and database state..."
     ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP <<'REMOTE_ROLLBACK'
 set -euo pipefail
-cd ~/practenture-current
-PREVIOUS_IMAGE=$(cat .rollback-image)
-docker-compose -p practenture stop practenture-backend
-docker rm -f practenture-backend 2>/dev/null || true
-docker tag "$PREVIOUS_IMAGE" practenture-backend:stable
-docker-compose -p practenture up -d --no-build practenture-backend nginx
+CANDIDATE_RELEASE=$(cat "$HOME/practenture-artifacts/candidate-release")
 PREVIOUS_RELEASE=$(cat "$HOME/practenture-artifacts/previous-release" 2>/dev/null || true)
-if [ -n "$PREVIOUS_RELEASE" ]; then
-    ln -sfn "$PREVIOUS_RELEASE" "$HOME/practenture-current"
+cd "$CANDIDATE_RELEASE"
+DEPLOY_ID=$(cat .deploy-id 2>/dev/null || true)
+PREVIOUS_IMAGE=$(cat .rollback-image 2>/dev/null || true)
+if [ -n "$PREVIOUS_IMAGE" ] && [ -f .activation-started ]; then
+    docker-compose -p practenture stop nginx practenture-backend 2>/dev/null || true
+    docker rm -f practenture-backend 2>/dev/null || true
+    docker tag "$PREVIOUS_IMAGE" practenture-backend:stable
+    if [ -n "$DEPLOY_ID" ]; then
+        docker-compose -p practenture run --rm --no-deps practenture-backend \
+            python -c "import os,sqlite3; p='/data/predeploy-$DEPLOY_ID.db'; assert os.path.isfile(p); a=sqlite3.connect(p); b=sqlite3.connect('/data/practenture.db'); a.backup(b); b.close(); a.close()" </dev/null
+    fi
+fi
+if [ -n "$PREVIOUS_RELEASE" ] && [ -d "$PREVIOUS_RELEASE" ]; then
+    cd "$PREVIOUS_RELEASE"
+    LINK_TMP="$HOME/.practenture-current.rollback.$DEPLOY_ID.$$"
+    ln -s "$PREVIOUS_RELEASE" "$LINK_TMP"
+    mv -Tf "$LINK_TMP" "$HOME/practenture-current"
+fi
+if [ -n "$PREVIOUS_IMAGE" ] && [ -f "$CANDIDATE_RELEASE/.activation-started" ]; then
+    docker-compose -p practenture up -d --no-build --force-recreate practenture-backend nginx
 fi
 REMOTE_ROLLBACK
     if ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP \
-        "curl -sf http://127.0.0.1:8000/api/health" >/dev/null; then
+        "curl --fail --silent --show-error --resolve practenture.com:443:127.0.0.1 https://practenture.com/api/health" >/dev/null; then
         warn "Previous application image restored. Database backup retained in ~/practenture-backups."
     else
         error "Deployment and automatic application rollback both failed. Inspect remote Docker logs immediately."

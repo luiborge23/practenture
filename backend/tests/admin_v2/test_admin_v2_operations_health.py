@@ -41,7 +41,7 @@ def health_database(tmp_path: Path) -> TemporaryDatabase:
     conn.executescript(
         """
         CREATE TABLE alembic_version (version_num TEXT PRIMARY KEY);
-        INSERT INTO alembic_version VALUES ('003');
+        INSERT INTO alembic_version VALUES ('006');
         CREATE TABLE users (
             username TEXT PRIMARY KEY,
             role TEXT NOT NULL,
@@ -143,7 +143,7 @@ def test_healthy_report_covers_every_required_layer_and_is_read_only(
     assert report.status == "healthy"
     assert report.request_id == "req-health"
     assert report.engine.name == "sqlite"
-    assert report.engine.migration_version == "003"
+    assert report.engine.migration_version == "006"
     assert report.summary.failed == 0
     assert report.summary.warnings == 0
     assert {check.code for check in report.checks} == {

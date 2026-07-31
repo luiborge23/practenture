@@ -42,13 +42,27 @@ class BackupService:
     def _now_iso() -> str:
         return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
-    def list_backups(self, limit: int) -> dict[str, Any]:
-        items, total = self.repository.list_backups(limit)
-        return {"items": items, "totalCount": total}
+    def list_backups(self, limit: int, cursor: str | None) -> dict[str, Any]:
+        items, total, next_cursor = self.repository.list_backups(limit, cursor)
+        return {
+            "items": items,
+            "totalCount": total,
+            "pageInfo": {
+                "nextCursor": next_cursor,
+                "hasNextPage": next_cursor is not None,
+            },
+        }
 
-    def list_restore_drills(self, limit: int) -> dict[str, Any]:
-        items, total = self.repository.list_restore_drills(limit)
-        return {"items": items, "totalCount": total}
+    def list_restore_drills(self, limit: int, cursor: str | None) -> dict[str, Any]:
+        items, total, next_cursor = self.repository.list_restore_drills(limit, cursor)
+        return {
+            "items": items,
+            "totalCount": total,
+            "pageInfo": {
+                "nextCursor": next_cursor,
+                "hasNextPage": next_cursor is not None,
+            },
+        }
 
     def _configured_root(self) -> Path:
         if self._backup_root is None:

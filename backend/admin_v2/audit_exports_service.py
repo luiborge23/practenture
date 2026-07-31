@@ -9,6 +9,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import sqlite3
 from typing import Any
 from uuid import uuid4
@@ -321,6 +322,39 @@ class AdminAuditExportService:
                 except OSError:
                     pass
             raise
+
+    def resolve_download(self, artifact_id: str) -> tuple[Path, str]:
+        """Resolve a live export without allowing traversal or stale downloads."""
+        if re.fullmatch(r"aexp_[0-9a-f]{32}", artifact_id) is None:
+            raise AdminError(404, "ADMIN_AUDIT_EXPORT_NOT_FOUND", "Audit export not found")
+        root = self._root()
+        now = datetime.now(timezone.utc)
+        self._cleanup_expired(root, now - EXPORT_TTL)
+        for extension, media_type in (
+            ("json", "application/json"),
+            ("csv", "text/csv; charset=utf-8"),
+        ):
+            candidate = root / f"{artifact_id}.{extension}"
+            try:
+                resolved = candidate.resolve(strict=True)
+                stat_result = resolved.stat()
+            except OSError:
+                continue
+            if (
+                candidate.is_symlink()
+                or resolved.parent != root
+                or not resolved.is_file()
+            ):
+                continue
+            modified = datetime.fromtimestamp(stat_result.st_mtime, timezone.utc)
+            if modified <= now - EXPORT_TTL:
+                try:
+                    resolved.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                break
+            return resolved, media_type
+        raise AdminError(404, "ADMIN_AUDIT_EXPORT_NOT_FOUND", "Audit export not found")
 
 
 audit_export_service = AdminAuditExportService()

@@ -96,6 +96,58 @@ def test_mfa_enabled_password_only_requires_mfa_without_creating_session(
     assert backup_codes(owner) == [mfa.hash_backup_code(BACKUP_CODE)]
 
 
+def test_mfa_challenge_rejects_unbounded_code_guesses(
+    client: TestClient, owner: str,
+) -> None:
+    enable_mfa(owner)
+    challenge_response = login(client, owner)
+    assert_error(challenge_response, "ADMIN_MFA_REQUIRED")
+    challenge = challenge_response.headers["X-Admin-MFA-Challenge"]
+
+    for _ in range(auth_service.mfa_challenge_threshold):
+        rejected = client.post(
+            "/api/admin/v2/auth/mfa/verify",
+            json={"challengeToken": challenge, "mfaCode": "000000"},
+        )
+        assert_error(rejected, "ADMIN_INVALID_MFA")
+
+    invalidated = client.post(
+        "/api/admin/v2/auth/mfa/verify",
+        json={"challengeToken": challenge, "mfaCode": "000000"},
+    )
+    assert invalidated.status_code == 401
+    assert invalidated.json()["error"]["code"] == "ADMIN_MFA_CHALLENGE_INVALID"
+    assert session_rows(owner) == []
+
+
+def test_mfa_owner_budget_survives_fresh_challenges_and_client_rotation(
+    client: TestClient, owner: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_mfa(owner)
+    monkeypatch.setattr(auth_service, "mfa_owner_threshold", 2)
+
+    for client_ip in ("198.51.100.10", "198.51.100.11"):
+        challenge_response = login(client, owner)
+        challenge = challenge_response.headers["X-Admin-MFA-Challenge"]
+        rejected = client.post(
+            "/api/admin/v2/auth/mfa/verify",
+            json={"challengeToken": challenge, "mfaCode": "000000"},
+            headers={"X-Forwarded-For": client_ip},
+        )
+        assert_error(rejected, "ADMIN_INVALID_MFA")
+
+    final_challenge = login(client, owner).headers["X-Admin-MFA-Challenge"]
+    throttled = client.post(
+        "/api/admin/v2/auth/mfa/verify",
+        json={"challengeToken": final_challenge, "mfaCode": current_totp()},
+        headers={"X-Forwarded-For": "198.51.100.12"},
+    )
+    assert throttled.status_code == 429
+    assert throttled.json()["error"]["code"] == "ADMIN_MFA_CHALLENGE_THROTTLED"
+    assert int(throttled.headers["Retry-After"]) > 0
+    assert session_rows(owner) == []
+
+
 def test_invalid_totp_is_rejected_without_creating_session(
     client: TestClient, owner: str,
 ) -> None:

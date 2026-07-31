@@ -18,7 +18,7 @@ from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 from admin_v2.audit_exports_routes import router
-from admin_v2.dependencies import require_recent_auth_session
+from admin_v2.dependencies import require_admin_session, require_recent_auth_session
 from admin_v2.errors import AdminError, error_envelope
 from database import db
 
@@ -66,6 +66,7 @@ def owner_client(export_app: FastAPI):
         record=SimpleNamespace(owner_user_id="owner-export", role="owner")
     )
     export_app.dependency_overrides[require_recent_auth_session] = lambda: session
+    export_app.dependency_overrides[require_admin_session] = lambda: session
     with TestClient(export_app) as client:
         yield client
 
@@ -119,11 +120,13 @@ def _assert_error(response, status: int, code: str) -> None:
 
 def test_route_is_standalone_owner_recent_auth_mutation() -> None:
     routes = [route for route in router.routes if isinstance(route, APIRoute)]
-    assert len(routes) == 1
-    route = routes[0]
-    assert route.path == "/audit-events/exports"
-    assert route.methods == {"POST"}
-    assert require_recent_auth_session in [d.call for d in route.dependant.dependencies]
+    assert len(routes) == 2
+    create = next(route for route in routes if route.methods == {"POST"})
+    download = next(route for route in routes if route.methods == {"GET"})
+    assert create.path == "/audit-events/exports"
+    assert require_recent_auth_session in [d.call for d in create.dependant.dependencies]
+    assert download.path == "/audit-events/exports/{artifact_id}"
+    assert require_admin_session in [d.call for d in download.dependant.dependencies]
 
 
 def test_anonymous_request_is_denied_before_export(export_app: FastAPI, export_root: Path) -> None:
@@ -208,6 +211,34 @@ def test_json_export_is_filtered_bounded_redacted_and_audited(
     assert "raw-password" not in persisted
     assert "hidden-token" not in persisted
     assert str(export_root) not in persisted
+
+    download = owner_client.get(
+        f"/api/admin/v2/audit-events/exports/{body['artifactId']}"
+    )
+    assert download.status_code == 200
+    assert download.content == raw
+    assert download.headers["cache-control"].startswith("no-store")
+    assert download.headers["x-content-type-options"] == "nosniff"
+    assert body["fileName"] in download.headers["content-disposition"]
+
+
+def test_download_rejects_unknown_traversal_and_anonymous_artifacts(
+    export_app: FastAPI, owner_client: TestClient, export_root: Path
+) -> None:
+    traversal = owner_client.get(
+        "/api/admin/v2/audit-events/exports/..%2Fdatabase"
+    )
+    assert traversal.status_code in {404, 422}
+    unknown = owner_client.get(
+        "/api/admin/v2/audit-events/exports/ae_00000000000000000000000000000000"
+    )
+    _assert_error(unknown, 404, "ADMIN_AUDIT_EXPORT_NOT_FOUND")
+    export_app.dependency_overrides.pop(require_admin_session, None)
+    with TestClient(export_app) as anonymous:
+        denied = anonymous.get(
+            "/api/admin/v2/audit-events/exports/ae_00000000000000000000000000000000"
+        )
+    _assert_error(denied, 401, "ADMIN_AUTH_REQUIRED")
 
 
 def test_csv_export_neutralizes_formula_cells(

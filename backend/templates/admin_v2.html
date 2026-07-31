@@ -5,8 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>Practenture Admin Console V2</title>
-  <link rel="stylesheet" href="/static/admin_v2/admin-v2.css?v=2">
-  <script src="/static/admin_v2/admin-v2.js?v=7" defer></script>
+  <link rel="stylesheet" href="/static/admin_v2/admin-v2.css?v=3">
+  <link rel="stylesheet" href="/static/admin_v2/admin-workspaces.css?v=2">
+  <script src="/static/admin_v2/admin-workspaces.js?v=4" defer></script>
+  <script src="/static/admin_v2/admin-v2.js?v=13" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -36,6 +38,17 @@
           <button class="button button-secondary" type="submit">Request recovery</button>
         </form>
       </details>
+      <form id="recovery-complete-form" class="stack" hidden>
+        <p class="eyebrow">Account recovery</p>
+        <h2>Set a new Administrator password</h2>
+        <p class="muted">This one-time link expires after 30 minutes. Finishing recovery signs out every existing Administrator session.</p>
+        <input id="recovery-token" type="hidden">
+        <label for="recovery-new-password">New password</label>
+        <input id="recovery-new-password" type="password" autocomplete="new-password" required minlength="12" maxlength="1024">
+        <label for="recovery-confirm-password">Confirm new password</label>
+        <input id="recovery-confirm-password" type="password" autocomplete="new-password" required minlength="12" maxlength="1024">
+        <div class="button-row"><button id="recovery-back" class="button button-secondary" type="button">Back to sign in</button><button class="button button-primary" type="submit">Reset password</button></div>
+      </form>
     </section>
   </main>
 
@@ -54,6 +67,7 @@
         <a href="#organizations" data-view="organizations">Organizations</a>
         <a href="#users" data-view="users">Users</a>
         <a href="#invitations" data-view="invitations">Professor access</a>
+        <a href="#account" data-view="account">Account security</a>
         <p class="nav-label">Operations</p>
         <a href="#sessions" data-view="sessions">Live sessions</a>
         <a href="#audit" data-view="audit">Audit trail</a>

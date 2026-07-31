@@ -35,11 +35,12 @@ def _request_id(request: Request) -> str:
 def list_backups(
     response: Response,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    cursor: Annotated[str | None, Query(min_length=1, max_length=1000)] = None,
     _session: AuthenticatedSession = Depends(require_admin_session),
     service: BackupService = Depends(get_backup_service),
 ) -> dict:
     response.headers["Cache-Control"] = "no-store"
-    return service.list_backups(limit)
+    return service.list_backups(limit, cursor)
 
 
 @router.post(
@@ -73,8 +74,9 @@ def create_backup(
 def list_restore_drills(
     response: Response,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    cursor: Annotated[str | None, Query(min_length=1, max_length=1000)] = None,
     _session: AuthenticatedSession = Depends(require_admin_session),
     service: BackupService = Depends(get_backup_service),
 ) -> dict:
     response.headers["Cache-Control"] = "no-store"
-    return service.list_restore_drills(limit)
+    return service.list_restore_drills(limit, cursor)

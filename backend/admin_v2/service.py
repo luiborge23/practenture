@@ -56,6 +56,32 @@ class AdminAuthService:
             1,
             int(os.environ.get("PRACTENTURE_ADMIN_LOGIN_CLIENT_THRESHOLD", "50")),
         )
+        self.mfa_challenge_threshold = max(
+            2,
+            int(os.environ.get("PRACTENTURE_ADMIN_MFA_CHALLENGE_THRESHOLD", "5")),
+        )
+        self.mfa_challenge_window_seconds = max(
+            60,
+            int(
+                os.environ.get(
+                    "PRACTENTURE_ADMIN_MFA_CHALLENGE_WINDOW_SECONDS", "300"
+                )
+            ),
+        )
+        # Password-known attackers can obtain replacement challenges, so
+        # verification failures need an account-wide budget independent from
+        # password-login throttling.
+        self.mfa_owner_threshold = max(
+            2,
+            int(os.environ.get("PRACTENTURE_ADMIN_MFA_OWNER_THRESHOLD", "20")),
+        )
+        self.recovery_threshold = max(
+            2, int(os.environ.get("PRACTENTURE_ADMIN_RECOVERY_THRESHOLD", "3"))
+        )
+        self.recovery_window_seconds = max(
+            60,
+            int(os.environ.get("PRACTENTURE_ADMIN_RECOVERY_WINDOW_SECONDS", "3600")),
+        )
 
     @staticmethod
     def _now() -> datetime:
@@ -187,15 +213,64 @@ class AdminAuthService:
         return AuthenticatedSession(record=record, user=user), token, csrf_token
 
     def verify_mfa_challenge(
-        self, challenge_token: str, mfa_code: str
+        self, challenge_token: str, mfa_code: str, client_signal: str | None
     ) -> tuple[AuthenticatedSession, str, str]:
         now = self._now()
+        challenge_hash = self._hash_secret(challenge_token)
+        owner_user_id = self.repository.active_mfa_challenge_owner(
+            challenge_hash, now.isoformat()
+        )
+        if owner_user_id is None:
+            raise AdminError(
+                401,
+                "ADMIN_MFA_CHALLENGE_INVALID",
+                "MFA challenge is invalid or expired",
+            )
+
+        challenge_decision = self.repository.reserve_login_attempt(
+            f"mfa-challenge:{challenge_hash}",
+            None,
+            now=now.timestamp(),
+            threshold=self.mfa_challenge_threshold,
+            window_seconds=self.mfa_challenge_window_seconds,
+            identity_threshold=self.mfa_challenge_threshold,
+            identity_window_seconds=self.mfa_challenge_window_seconds,
+            include_client_scopes=False,
+        )
+        if not challenge_decision.allowed:
+            self.repository.invalidate_mfa_challenge(challenge_hash)
+            raise AdminError(
+                429,
+                "ADMIN_MFA_CHALLENGE_THROTTLED",
+                "Too many MFA verification attempts",
+                headers={"Retry-After": str(challenge_decision.retry_after)},
+            )
+
+        owner_decision = self.repository.reserve_login_attempt(
+            f"mfa-owner:{owner_user_id.casefold()}",
+            client_signal,
+            now=now.timestamp(),
+            threshold=self.mfa_owner_threshold,
+            window_seconds=self.mfa_challenge_window_seconds,
+            identity_threshold=self.mfa_owner_threshold,
+            client_threshold=self.login_client_threshold,
+            identity_window_seconds=self.mfa_challenge_window_seconds,
+            client_window_seconds=self.login_window_seconds,
+        )
+        if not owner_decision.allowed:
+            self.repository.invalidate_mfa_challenge(challenge_hash)
+            raise AdminError(
+                429,
+                "ADMIN_MFA_CHALLENGE_THROTTLED",
+                "Too many MFA verification attempts",
+                headers={"Retry-After": str(owner_decision.retry_after)},
+            )
         token = secrets.token_urlsafe(48)
         csrf_token = self._csrf_for_session_token(token)
         token_hash = self._hash_secret(token)
         idle_expires = now + IDLE_TIMEOUT
         status, user_id = self.repository.create_from_mfa_challenge(
-            challenge_token_hash=self._hash_secret(challenge_token),
+            challenge_token_hash=challenge_hash,
             mfa_code=mfa_code,
             session_id=f"adm_{secrets.token_urlsafe(18)}",
             token_hash=token_hash,
@@ -211,6 +286,8 @@ class AdminAuthService:
             "mfa_required": (401, "ADMIN_MFA_REQUIRED", "MFA verification required"),
         }
         if status != "created" or user_id is None:
+            if challenge_decision.lock_created:
+                self.repository.invalidate_mfa_challenge(challenge_hash)
             args = error_map.get(status, error_map["invalid_challenge"])
             raise AdminError(*args)
         record, state = self.repository.touch_active(
@@ -370,29 +447,71 @@ class AdminAuthService:
             raise RuntimeError("replacement admin session was not created")
         return AuthenticatedSession(record, user), token, csrf
 
-    def start_recovery(self, identifier: str, request_id: str) -> str | None:
+    def start_recovery(
+        self,
+        identifier: str,
+        request_id: str,
+        client_signal: str | None = None,
+        delivery_scheduler: Callable[..., None] | None = None,
+    ) -> str | None:
+        """Create and deliver an opaque one-time Administrator recovery token.
+
+        The public response remains enumeration-safe. Outside the isolated test
+        harness, a token is usable only when SES accepts delivery to the active
+        Administrator email; failed delivery immediately invalidates it.
+        """
         now = self._now()
+        normalized = identifier.strip().casefold()
+        recovery_decision = self.repository.reserve_login_attempt(
+            f"recovery:{normalized}",
+            f"recovery:{client_signal or 'unknown'}",
+            now=now.timestamp(),
+            threshold=self.recovery_threshold,
+            window_seconds=self.recovery_window_seconds,
+            identity_threshold=self.recovery_threshold,
+            client_threshold=max(self.recovery_threshold * 4, 12),
+        )
+        if not recovery_decision.allowed:
+            raise AdminError(
+                429,
+                "ADMIN_RECOVERY_THROTTLED",
+                "Too many recovery requests",
+                headers={"Retry-After": str(recovery_decision.retry_after)},
+            )
         token = secrets.token_urlsafe(48)
         token_hash = self._hash_secret(token)
-        normalized = identifier.strip().casefold()
+        delivery: dict[str, str] = {}
 
         def mutation(conn: sqlite3.Connection) -> StoredResponse:
             user = conn.execute(
-                """SELECT username FROM users
+                """SELECT username, email FROM users
                    WHERE role='owner' AND status='active'
                      AND (lower(username)=? OR lower(email)=?) LIMIT 1""",
                 (normalized, normalized),
             ).fetchone()
             if user is not None:
-                conn.execute("DELETE FROM password_reset_tokens WHERE user_id=?", (user[0],))
+                user_id = str(user[0])
+                recipient = str(user[1] or "").strip().casefold()
+                # Never revoke a previously issued recovery credential merely
+                # because a later asynchronous delivery was requested.  If the
+                # later provider call fails, the earlier accepted email must
+                # remain usable.  Each token is short-lived, one-time, and all
+                # outstanding tokens are revoked after any successful reset.
+                conn.execute(
+                    "DELETE FROM password_reset_tokens WHERE user_id=? AND (used=1 OR expires_at<=?)",
+                    (user_id, now.timestamp()),
+                )
                 conn.execute(
                     """INSERT INTO password_reset_tokens
                        (token_hash, user_id, expires_at, used) VALUES (?, ?, ?, 0)""",
-                    (token_hash, user[0], (now + timedelta(minutes=30)).timestamp()),
+                    (token_hash, user_id, (now + timedelta(minutes=30)).timestamp()),
                 )
+                delivery.update(user_id=user_id, matched="true")
+                if recipient:
+                    delivery["recipient"] = recipient
             return StoredResponse(202, {"status": "accepted"}, {})
 
-        execution = self.mutations.execute(
+        self.mutations.execute(
             request_id=request_id,
             actor={"type": "anonymous"},
             target={"type": "owner_recovery"},
@@ -402,16 +521,46 @@ class AdminAuthService:
             mutation=mutation,
             now=now,
         )
-        # A production mail adapter can consume this value; routes expose it only
-        # in the explicit isolated test harness.
-        conn = db.connect()
-        try:
-            created = conn.execute(
-                "SELECT 1 FROM password_reset_tokens WHERE token_hash=?", (token_hash,)
-            ).fetchone() is not None
-        finally:
-            conn.close()
-        return token if created else None
+        if os.environ.get("PRACTENTURE_TESTING") == "1":
+            return token if delivery.get("matched") else None
+        if delivery_scheduler is None:
+            raise RuntimeError("production recovery delivery requires a background scheduler")
+
+        # Schedule the same callable for matches and misses so the public 202 is
+        # sent before any provider I/O and does not reveal whether SES was used.
+        delivery_scheduler(
+            self._deliver_recovery,
+            delivery.get("recipient"),
+            token if delivery.get("matched") else None,
+            token_hash if delivery.get("matched") else None,
+        )
+        return None
+
+    @staticmethod
+    def _deliver_recovery(
+        recipient: str | None,
+        token: str | None,
+        token_hash: str | None,
+    ) -> None:
+        delivered = False
+        if recipient and token:
+            try:
+                from password_reset_email import send_admin_recovery_link
+
+                send_admin_recovery_link(recipient=recipient, token=token)
+                delivered = True
+            except Exception:
+                delivered = False
+        if token_hash and not delivered:
+            # An undisclosed credential must never survive missing or failed
+            # delivery. The public response has already been sent.
+            with db._lock:
+                conn = db._get_conn()
+                conn.execute(
+                    "UPDATE password_reset_tokens SET used=1 WHERE token_hash=?",
+                    (token_hash,),
+                )
+                conn.commit()
 
     def complete_recovery(
         self, recovery_token: str, new_password: str, request_id: str
@@ -435,10 +584,13 @@ class AdminAuthService:
                 raise AdminError(400, "ADMIN_RECOVERY_TOKEN_INVALID", "Recovery token is invalid or expired")
             user_id = str(reset[0])
             consumed = conn.execute(
-                "UPDATE password_reset_tokens SET used=1 WHERE token_hash=? AND used=0",
-                (token_hash,),
+                "UPDATE password_reset_tokens SET used=1 WHERE user_id=? AND used=0",
+                (user_id,),
             )
-            if consumed.rowcount != 1:
+            # The submitted token was checked in this transaction before all
+            # outstanding credentials were invalidated; a later concurrent
+            # reset cannot make this winner ambiguous.
+            if consumed.rowcount < 1:
                 raise AdminError(400, "ADMIN_RECOVERY_TOKEN_INVALID", "Recovery token is invalid or expired")
             updated = conn.execute(
                 """UPDATE users

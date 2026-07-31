@@ -1,0 +1,34 @@
+# Production backend image context exclusions
+.git
+.env
+.venv
+**/.venv
+__pycache__
+**/__pycache__
+*.py[cod]
+.pytest_cache
+**/.pytest_cache
+.coverage
+coverage.xml
+pytest-*.xml
+
+# Runtime state and generated artifacts
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.log
+admin-backups
+admin-audit-exports
+
+# Test, development, and release-only material
+tests
+test_*.py
+*_test.py
+conftest.py
+live_e2e_*.py
+create_20_students.py
+setup_20_students.py
+docs
+scripts

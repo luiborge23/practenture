@@ -5,11 +5,11 @@ python-multipart==0.0.9
 aiofiles==24.1.0
 gunicorn==22.0.0
 httpx==0.27.0
-PyJWT[crypto]>=2.8.0,<3.0.0  # Cryptographic Apple/Google ID-token verification
-bcrypt>=4.2.0  # Secure password hashing (P0 security fix — replaces SHA-256)
+PyJWT[crypto]==2.13.0  # Cryptographic Apple/Google ID-token verification
+bcrypt==5.0.0  # Secure password hashing (P0 security fix — replaces SHA-256)
 # redis  # Uncomment for production with Redis backend
 # python-jose[cryptography]  # For future JWT authentication
-python-dotenv>=1.0.0  # For environment variable management
-boto3>=1.34.0  # Amazon Bedrock integration for AI services
-alembic
+python-dotenv==1.2.2  # For environment variable management
+boto3==1.42.89  # Amazon Bedrock integration for AI services
+alembic==1.18.5
 qrcode==8.2  # Server-generated SVG QR codes for TOTP enrollment

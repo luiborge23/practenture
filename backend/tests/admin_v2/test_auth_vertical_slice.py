@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -12,6 +13,7 @@ from fastapi.testclient import TestClient
 from database import db
 from main import app
 from security import hash_password
+from admin_v2.service import auth_service
 
 
 @pytest.fixture
@@ -212,6 +214,161 @@ def test_recovery_changes_password_and_revokes_existing_sessions(client: TestCli
     recovered = db.get_user(username)
     assert recovered is not None
     assert recovered["password_changed_at"] is not None
+
+
+def test_recovery_delivers_an_unlogged_fragment_link_in_production(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+):
+    username = "recovery-email-owner"
+    email = "administrator@example.edu"
+    db.create_user(
+        username,
+        hash_password("OriginalDelivery123!"),
+        "owner",
+        "Recovery Email Owner",
+        email=email,
+    )
+    delivered: dict[str, str] = {}
+
+    def capture_delivery(*, recipient: str, token: str) -> str:
+        delivered.update(recipient=recipient, token=token)
+        return "ses-message-id"
+
+    monkeypatch.delenv("PRACTENTURE_TESTING", raising=False)
+    monkeypatch.setattr(
+        "password_reset_email.send_admin_recovery_link", capture_delivery
+    )
+    response = client.post(
+        "/api/admin/v2/auth/recovery/start", json={"identifier": username}
+    )
+    assert response.status_code == 202
+    assert "x-admin-recovery-token" not in response.headers
+    assert delivered["recipient"] == email
+    assert delivered["token"] not in response.text
+    with db._get_conn() as conn:
+        stored = conn.execute(
+            "SELECT token_hash, used FROM password_reset_tokens WHERE user_id=?",
+            (username,),
+        ).fetchone()
+    assert stored is not None
+    assert stored["token_hash"] == hashlib.sha256(delivered["token"].encode()).hexdigest()
+    assert stored["used"] == 0
+
+
+def test_recovery_provider_io_is_deferred_until_after_public_response_work(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    username = "deferred-recovery-owner"
+    email = "deferred@example.edu"
+    db.create_user(
+        username,
+        hash_password("OriginalDeferred123!"),
+        "owner",
+        "Deferred Recovery Owner",
+        email=email,
+    )
+    delivered: list[str] = []
+    scheduled: list[tuple[Callable[..., None], tuple[object, ...]]] = []
+
+    monkeypatch.delenv("PRACTENTURE_TESTING", raising=False)
+    monkeypatch.setattr(
+        "password_reset_email.send_admin_recovery_link",
+        lambda *, recipient, token: delivered.append(recipient),
+    )
+
+    result = auth_service.start_recovery(
+        username,
+        "req-deferred-recovery",
+        "198.51.100.1",
+        lambda function, *args: scheduled.append((function, args)),
+    )
+
+    assert result is None
+    assert delivered == []
+    assert len(scheduled) == 1
+    function, args = scheduled[0]
+    function(*args)
+    assert delivered == [email]
+
+
+def test_failed_later_recovery_delivery_does_not_revoke_an_accepted_link(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    username = "recovery-delivery-race-owner"
+    email = "recovery-race@example.edu"
+    db.create_user(
+        username,
+        hash_password("OriginalRecoveryRace123!"),
+        "owner",
+        "Recovery Delivery Race Owner",
+        email=email,
+    )
+    scheduled: list[tuple[Callable[..., None], tuple[object, ...]]] = []
+    calls = 0
+
+    def scheduler(function: Callable[..., None], *args: object) -> None:
+        scheduled.append((function, args))
+
+    def provider(*, recipient: str, token: str) -> str:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("provider rejected replacement")
+        return "accepted-message-id"
+
+    monkeypatch.delenv("PRACTENTURE_TESTING", raising=False)
+    monkeypatch.setattr("password_reset_email.send_admin_recovery_link", provider)
+    auth_service.start_recovery(username, "recovery-race-1", "198.51.100.20", scheduler)
+    auth_service.start_recovery(username, "recovery-race-2", "198.51.100.21", scheduler)
+    assert len(scheduled) == 2
+
+    first, first_args = scheduled[0]
+    second, second_args = scheduled[1]
+    first(*first_args)
+    second(*second_args)
+    first_hash = str(first_args[2])
+    second_hash = str(second_args[2])
+    with db._get_conn() as conn:
+        first_row = conn.execute(
+            "SELECT used FROM password_reset_tokens WHERE token_hash=?", (first_hash,)
+        ).fetchone()
+        second_row = conn.execute(
+            "SELECT used FROM password_reset_tokens WHERE token_hash=?", (second_hash,)
+        ).fetchone()
+    assert first_row is not None and first_row["used"] == 0
+    assert second_row is not None and second_row["used"] == 1
+
+
+def test_recovery_is_rate_limited_by_identity_and_client(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(auth_service, "recovery_threshold", 2)
+    monkeypatch.setattr(auth_service, "recovery_window_seconds", 3600)
+    payload = {"identifier": "rate-limited-recovery-owner"}
+    assert client.post("/api/admin/v2/auth/recovery/start", json=payload).status_code == 202
+    assert client.post("/api/admin/v2/auth/recovery/start", json=payload).status_code == 202
+    blocked = client.post("/api/admin/v2/auth/recovery/start", json=payload)
+    assert_error(blocked, 429, "ADMIN_RECOVERY_THROTTLED")
+    assert int(blocked.headers["retry-after"]) > 0
+
+
+def test_recovery_rate_limit_normalizes_identifier_before_budgeting(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(auth_service, "recovery_threshold", 1)
+    monkeypatch.setattr(auth_service, "recovery_window_seconds", 3600)
+
+    accepted = client.post(
+        "/api/admin/v2/auth/recovery/start",
+        json={"identifier": "  missing-owner@example.edu"},
+    )
+    blocked = client.post(
+        "/api/admin/v2/auth/recovery/start",
+        json={"identifier": "MISSING-OWNER@example.edu  "},
+    )
+
+    assert accepted.status_code == 202
+    assert_error(blocked, 429, "ADMIN_RECOVERY_THROTTLED")
 
 
 def test_authenticated_password_change_uses_revocation_boundary(client: TestClient):

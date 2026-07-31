@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from admin_v2.cleanup_repository import CleanupRepository
 from admin_v2.cleanup_routes import get_cleanup_service, router
 from admin_v2.cleanup_service import CleanupService
-from admin_v2.dependencies import require_admin_session, require_recent_auth_session
+from admin_v2.dependencies import require_admin_session, require_csrf_session, require_recent_auth_session
 from admin_v2.errors import AdminError, error_envelope
 from admin_v2.repository import AdminMutationRepository
 from admin_v2.service import AdminMutationService
@@ -49,6 +49,7 @@ def app(owner_session, cleanup_service):
     async def validation_error(request: Request, exc: RequestValidationError):
         return JSONResponse(status_code=422, content=error_envelope("ADMIN_VALIDATION_ERROR", "Request validation failed", request.state.request_id))
     app.dependency_overrides[require_admin_session] = lambda: owner_session
+    app.dependency_overrides[require_csrf_session] = lambda: owner_session
     app.dependency_overrides[require_recent_auth_session] = lambda: owner_session
     app.dependency_overrides[get_cleanup_service] = lambda: cleanup_service
     app.include_router(router, prefix="/api/admin/v2")
@@ -66,6 +67,12 @@ def seed():
     try:
         for code, sid in (("A", "sid-a"), ("B", "sid-b")):
             conn.execute("INSERT INTO sessions(code,session_id,config_json,teams_json) VALUES(?,?,?,?)", (code, sid, "{}", "[]"))
+            conn.execute(
+                """INSERT INTO session_create_requests
+                   (professor_user_id,idempotency_key_hash,request_fingerprint,session_code,response_json)
+                   VALUES(?,?,?,?,?)""",
+                (f"prof-{code}", f"key-{code}", f"fingerprint-{code}", code, "{}"),
+            )
             conn.execute("INSERT INTO decisions VALUES(?,?,?,?)", (code, 1, "t1", "{}"))
             conn.execute("INSERT INTO results VALUES(?,?,?,?)", (code, 1, "t1", "{}"))
             conn.execute("INSERT INTO team_states VALUES(?,?,?)", (code, "t1", "{}"))
@@ -91,7 +98,8 @@ def backup(**overrides):
 def test_route_inventory_and_dependencies(app):
     routes=[r for r in app.routes if isinstance(r,APIRoute) and "cleanup-plans" in r.path]
     assert {(next(iter(r.methods)),r.path) for r in routes} == {("POST","/api/admin/v2/operations/cleanup-plans"),("GET","/api/admin/v2/operations/cleanup-plans/{plan_id}"),("POST","/api/admin/v2/operations/cleanup-plans/{plan_id}/execute")}
-    assert require_admin_session in [d.call for d in routes[0].dependant.dependencies]
+    create=next(r for r in routes if r.path.endswith("/cleanup-plans"))
+    assert require_csrf_session in [d.call for d in create.dependant.dependencies]
     execute=next(r for r in routes if r.path.endswith("/execute"))
     assert require_recent_auth_session in [d.call for d in execute.dependant.dependencies]
 
@@ -108,7 +116,7 @@ def test_preview_selected_only_and_canonical_hash(client):
     assert first.status_code == second.status_code == 201
     a,b=first.json()["plan"],second.json()["plan"]
     assert a["selector"] == {"sessionCodes":["A","B"]}
-    assert a["previewCounts"] == {"sessions":2,"decisions":2,"results":2,"teamStates":2,"announcements":2}
+    assert a["previewCounts"] == {"sessions":2,"decisions":2,"results":2,"teamStates":2,"announcements":2,"createRequests":2}
     assert a["planHash"] == b["planHash"] and len(a["planHash"]) == 64
     assert client.get(f"/api/admin/v2/operations/cleanup-plans/{a['id']}").json()["plan"]["planHash"] == a["planHash"]
 
@@ -136,6 +144,7 @@ def test_success_atomic_audited_and_idempotent(client):
     assert conflict.status_code == 409 and conflict.json()["error"]["code"] == "ADMIN_IDEMPOTENCY_CONFLICT"
     conn=db.connect()
     assert conn.execute("SELECT COUNT(*) FROM sessions WHERE code='A'").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM session_create_requests WHERE session_code='A'").fetchone()[0] == 0
     assert conn.execute("SELECT COUNT(*) FROM sessions WHERE code='B'").fetchone()[0] == 1
     assert conn.execute("SELECT status FROM cleanup_plans WHERE id=?",(plan["id"],)).fetchone()[0] == "completed"
     assert conn.execute("SELECT COUNT(*) FROM admin_audit_events WHERE action='cleanup.execute'").fetchone()[0] == 1
@@ -185,10 +194,10 @@ def test_mid_delete_failure_rolls_back_deletes_plan_audit_and_idempotency(client
 
 
 def test_anonymous_plan_read_and_recent_auth_execute_boundaries(app, client):
-    app.dependency_overrides.pop(require_admin_session)
+    app.dependency_overrides.pop(require_csrf_session)
     denied_plan=client.post("/api/admin/v2/operations/cleanup-plans",json={"selector":{"sessionCodes":["A"]}})
     assert denied_plan.status_code == 401 and denied_plan.json()["error"]["code"] == "ADMIN_AUTH_REQUIRED"
-    app.dependency_overrides[require_admin_session] = lambda: SimpleNamespace(record=SimpleNamespace(owner_user_id="owner",role="owner"),user={"username":"owner"})
+    app.dependency_overrides.pop(require_admin_session)
     app.dependency_overrides.pop(require_recent_auth_session)
     denied_execute=client.post("/api/admin/v2/operations/cleanup-plans/unknown/execute",json={"planHash":"a"*64,"confirmation":"x"},headers={"Idempotency-Key":"auth-boundary"})
     assert denied_execute.status_code == 401 and denied_execute.json()["error"]["code"] == "ADMIN_AUTH_REQUIRED"

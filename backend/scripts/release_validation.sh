@@ -5,6 +5,9 @@
 
 set -e
 
+echo "ERROR: This legacy systemd-era validator is retired. Use the GitHub quality gates plus Tests/test_release_contracts.py and the isolated Compose rehearsal documented by the root release tooling." >&2
+exit 64
+
 echo "=== Release Validation ==="
 
 # Configuration

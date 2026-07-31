@@ -70,11 +70,11 @@ backend/
 │   └── backup.js                # Backup and cleanup UI
 └── scripts/
     ├── provision_staging.sh     # Staging environment setup
-    ├── deploy_backup_gated.sh   # Backup-gated deployment
-    └── release_validation.sh    # Pre-deployment validation
+    ├── deploy_backup_gated.sh   # Retired; fails closed
+    └── release_validation.sh    # Retired; fails closed
 ```
 
-Services own validation and transaction boundaries. Routers translate HTTP requests/responses. Repositories own SQL. Scripts call the same services/checks where practical.
+Services own validation and transaction boundaries. Routers translate HTTP requests/responses. Repositories own SQL. Production releases use the repository-root `ec2-deploy.sh`; the older systemd-era scripts above are retained only as fail-closed historical markers.
 
 ## 4. API Design
 

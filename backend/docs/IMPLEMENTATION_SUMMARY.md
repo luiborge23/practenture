@@ -91,13 +91,13 @@ This document summarizes the complete implementation of the Owner Administration
   - Rate limiting
   - Connection limits
   - SSL/TLS configuration
-- Release validation script (`scripts/release_validation.sh`)
+- Retired release validation script (`scripts/release_validation.sh`, fails closed)
   - Unit tests
   - Contract tests
   - Migration tests
   - Database health check
   - Code quality checks
-- Backup-gated deployment script (`scripts/deploy_backup_gated.sh`)
+- Retired systemd-era deployment script (`scripts/deploy_backup_gated.sh`, fails closed)
   - Pre-deployment backup
   - Migration application
   - Service deployment
@@ -336,7 +336,7 @@ backend/docs/
    - User acceptance testing
 
 3. **Production Deployment**
-   - Follow backup-gated deployment procedure
+   - Use the immutable, checksummed repository-root `ec2-deploy.sh` procedure
    - Monitor health closely for 15 minutes
    - Notify stakeholders on success
 
@@ -344,7 +344,7 @@ backend/docs/
 
 For implementation questions:
 - Review `docs/ROLLBACK_PLAN.md` for rollback procedures
-- Check `scripts/release_validation.sh` for testing
+- Use GitHub quality gates and `Tests/test_release_contracts.py` for release validation
 - See `config/nginx_hardening.conf` for security settings
 
 ## Revision History

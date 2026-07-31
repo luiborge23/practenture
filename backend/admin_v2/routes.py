@@ -4,7 +4,7 @@ from datetime import datetime
 import os
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response, status
 
 from .dependencies import require_csrf_session, require_recent_auth_session
 from .repository import AdminSessionRecord
@@ -105,10 +105,12 @@ def _request_id(request: Request) -> str:
 
 @router.post("/mfa/verify", response_model=SessionResponse)
 def verify_mfa_challenge(
-    response: Response, payload: MfaChallengeVerifyRequest
+    request: Request, response: Response, payload: MfaChallengeVerifyRequest
 ) -> SessionResponse:
     session, token, csrf = auth_service.verify_mfa_challenge(
-        payload.challenge_token, payload.mfa_code
+        payload.challenge_token,
+        payload.mfa_code,
+        request.client.host if request.client is not None else None,
     )
     _set_session_cookie(response, token)
     return _response(session.record, csrf)
@@ -143,9 +145,18 @@ def change_password(
     status_code=status.HTTP_202_ACCEPTED,
 )
 def start_recovery(
-    request: Request, response: Response, payload: RecoveryStartRequest
+    request: Request,
+    response: Response,
+    payload: RecoveryStartRequest,
+    background_tasks: BackgroundTasks,
 ) -> RecoveryStartResponse:
-    token = auth_service.start_recovery(payload.identifier, _request_id(request))
+    client_signal = request.client.host if request.client is not None else None
+    token = auth_service.start_recovery(
+        payload.identifier,
+        _request_id(request),
+        client_signal,
+        background_tasks.add_task,
+    )
     if token and os.environ.get("PRACTENTURE_TESTING") == "1":
         response.headers["X-Admin-Recovery-Token"] = token
     response.headers["Cache-Control"] = "no-store"

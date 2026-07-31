@@ -215,9 +215,13 @@ class InvitationRepository:
         where: list[str] = []
         params: list[Any] = []
         if normalized_search:
-            where.append("(lower(i.intended_email) LIKE ? OR lower(i.masked_code) LIKE ?)")
+            where.append(
+                "(lower(i.intended_email) LIKE ? OR lower(i.masked_code) LIKE ? "
+                "OR lower(i.organization_id) LIKE ? OR lower(COALESCE(i.notes, '')) LIKE ? "
+                "OR lower(COALESCE(i.change_ticket, '')) LIKE ?)"
+            )
             needle = f"%{normalized_search}%"
-            params.extend((needle, needle))
+            params.extend((needle, needle, needle, needle, needle))
         if organization_id:
             where.append("i.organization_id=?")
             params.append(organization_id)

@@ -6,7 +6,14 @@ import sqlite3
 from typing import Any
 from database import Database, db
 
-COUNT_KEYS = ("sessions", "decisions", "results", "teamStates", "announcements")
+COUNT_KEYS = (
+    "sessions",
+    "decisions",
+    "results",
+    "teamStates",
+    "announcements",
+    "createRequests",
+)
 
 def canonical_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":"))
@@ -30,6 +37,7 @@ class CleanupRepository:
                 "results": int(connection.execute(f"SELECT COUNT(*) FROM results WHERE session_code IN ({marks})", codes).fetchone()[0]),
                 "teamStates": int(connection.execute(f"SELECT COUNT(*) FROM team_states WHERE session_code IN ({marks})", codes).fetchone()[0]),
                 "announcements": int(connection.execute(f"SELECT COUNT(*) FROM announcements WHERE session_id IN (SELECT session_id FROM sessions WHERE code IN ({marks}))", codes).fetchone()[0]),
+                "createRequests": int(connection.execute(f"SELECT COUNT(*) FROM session_create_requests WHERE session_code IN ({marks})", codes).fetchone()[0]),
             }
         finally:
             if owned: connection.close()
@@ -81,6 +89,7 @@ class CleanupRepository:
         deleted["decisions"]=conn.execute(f"DELETE FROM decisions WHERE session_code IN ({marks})", codes).rowcount
         deleted["results"]=conn.execute(f"DELETE FROM results WHERE session_code IN ({marks})", codes).rowcount
         deleted["teamStates"]=conn.execute(f"DELETE FROM team_states WHERE session_code IN ({marks})", codes).rowcount
+        deleted["createRequests"]=conn.execute(f"DELETE FROM session_create_requests WHERE session_code IN ({marks})", codes).rowcount
         deleted["sessions"]=conn.execute(f"DELETE FROM sessions WHERE code IN ({marks})", codes).rowcount
         return {key:int(deleted[key]) for key in COUNT_KEYS}
 

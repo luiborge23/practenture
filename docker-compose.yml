@@ -15,9 +15,9 @@ services:
       - PRACTENTURE_DB_PATH=/data/practenture.db
       - PRACTENTURE_JWT_SECRET=${PRACTENTURE_JWT_SECRET:?PRACTENTURE_JWT_SECRET must be set}
       - PRACTENTURE_OWNER_USERNAME=${PRACTENTURE_OWNER_USERNAME:-owner}
-      - PRACTENTURE_OWNER_PASSWORD=${PRACTENTURE_OWNER_PASSWORD:-}
+      - PRACTENTURE_OWNER_PASSWORD=${PRACTENTURE_OWNER_PASSWORD:?PRACTENTURE_OWNER_PASSWORD must be set}
       - PRACTENTURE_PROFESSOR_USERNAME=${PRACTENTURE_PROFESSOR_USERNAME:-professor}
-      - PRACTENTURE_PROFESSOR_PASSWORD=${PRACTENTURE_PROFESSOR_PASSWORD:-practenture2026}
+      - PRACTENTURE_PROFESSOR_PASSWORD=${PRACTENTURE_PROFESSOR_PASSWORD:?PRACTENTURE_PROFESSOR_PASSWORD must be set}
       - PRACTENTURE_JWT_EXPIRY_HOURS=${PRACTENTURE_JWT_EXPIRY_HOURS:-24}
       - PRACTENTURE_APPLE_AUDIENCE=${PRACTENTURE_APPLE_AUDIENCE:-}
       - PRACTENTURE_GOOGLE_AUDIENCE=${PRACTENTURE_GOOGLE_AUDIENCE:-}
@@ -26,6 +26,11 @@ services:
       - PRACTENTURE_SES_REGION=${PRACTENTURE_SES_REGION:-us-east-1}
       - PRACTENTURE_SES_SENDER=${PRACTENTURE_SES_SENDER:-}
       - PRACTENTURE_PUBLIC_ORIGIN=${PRACTENTURE_PUBLIC_ORIGIN:-https://practenture.com}
+      - PRACTENTURE_BACKUP_ROOT=/data/admin-backups
+      - PRACTENTURE_ADMIN_AUDIT_EXPORT_ROOT=/data/admin-audit-exports
+      # Docker's default bridge allocations. Override with the exact nginx
+      # network on hosts that use a custom address pool; never trust `*`.
+      - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-172.16.0.0/12}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 30s
@@ -34,7 +39,7 @@ services:
       start_period: 10s
 
   nginx:
-    image: nginx:alpine
+    image: nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
     container_name: practenture-nginx
     restart: unless-stopped
     ports:

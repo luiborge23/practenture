@@ -6,9 +6,9 @@ import secrets
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Request, Response, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
-from admin_v2.dependencies import require_recent_auth_session
+from admin_v2.dependencies import require_admin_session, require_recent_auth_session
 from admin_v2.service import AuthenticatedSession
 
 from .audit_exports_schemas import AuditExportRequest, AuditExportResponse
@@ -23,6 +23,25 @@ def _request_id(request: Request) -> str:
         getattr(request.state, "request_id", None)
         or request.headers.get("X-Request-ID")
         or f"req_{secrets.token_urlsafe(18)}"
+    )
+
+
+@router.get("/audit-events/exports/{artifact_id}", include_in_schema=False)
+def download_audit_export(
+    artifact_id: str,
+    session: AuthenticatedSession = Depends(require_admin_session),
+) -> FileResponse:
+    del session
+    path, media_type = audit_export_service.resolve_download(artifact_id)
+    return FileResponse(
+        path,
+        media_type=media_type,
+        filename=path.name,
+        headers={
+            "Cache-Control": "no-store, max-age=0",
+            "Pragma": "no-cache",
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 

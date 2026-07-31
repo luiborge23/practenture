@@ -44,6 +44,7 @@ class LoginAttemptDecision:
     allowed: bool
     retry_after: int = 0
     client_window_started_at: float | None = None
+    lock_created: bool = False
 
 
 class AdminSessionRepository:
@@ -93,17 +94,23 @@ class AdminSessionRepository:
         client_threshold: int = 50,
         identity_window_seconds: int | None = None,
         client_window_seconds: int | None = None,
+        include_client_scopes: bool = True,
     ) -> LoginAttemptDecision:
         """Reserve pair, identity, and client budgets in one write transaction."""
         identity_key = self.normalize_identity(identity)
         client_key = self.normalize_client_signal(client_signal)
         identity_window = identity_window_seconds or window_seconds
         client_window = client_window_seconds or window_seconds
-        dimensions = (
-            ("pair", self.pair_scope_key(identity_key, client_key), threshold, window_seconds),
+        dimensions = [
             ("identity", identity_key, identity_threshold, identity_window),
-            ("client", client_key, client_threshold, client_window),
-        )
+        ]
+        if include_client_scopes:
+            dimensions.extend(
+                (
+                    ("pair", self.pair_scope_key(identity_key, client_key), threshold, window_seconds),
+                    ("client", client_key, client_threshold, client_window),
+                )
+            )
 
         with self._transaction() as conn:
             # Indexed bounded retention: never delete a still-active lock.
@@ -134,6 +141,7 @@ class AdminSessionRepository:
                 return LoginAttemptDecision(False, max(1, retry_after))
 
             client_window_started_at = now
+            lock_created = False
             for scope_type, scope_key, limit, window, row in states:
                 if row is None or now >= float(row[1]) + window:
                     attempt_count = 1
@@ -142,6 +150,7 @@ class AdminSessionRepository:
                     attempt_count = int(row[0]) + 1
                     window_started_at = float(row[1])
                 locked_until = now + window if attempt_count >= limit else None
+                lock_created = lock_created or locked_until is not None
                 conn.execute(
                     """INSERT INTO privileged_login_buckets
                            (scope_type, scope_key, attempt_count, window_started_at,
@@ -164,7 +173,9 @@ class AdminSessionRepository:
                 if scope_type == "client":
                     client_window_started_at = window_started_at
             return LoginAttemptDecision(
-                True, client_window_started_at=client_window_started_at
+                True,
+                client_window_started_at=client_window_started_at,
+                lock_created=lock_created,
             )
 
     def _reset_login_attempt(
@@ -387,6 +398,25 @@ class AdminSessionRepository:
                        (id, token_hash, owner_user_id, created_at, expires_at)
                    VALUES (?, ?, ?, ?, ?)""",
                 (challenge_id, token_hash, user_id, created_at, expires_at),
+            )
+
+    def active_mfa_challenge_owner(self, token_hash: str, now: str) -> str | None:
+        conn = self._db.connect()
+        try:
+            row = conn.execute(
+                """SELECT owner_user_id FROM admin_mfa_challenges
+                   WHERE token_hash=? AND consumed_at IS NULL AND expires_at>?""",
+                (token_hash, now),
+            ).fetchone()
+            return str(row[0]) if row is not None else None
+        finally:
+            conn.close()
+
+    def invalidate_mfa_challenge(self, token_hash: str) -> None:
+        with self._transaction() as conn:
+            conn.execute(
+                "DELETE FROM admin_mfa_challenges WHERE token_hash=? AND consumed_at IS NULL",
+                (token_hash,),
             )
 
     def create_from_mfa_challenge(

@@ -311,8 +311,28 @@ def test_lists_are_bounded_sorted_and_validation_is_stable(owner_client: TestCli
     assert backups.status_code == drills.status_code == 200
     assert len(backups.json()["items"]) == len(drills.json()["items"]) == 2
     assert backups.json()["totalCount"] == drills.json()["totalCount"] == 3
+    assert backups.json()["pageInfo"]["hasNextPage"] is True
+    assert drills.json()["pageInfo"]["hasNextPage"] is True
     assert backups.json()["items"][0]["startedAt"] >= backups.json()["items"][1]["startedAt"]
     assert drills.json()["items"][0]["startedAt"] >= drills.json()["items"][1]["startedAt"]
+
+    backup_next = owner_client.get(
+        "/api/admin/v2/operations/backups",
+        params={"limit": 2, "cursor": backups.json()["pageInfo"]["nextCursor"]},
+    )
+    drill_next = owner_client.get(
+        "/api/admin/v2/operations/restore-drills",
+        params={"limit": 2, "cursor": drills.json()["pageInfo"]["nextCursor"]},
+    )
+    assert len(backup_next.json()["items"]) == len(drill_next.json()["items"]) == 1
+    assert backup_next.json()["pageInfo"] == {"nextCursor": None, "hasNextPage": False}
+    assert drill_next.json()["pageInfo"] == {"nextCursor": None, "hasNextPage": False}
+
+    wrong_collection = owner_client.get(
+        "/api/admin/v2/operations/restore-drills",
+        params={"cursor": backups.json()["pageInfo"]["nextCursor"]},
+    )
+    _assert_error(wrong_collection, 400, "ADMIN_CURSOR_INVALID")
 
     invalid = owner_client.get("/api/admin/v2/operations/backups", params={"limit": 101})
     _assert_error(invalid, 422, "ADMIN_VALIDATION_ERROR")

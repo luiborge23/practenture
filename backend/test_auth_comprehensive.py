@@ -18,6 +18,7 @@ import json
 import hmac
 import hashlib
 import time
+import mfa
 from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 
@@ -548,7 +549,7 @@ class TestMFAFlow:
     """Tests for MFA/TOTP authentication flow."""
 
     def test_m1_mfa_setup_returns_secret(self):
-        """M1: MFA setup returns secret and backup codes."""
+        """M1: MFA setup returns a secret but no usable codes before confirmation."""
         # Login as professor first
         resp = login('password', username='professor', password='practenture2026')
         token = resp.json()['accessToken']
@@ -559,7 +560,7 @@ class TestMFAFlow:
         data = mresp.json()
         assert 'secret' in data
         assert 'qr_code_url' in data
-        assert len(data.get('backup_codes', [])) > 0
+        assert data.get('backup_codes') == []
 
     def test_m2_mfa_verify_with_wrong_code(self):
         """M2: MFA verify with wrong code returns 400."""
@@ -625,12 +626,21 @@ class TestMFAFlow:
         resp = login('password', username='professor', password='practenture2026')
         token = resp.json()['accessToken']
 
-        # Setup MFA first
-        client.post('/api/auth/mfa/setup',
-                    headers={'Authorization': f'Bearer {token}'})
+        # Setup and confirm MFA before proving that both factors are required
+        # for disabling it. A recovery code is suitable for this one-time proof.
+        setup = client.post('/api/auth/mfa/setup',
+                            headers={'Authorization': f'Bearer {token}'})
+        secret = setup.json()['secret']
+        current_code = mfa._hotp(secret, int(time.time()) // 30)
+        confirmed = client.post('/api/auth/mfa/verify', json={'code': current_code},
+                                headers={'Authorization': f'Bearer {token}'})
+        assert confirmed.status_code == 200
+        recovery_code = confirmed.json()['backup_codes'][0]
 
-        # Disable MFA (may need password)
-        dresp = client.post('/api/auth/mfa/disable', json={},
+        dresp = client.post('/api/auth/mfa/disable', json={
+            'password': 'practenture2026',
+            'mfa_code': recovery_code,
+        },
                            headers={'Authorization': f'Bearer {token}'})
         assert dresp.status_code == 200
 

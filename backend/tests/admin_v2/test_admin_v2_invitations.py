@@ -285,6 +285,25 @@ def test_cursor_is_bound_to_the_exact_query(owner_client: TestClient):
     _assert_error(response, 400, "ADMIN_CURSOR_INVALID")
 
 
+def test_search_matches_operational_notes_ticket_and_organization(owner_client: TestClient):
+    _insert_org()
+    _insert_invitation("inv-searchable")
+    conn = db.connect()
+    try:
+        conn.execute(
+            "UPDATE professor_invitations SET notes=?, change_ticket=? WHERE id=?",
+            ("Fall cohort onboarding", "CHG-2048", "inv-searchable"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    for search in ("fall cohort", "chg-2048", "org-a"):
+        response = owner_client.get("/api/admin/v2/invitations", params={"search": search})
+        assert response.status_code == 200, response.text
+        assert [item["id"] for item in response.json()["invitations"]] == ["inv-searchable"]
+
+
 def test_resend_rotates_secret_is_idempotent_and_secret_free_at_rest(
     owner_client: TestClient,
 ):

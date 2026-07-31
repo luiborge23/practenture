@@ -1531,11 +1531,30 @@ class Database:
             return cur.rowcount
 
     # ── SOTA Phase 2: MFA/TOTP ──────────────────────────────────────────
+    @staticmethod
+    def _ensure_mfa_replay_state_table(conn: sqlite3.Connection) -> None:
+        """Keep legacy/in-memory databases replay-safe before migrations run.
+
+        Production owns this table through Alembic revision 003. Several legacy
+        test and upgrade paths construct only the original MFA tables, so the
+        compatibility path creates the same schema instead of disabling replay
+        protection when that older schema is encountered.
+        """
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS admin_mfa_replay_state (
+                   owner_user_id TEXT PRIMARY KEY,
+                   last_accepted_totp_step INTEGER NOT NULL,
+                   accepted_at TEXT NOT NULL,
+                   FOREIGN KEY(owner_user_id) REFERENCES users(username)
+               )"""
+        )
 
     def set_mfa_secret(self, user_id: str, secret: str) -> None:
         from mfa import protect_totp_secret
+
         with self._lock:
             conn = self._get_conn()
+            self._ensure_mfa_replay_state_table(conn)
             conn.execute(
                 "INSERT OR REPLACE INTO mfa_secrets (user_id, secret, enabled, backup_codes) VALUES (?, ?, 0, '[]')",
                 (user_id, protect_totp_secret(secret)),
@@ -1559,6 +1578,7 @@ class Database:
     def disable_mfa(self, user_id: str) -> None:
         with self._lock:
             conn = self._get_conn()
+            self._ensure_mfa_replay_state_table(conn)
             conn.execute("DELETE FROM mfa_secrets WHERE user_id=?", (user_id,))
             conn.execute(
                 "DELETE FROM admin_mfa_replay_state WHERE owner_user_id=?", (user_id,)
@@ -1614,6 +1634,7 @@ class Database:
         candidate = (code or "").strip()
         with self._lock:
             conn = self._get_conn()
+            self._ensure_mfa_replay_state_table(conn)
             conn.execute("BEGIN IMMEDIATE")
             try:
                 row = conn.execute(

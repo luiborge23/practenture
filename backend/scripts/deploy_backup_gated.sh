@@ -5,6 +5,9 @@
 
 set -e
 
+echo "ERROR: This legacy systemd/flat-file deployment path is retired. Use only the immutable, checksummed root ec2-deploy.sh workflow." >&2
+exit 64
+
 echo "=== Backup-Gated Deployment ==="
 
 # Configuration

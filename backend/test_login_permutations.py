@@ -310,7 +310,7 @@ def main():
 
     # 5. Invalid JWT token
     print("\n[E5] Invalid JWT token → 401")
-    fake_jwt = "invalid-token"
+    fake_jwt = "not-a-jwt"
     r = requests.post(f"{BASE_URL}/api/auth/verify", headers=auth_header(fake_jwt), timeout=TIMEOUT)
     record("Invalid JWT token", r.status_code, r.text, 401)
 

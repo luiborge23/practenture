@@ -1,0 +1,937 @@
+"use strict";
+
+function wsElement(tag, className = "", value = "") {
+  const element = document.createElement(tag);
+  if (className) element.className = className;
+  if (value !== "") element.textContent = String(value);
+  return element;
+}
+
+function wsDate(value) {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.valueOf()) ? String(value) : parsed.toLocaleString();
+}
+
+function wsField(label, name, options = {}) {
+  const wrapper = wsElement("label", "field");
+  const caption = wsElement("span", "field-label", label);
+  let control;
+  if (options.options) {
+    control = document.createElement("select");
+    for (const [value, textValue] of options.options) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = textValue;
+      control.append(option);
+    }
+  } else if (options.multiline) {
+    control = document.createElement("textarea");
+    control.rows = options.rows || 3;
+  } else {
+    control = document.createElement("input");
+    control.type = options.type || "text";
+  }
+  control.name = name;
+  if (options.value !== undefined && options.value !== null) control.value = options.value;
+  if (options.placeholder) control.placeholder = options.placeholder;
+  if (options.readOnly) control.readOnly = true;
+  if (options.required) control.required = true;
+  if (options.minLength) control.minLength = options.minLength;
+  if (options.maxLength) control.maxLength = options.maxLength;
+  if (options.min !== undefined) control.min = String(options.min);
+  if (options.max !== undefined) control.max = String(options.max);
+  if (options.step !== undefined) control.step = String(options.step);
+  if (options.autocomplete) control.autocomplete = options.autocomplete;
+  if (options.suggestions && control instanceof HTMLInputElement) {
+    const list = document.createElement("datalist");
+    list.id = `suggestions-${name}-${globalThis.crypto?.randomUUID?.() || Date.now()}`;
+    wsReplaceSuggestions(list, options.suggestions);
+    control.setAttribute("list", list.id);
+    if (options.onSuggestionInput) control.addEventListener("input", () => options.onSuggestionInput(control.value, list));
+    wrapper.append(caption, control, list);
+    return wrapper;
+  }
+  wrapper.append(caption, control);
+  return wrapper;
+}
+
+function wsDialog({ title, description = "", fields = [], submitLabel = "Save", danger = false }) {
+  return new Promise((resolve) => {
+    const dialog = document.createElement("dialog");
+    const form = wsElement("form", "dialog-card stack");
+    form.method = "dialog";
+    form.append(wsElement("h2", "", title));
+    if (description) form.append(wsElement("p", "muted", description));
+    for (const field of fields) form.append(wsField(field.label, field.name, field));
+    const actions = wsElement("div", "button-row");
+    const cancel = button("Cancel");
+    const submit = button(submitLabel, danger ? "button-danger" : "button-primary");
+    submit.type = "submit";
+    actions.append(cancel, submit);
+    form.append(actions);
+    dialog.append(form);
+    document.body.append(dialog);
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      dialog.close();
+      dialog.remove();
+      resolve(value);
+    };
+    cancel.addEventListener("click", () => finish(null));
+    dialog.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      finish(null);
+    });
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const values = Object.fromEntries(new FormData(form).entries());
+      finish(values);
+    });
+    dialog.showModal();
+    form.querySelector("input,select,textarea")?.focus();
+  });
+}
+
+function wsTable(columns, rows, rowActions) {
+  if (!rows.length) return $("empty-template").content.cloneNode(true);
+  const card = wsElement("div", "table-card");
+  const scroll = wsElement("div", "table-scroll");
+  const table = document.createElement("table");
+  const head = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  for (const column of columns) {
+    const cell = wsElement("th", "", column.label);
+    cell.scope = "col";
+    headRow.append(cell);
+  }
+  if (rowActions) {
+    const cell = wsElement("th", "", "Actions");
+    cell.scope = "col";
+    headRow.append(cell);
+  }
+  head.append(headRow);
+  const body = document.createElement("tbody");
+  for (const row of rows) {
+    const tableRow = document.createElement("tr");
+    for (const column of columns) {
+      const cell = document.createElement("td");
+      cell.dataset.label = column.label;
+      const value = column.value(row);
+      if (column.badge) cell.append(badge(value));
+      else cell.textContent = value === null || value === undefined || value === "" ? "—" : String(value);
+      tableRow.append(cell);
+    }
+    if (rowActions) {
+      const cell = document.createElement("td");
+      cell.dataset.label = "Actions";
+      const actions = wsElement("div", "button-row compact");
+      rowActions(row, actions);
+      cell.append(actions);
+      tableRow.append(cell);
+    }
+    body.append(tableRow);
+  }
+  table.append(head, body);
+  scroll.append(table);
+  card.append(scroll);
+  return card;
+}
+
+function wsToolbar() {
+  return wsElement("div", "workspace-toolbar");
+}
+
+function wsFilters(fields, onSubmit) {
+  const form = wsElement("form", "card filter-grid");
+  for (const field of fields) form.append(wsField(field.label, field.name, field));
+  const actions = wsElement("div", "button-row filter-actions");
+  const apply = button("Apply filters", "button-primary");
+  apply.type = "submit";
+  const reset = button("Reset");
+  actions.append(reset, apply);
+  form.append(actions);
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    onSubmit(Object.fromEntries(new FormData(form).entries()));
+  });
+  reset.addEventListener("click", () => {
+    form.reset();
+    onSubmit({});
+  });
+  return form;
+}
+
+function wsPagination({ pageInfo = {}, totalCount = null, visibleCount = 0, cursor = null, trail = [], onPage }) {
+  const bar = wsElement("nav", "pagination-bar");
+  bar.setAttribute("aria-label", "Result pages");
+  const hasTotal = Number.isFinite(totalCount);
+  const summary = wsElement("span", "muted", hasTotal ? `${visibleCount} shown · ${totalCount} total` : `${visibleCount} shown on this page`);
+  const actions = wsElement("div", "button-row compact");
+  const previous = button("Previous");
+  const next = button("Next");
+  previous.disabled = trail.length === 0;
+  const hasNext = pageInfo.hasNextPage ?? pageInfo.hasMore ?? false;
+  next.disabled = !hasNext || !pageInfo.nextCursor;
+  previous.addEventListener("click", () => {
+    if (!trail.length) return;
+    onPage(trail.at(-1) || null, trail.slice(0, -1));
+  });
+  next.addEventListener("click", () => {
+    if (!pageInfo.nextCursor) return;
+    onPage(pageInfo.nextCursor, [...trail, cursor]);
+  });
+  actions.append(previous, next);
+  bar.append(summary, actions);
+  return bar;
+}
+
+function wsAddCursor(query, cursor) {
+  if (cursor) query.set("cursor", cursor);
+  return query;
+}
+
+function wsReplaceSuggestions(list, rows) {
+  list.replaceChildren();
+  for (const row of rows) {
+    const option = document.createElement("option");
+    option.value = row.id;
+    option.label = [row.name, row.universityName].filter(Boolean).join(" · ");
+    list.append(option);
+  }
+}
+
+async function wsRecentMutation(path, options = {}) {
+  await reauthenticate();
+  const method = options.method || "POST";
+  const headers = { "Idempotency-Key": idempotencyKey(), ...(options.headers || {}) };
+  return request(path, { method, headers, body: JSON.stringify(options.body || {}) });
+}
+
+async function renderOrganizationsWorkspace(filters = {}, cursor = null, trail = []) {
+  loading();
+  notice("");
+  try {
+    const query = wsAddCursor(new URLSearchParams({ limit: "25" }), cursor);
+    if (filters.search) query.set("search", filters.search);
+    if (filters.status) query.set("status", filters.status);
+    const data = await request(`/organizations?${query}`);
+    const fragment = document.createDocumentFragment();
+    const head = header("organizations");
+    const create = button("Create organization", "button-primary");
+    head.append(create);
+    fragment.append(head);
+    fragment.append(wsFilters([
+      { label: "Search", name: "search", value: filters.search || "", placeholder: "Name, university, or slug" },
+      { label: "Status", name: "status", value: filters.status || "", options: [["", "All statuses"], ["active", "Active"], ["inactive", "Inactive"]] },
+    ], (nextFilters) => renderOrganizationsWorkspace(nextFilters)));
+    create.addEventListener("click", async () => {
+      const values = await wsDialog({
+        title: "Create organization",
+        description: "Organizations isolate professor, student, and simulation data.",
+        submitLabel: "Create organization",
+        fields: [
+          { label: "Organization name", name: "name", required: true, maxLength: 200 },
+          { label: "University name (optional)", name: "universityName", maxLength: 300 },
+          { label: "Slug (optional)", name: "slug", maxLength: 100, placeholder: "generated-from-name" },
+        ],
+      });
+      if (!values) return;
+      try {
+        const body = { name: values.name.trim() };
+        if (values.universityName.trim()) body.universityName = values.universityName.trim();
+        if (values.slug.trim()) body.slug = values.slug.trim();
+        await request("/organizations", { method: "POST", headers: { "Idempotency-Key": idempotencyKey() }, body: JSON.stringify(body) });
+        await renderOrganizationsWorkspace(filters);
+        notice("Organization created.");
+      } catch (error) { notice(error.message, true); }
+    });
+    const table = wsTable([
+      { label: "Organization", value: (row) => row.name },
+      { label: "University", value: (row) => row.universityName },
+      { label: "Status", value: (row) => row.status, badge: true },
+      { label: "Professors", value: (row) => row.professorCount },
+      { label: "Students", value: (row) => row.studentCount },
+      { label: "Sessions", value: (row) => row.sessionCount },
+    ], data.organizations || [], (organization, actions) => {
+      const edit = button("Edit");
+      edit.addEventListener("click", async () => {
+        const values = await wsDialog({
+          title: `Edit ${organization.name}`,
+          submitLabel: "Save changes",
+          fields: [
+            { label: "Organization name", name: "name", required: true, value: organization.name, maxLength: 200 },
+            { label: "University name", name: "universityName", value: organization.universityName || "", maxLength: 300 },
+            { label: "Status", name: "status", value: organization.status, options: [["active", "Active"], ["inactive", "Inactive"]] },
+          ],
+        });
+        if (!values) return;
+        edit.disabled = true;
+        try {
+          await request(`/organizations/${encodeURIComponent(organization.id)}`, {
+            method: "PATCH",
+            headers: { "If-Match": `"${organization.version}"`, "Idempotency-Key": idempotencyKey() },
+            body: JSON.stringify({ name: values.name.trim(), universityName: values.universityName.trim() || null, status: values.status }),
+          });
+          await renderOrganizationsWorkspace(filters);
+          notice("Organization updated.");
+        } catch (error) { notice(error.message, true); }
+        finally { edit.disabled = false; }
+      });
+      actions.append(edit);
+    });
+    fragment.append(table, wsPagination({
+      pageInfo: data.pageInfo,
+      totalCount: data.totalCount,
+      visibleCount: (data.organizations || []).length,
+      cursor,
+      trail,
+      onPage: (nextCursor, nextTrail) => renderOrganizationsWorkspace(filters, nextCursor, nextTrail),
+    }));
+    page.replaceChildren(fragment);
+    status(`${data.totalCount || 0} organizations loaded`);
+  } catch (error) { renderError("organizations", error); }
+  finally { page.setAttribute("aria-busy", "false"); }
+}
+
+async function renderUsersWorkspace(filters = {}, cursor = null, trail = []) {
+  loading();
+  notice("");
+  try {
+    const query = wsAddCursor(new URLSearchParams({ limit: "25" }), cursor);
+    for (const key of ["search", "role", "status", "organizationId"]) if (filters[key]) query.set(key, filters[key]);
+    const [data, organizationData] = await Promise.all([
+      request(`/users?${query}`),
+      request("/organizations?limit=25"),
+    ]);
+    const organizations = organizationData.organizations || [];
+    const fragment = document.createDocumentFragment();
+    const head = header("users");
+    const invite = wsElement("a", "button button-primary", "Invite professor");
+    invite.href = "#invitations";
+    head.append(invite);
+    fragment.append(head, wsFilters([
+      { label: "Search", name: "search", value: filters.search || "", placeholder: "Username, name, or email" },
+      { label: "Role", name: "role", value: filters.role || "", options: [["", "All roles"], ["owner", "Administrator"], ["professor", "Professor"], ["student", "Student"]] },
+      { label: "Status", name: "status", value: filters.status || "", options: [["", "All statuses"], ["active", "Active"], ["suspended", "Suspended"]] },
+      { label: "Organization", name: "organizationId", value: filters.organizationId || "", placeholder: "Search or paste organization ID", suggestions: organizations, onSuggestionInput: wsOrganizationSuggestionLoader() },
+    ], (nextFilters) => renderUsersWorkspace(nextFilters)));
+    const usersTable = wsTable([
+      { label: "Username", value: (row) => row.username },
+      { label: "Name", value: (row) => row.name },
+      { label: "Email", value: (row) => row.email },
+      { label: "Role", value: (row) => sessionRoleLabel(row.role), badge: true },
+      { label: "Status", value: (row) => row.status, badge: true },
+      { label: "Last sign-in", value: (row) => wsDate(row.lastLoginAt) },
+    ], data.users || [], (user, actions) => {
+      const details = button("Details");
+      details.addEventListener("click", () => wsDialog({
+        title: user.username,
+        description: `${sessionRoleLabel(user.role)} account details`,
+        submitLabel: "Close",
+        fields: [
+          { label: "Email", name: "email", value: user.email || "Not provided", readOnly: true },
+          { label: "Provider", name: "provider", value: user.provider || "password", readOnly: true },
+          { label: "Organizations", name: "organizations", value: (user.organizationIds || []).join(", ") || "None", readOnly: true },
+          { label: "Password reset required", name: "reset", value: user.mustChangePassword ? "Yes" : "No", readOnly: true },
+        ],
+      }));
+      actions.append(details);
+      if (user.role !== "owner") {
+        const lifecycle = button(user.status === "active" ? "Suspend" : "Reactivate", user.status === "active" ? "button-danger" : "button-secondary");
+        lifecycle.addEventListener("click", async () => {
+          const action = user.status === "active" ? "suspend" : "reactivate";
+          const values = await wsDialog({
+            title: `${titleCase(action)} ${user.username}`,
+            description: action === "suspend" ? "Suspension revokes active sessions immediately." : "Reactivation restores account access.",
+            submitLabel: titleCase(action),
+            danger: action === "suspend",
+            fields: [{ label: "Reason", name: "reason", multiline: true, required: action === "suspend", maxLength: 1000 }],
+          });
+          if (!values) return;
+          lifecycle.disabled = true;
+          try {
+            await wsRecentMutation(`/users/${encodeURIComponent(user.id)}/${action}`, { body: { reason: values.reason.trim() || null } });
+            await renderUsersWorkspace(filters);
+            notice(`User ${action === "suspend" ? "suspended" : "reactivated"}.`);
+          } catch (error) { if (!/cancelled/i.test(error.message)) notice(error.message, true); }
+          finally { lifecycle.disabled = false; }
+        });
+        const sessions = button("Revoke sessions");
+        sessions.addEventListener("click", async () => {
+          if (!confirm(`Revoke every active session for ${user.username}?`)) return;
+          sessions.disabled = true;
+          try {
+            await wsRecentMutation(`/users/${encodeURIComponent(user.id)}/revoke-sessions`, { body: { reason: "Administrator revoked sessions" } });
+            notice("User sessions revoked.");
+          } catch (error) { if (!/cancelled/i.test(error.message)) notice(error.message, true); }
+          finally { sessions.disabled = false; }
+        });
+        const reset = button("Require password reset");
+        reset.addEventListener("click", async () => {
+          if (!confirm(`Require a password reset for ${user.username}?`)) return;
+          reset.disabled = true;
+          try {
+            await wsRecentMutation(`/users/${encodeURIComponent(user.id)}/require-password-reset`, { body: { reason: "Administrator required password reset" } });
+            await renderUsersWorkspace(filters);
+            notice("Password reset requirement applied.");
+          } catch (error) { if (!/cancelled/i.test(error.message)) notice(error.message, true); }
+          finally { reset.disabled = false; }
+        });
+        actions.append(lifecycle, sessions, reset);
+      }
+    });
+    usersTable.classList.add("users-table");
+    fragment.append(usersTable, wsPagination({
+      pageInfo: data.pageInfo,
+      totalCount: data.totalCount,
+      visibleCount: (data.users || []).length,
+      cursor,
+      trail,
+      onPage: (nextCursor, nextTrail) => renderUsersWorkspace(filters, nextCursor, nextTrail),
+    }));
+    page.replaceChildren(fragment);
+    status(`${data.totalCount || 0} users loaded`);
+  } catch (error) { renderError("users", error); }
+  finally { page.setAttribute("aria-busy", "false"); }
+}
+
+function wsOrganizationSuggestionLoader() {
+  let timer = null;
+  let sequence = 0;
+  return (value, list) => {
+    clearTimeout(timer);
+    const current = ++sequence;
+    timer = setTimeout(async () => {
+      try {
+        const query = new URLSearchParams({ limit: "25" });
+        if (value.trim()) query.set("search", value.trim());
+        const data = await request(`/organizations?${query}`);
+        if (current === sequence) wsReplaceSuggestions(list, data.organizations || []);
+      } catch {
+        // Keep the last valid suggestions. Form submission still validates the ID server-side.
+      }
+    }, 250);
+  };
+}
+
+async function renderInvitationsWorkspace(filters = {}, cursor = null, trail = []) {
+  loading();
+  notice("");
+  try {
+    const query = wsAddCursor(new URLSearchParams({ limit: "25" }), cursor);
+    for (const key of ["search", "organizationId", "status"]) if (filters[key]) query.set(key, filters[key]);
+    const [data, organizationData] = await Promise.all([
+      request(`/invitations?${query}`),
+      request("/organizations?limit=25"),
+    ]);
+    const organizations = organizationData.organizations || [];
+    const fragment = document.createDocumentFragment();
+    const head = header("invitations");
+    const create = button("Create professor access", "button-primary");
+    head.append(create);
+    fragment.append(head, wsFilters([
+      { label: "Search", name: "search", value: filters.search || "", placeholder: "Professor email, code, notes, or ticket" },
+      { label: "Organization", name: "organizationId", value: filters.organizationId || "", placeholder: "Search or paste organization ID", suggestions: organizations, onSuggestionInput: wsOrganizationSuggestionLoader() },
+      { label: "Status", name: "status", value: filters.status || "", options: [["", "All statuses"], ["ACTIVE", "Active"], ["REDEEMED", "Redeemed"], ["EXPIRED", "Expired"], ["REVOKED", "Revoked"]] },
+    ], (nextFilters) => renderInvitationsWorkspace(nextFilters)));
+
+    create.addEventListener("click", async () => {
+      const values = await wsDialog({
+        title: "Create professor access",
+        description: "Create a one-time code bound to the professor’s exact email and organization.",
+        submitLabel: "Create access",
+        fields: [
+          { label: "Organization", name: "organizationId", required: true, maxLength: 255, placeholder: "Search or paste organization ID", suggestions: organizations, onSuggestionInput: wsOrganizationSuggestionLoader() },
+          { label: "Professor email", name: "intendedEmail", type: "email", autocomplete: "email", required: true, maxLength: 320 },
+          { label: "Expires after (hours)", name: "expiresInHours", type: "number", value: "48", min: 1, max: 720, required: true },
+          { label: "Internal notes", name: "notes", multiline: true, maxLength: 1000 },
+          { label: "Change ticket", name: "changeTicket", maxLength: 255 },
+        ],
+      });
+      if (!values) return;
+      create.disabled = true;
+      try {
+        const result = await mutateInvitation("/invitations", {
+          organizationId: values.organizationId.trim(),
+          intendedEmail: values.intendedEmail.trim().toLowerCase(),
+          expiresInHours: Number(values.expiresInHours),
+          notes: values.notes.trim() || null,
+          changeTicket: values.changeTicket.trim() || null,
+        });
+        revealInvitation(result.secret, result.invitation.intendedEmail, result.invitation.id);
+        await renderInvitationsWorkspace(filters);
+        notice("Professor access created. Complete the secure handoff before closing the code.");
+      } catch (error) { if (!/cancelled/i.test(error.message)) notice(error.message, true); }
+      finally { create.disabled = false; }
+    });
+
+    const table = wsTable([
+      { label: "Professor email", value: (row) => row.intendedEmail },
+      { label: "Organization", value: (row) => row.organizationId },
+      { label: "Status", value: (row) => row.status, badge: true },
+      { label: "Expires", value: (row) => wsDate(row.expiresAt) },
+      { label: "Code", value: (row) => row.maskedCode },
+    ], data.invitations || [], (invitation, actions) => {
+      const details = button("Details");
+      details.addEventListener("click", async () => {
+        details.disabled = true;
+        try {
+          const result = await request(`/invitations/${encodeURIComponent(invitation.id)}`);
+          const current = result.invitation;
+          await wsDialog({
+            title: current.intendedEmail,
+            description: "Invitation secrets are never returned by list or detail requests.",
+            submitLabel: "Close",
+            fields: [
+              { label: "Organization", name: "organization", value: current.organizationId, readOnly: true },
+              { label: "Status", name: "status", value: current.status, readOnly: true },
+              { label: "Created", name: "created", value: wsDate(current.createdAt), readOnly: true },
+              { label: "Expires", name: "expires", value: wsDate(current.expiresAt), readOnly: true },
+              { label: "Redeemed", name: "redeemed", value: wsDate(current.redeemedAt), readOnly: true },
+              { label: "Revoked", name: "revoked", value: wsDate(current.revokedAt), readOnly: true },
+              { label: "Notes", name: "notes", value: current.notes || "None", multiline: true, readOnly: true },
+              { label: "Change ticket", name: "ticket", value: current.changeTicket || "None", readOnly: true },
+            ],
+          });
+        } catch (error) { notice(error.message, true); }
+        finally { details.disabled = false; }
+      });
+      actions.append(details);
+      if (invitation.status === "ACTIVE") {
+        const replace = button("Generate replacement");
+        replace.addEventListener("click", async () => {
+          if (!confirm(`Generate a replacement code for ${invitation.intendedEmail}? The current code will stop working.`)) return;
+          replace.disabled = true;
+          try {
+            const result = await mutateInvitation(`/invitations/${encodeURIComponent(invitation.id)}/resend`, { expiresInHours: 48 });
+            revealInvitation(result.secret, result.invitation.intendedEmail, result.invitation.id);
+            await renderInvitationsWorkspace(filters);
+            notice("Replacement access created. The previous code is no longer valid.");
+          } catch (error) { if (!/cancelled/i.test(error.message)) notice(error.message, true); }
+          finally { replace.disabled = false; }
+        });
+        const revoke = button("Revoke", "button-danger");
+        revoke.addEventListener("click", async () => {
+          const values = await wsDialog({
+            title: `Revoke access for ${invitation.intendedEmail}`,
+            description: "The professor will no longer be able to redeem this code.",
+            submitLabel: "Revoke access",
+            danger: true,
+            fields: [{ label: "Reason", name: "reason", multiline: true, maxLength: 1000 }],
+          });
+          if (!values) return;
+          revoke.disabled = true;
+          try {
+            await mutateInvitation(`/invitations/${encodeURIComponent(invitation.id)}/revoke`, { reason: values.reason.trim() || null });
+            await renderInvitationsWorkspace(filters);
+            notice("Professor access revoked.");
+          } catch (error) { if (!/cancelled/i.test(error.message)) notice(error.message, true); }
+          finally { revoke.disabled = false; }
+        });
+        actions.append(replace, revoke);
+      }
+    });
+    table.classList.add("invitations-table");
+    fragment.append(table, wsPagination({
+      pageInfo: data.pageInfo,
+      totalCount: data.totalCount,
+      visibleCount: (data.invitations || []).length,
+      cursor,
+      trail,
+      onPage: (nextCursor, nextTrail) => renderInvitationsWorkspace(filters, nextCursor, nextTrail),
+    }));
+    page.replaceChildren(fragment);
+    status(`${data.totalCount || 0} professor invitations loaded`);
+  } catch (error) { renderError("invitations", error); }
+  finally { page.setAttribute("aria-busy", "false"); }
+}
+
+function wsSessionFilters(filters) {
+  const result = {};
+  for (const key of ["search", "state", "organizationId", "professorUserId", "scenarioId", "classId"]) if (filters[key]) result[key] = filters[key];
+  for (const key of ["createdFrom", "createdTo"]) {
+    if (filters[key]) result[key] = new Date(filters[key]).toISOString();
+  }
+  return result;
+}
+
+async function renderSessionsWorkspace(filters = {}, cursor = null, trail = []) {
+  loading();
+  notice("");
+  try {
+    const query = wsAddCursor(new URLSearchParams({ limit: "25" }), cursor);
+    for (const [key, value] of Object.entries(wsSessionFilters(filters))) query.set(key, value);
+    const [data, organizationData] = await Promise.all([
+      request(`/sessions?${query}`),
+      request("/organizations?limit=25"),
+    ]);
+    const organizations = organizationData.organizations || [];
+    const fragment = document.createDocumentFragment();
+    fragment.append(header("sessions"), wsFilters([
+      { label: "Search", name: "search", value: filters.search || "", placeholder: "Code, professor, class, organization, or scenario" },
+      { label: "State", name: "state", value: filters.state || "", placeholder: "active, completed, …" },
+      { label: "Organization", name: "organizationId", value: filters.organizationId || "", placeholder: "Search or paste organization ID", suggestions: organizations, onSuggestionInput: wsOrganizationSuggestionLoader() },
+      { label: "Professor user ID", name: "professorUserId", value: filters.professorUserId || "" },
+      { label: "Scenario ID", name: "scenarioId", value: filters.scenarioId || "" },
+      { label: "Class ID", name: "classId", value: filters.classId || "" },
+      { label: "Created from", name: "createdFrom", type: "datetime-local", value: filters.createdFrom || "" },
+      { label: "Created to", name: "createdTo", type: "datetime-local", value: filters.createdTo || "" },
+    ], (nextFilters) => renderSessionsWorkspace(nextFilters)));
+    const table = wsTable([
+      { label: "Code", value: (row) => row.code },
+      { label: "State", value: (row) => row.state, badge: true },
+      { label: "Professor", value: (row) => row.professor?.name || row.professor?.userId },
+      { label: "Organization", value: (row) => (row.organizations || []).map((item) => item.name).join(", ") },
+      { label: "Scenario", value: (row) => row.scenario?.id || row.scenarioId },
+      { label: "Round", value: (row) => row.currentRound },
+      { label: "Created", value: (row) => wsDate(row.createdAt) },
+    ], data.items || [], (session, actions) => {
+      const details = button("Inspect");
+      details.addEventListener("click", async () => {
+        details.disabled = true;
+        try {
+          const current = session;
+          await wsDialog({
+            title: `Session ${current.code}`,
+            description: "Read-only operational detail. Simulation state remains backend-authoritative.",
+            submitLabel: "Close",
+            fields: [
+              { label: "State", name: "state", value: current.state, readOnly: true },
+              { label: "Professor", name: "professor", value: current.professor?.userId || "—", readOnly: true },
+              { label: "Organization", name: "organization", value: (current.organizations || []).map((item) => item.name).join(", ") || "—", readOnly: true },
+              { label: "Scenario", name: "scenario", value: current.scenario?.id || "—", readOnly: true },
+              { label: "Current round", name: "round", value: String(current.currentRound ?? "—"), readOnly: true },
+              { label: "Teams", name: "teams", value: String(current.teamSummary?.total ?? current.teams?.length ?? "—"), readOnly: true },
+            ],
+          });
+        } catch (error) { notice(error.message, true); }
+        finally { details.disabled = false; }
+      });
+      actions.append(details);
+    });
+    fragment.append(table, wsPagination({
+      pageInfo: data.page,
+      visibleCount: (data.items || []).length,
+      cursor,
+      trail,
+      onPage: (nextCursor, nextTrail) => renderSessionsWorkspace(filters, nextCursor, nextTrail),
+    }));
+    page.replaceChildren(fragment);
+    status(`${(data.items || []).length} sessions loaded on this page`);
+  } catch (error) { renderError("sessions", error); }
+  finally { page.setAttribute("aria-busy", "false"); }
+}
+
+function wsAuditFilters(filters) {
+  const result = {};
+  for (const key of ["search", "action", "outcome", "actorId", "targetType", "targetId"]) if (filters[key]) result[key] = filters[key];
+  for (const key of ["occurredFrom", "occurredTo"]) {
+    if (filters[key]) result[key] = new Date(filters[key]).toISOString();
+  }
+  return result;
+}
+
+async function wsDownloadAudit(format, filters) {
+  await reauthenticate();
+  const artifact = await request("/audit-events/exports", {
+    method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey() },
+    body: JSON.stringify({ format, filters: wsAuditFilters(filters) }),
+  });
+  const response = await fetch(`${API}/audit-events/exports/${encodeURIComponent(artifact.artifactId)}`, {
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: { Accept: format === "json" ? "application/json" : "text/csv" },
+  });
+  if (!response.ok) throw new Error("The audit export could not be downloaded.");
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = artifact.fileName;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+  return artifact;
+}
+
+async function renderAuditWorkspace(filters = {}, cursor = null, trail = []) {
+  loading();
+  notice("");
+  try {
+    const query = wsAddCursor(new URLSearchParams({ limit: "25", sort: "occurredAt", sortDirection: "desc" }), cursor);
+    for (const [key, value] of Object.entries(wsAuditFilters(filters))) query.set(key, value);
+    const data = await request(`/audit-events?${query}`);
+    const fragment = document.createDocumentFragment();
+    const head = header("audit");
+    const jsonExport = button("Export JSON");
+    const csvExport = button("Export CSV", "button-primary");
+    for (const [control, format] of [[jsonExport, "json"], [csvExport, "csv"]]) {
+      control.addEventListener("click", async () => {
+        control.disabled = true;
+        try {
+          const artifact = await wsDownloadAudit(format, filters);
+          notice(`Downloaded ${artifact.rowCount} redacted audit events.`);
+        } catch (error) { if (!/cancelled/i.test(error.message)) notice(error.message, true); }
+        finally { control.disabled = false; }
+      });
+    }
+    head.append(jsonExport, csvExport);
+    fragment.append(head, wsFilters([
+      { label: "Search", name: "search", value: filters.search || "", placeholder: "Actor, target, action, or request" },
+      { label: "Action", name: "action", value: filters.action || "", placeholder: "admin.auth.login" },
+      { label: "Outcome", name: "outcome", value: filters.outcome || "", options: [["", "All outcomes"], ["succeeded", "Succeeded"], ["accepted", "Accepted"], ["failed", "Failed"], ["denied", "Denied"]] },
+      { label: "Actor ID", name: "actorId", value: filters.actorId || "" },
+      { label: "Target type", name: "targetType", value: filters.targetType || "" },
+      { label: "Target ID", name: "targetId", value: filters.targetId || "" },
+      { label: "Occurred from", name: "occurredFrom", type: "datetime-local", value: filters.occurredFrom || "" },
+      { label: "Occurred to", name: "occurredTo", type: "datetime-local", value: filters.occurredTo || "" },
+    ], (nextFilters) => renderAuditWorkspace(nextFilters)));
+    const table = wsTable([
+      { label: "Time", value: (row) => wsDate(row.occurredAt) },
+      { label: "Action", value: (row) => row.action },
+      { label: "Outcome", value: (row) => row.outcome, badge: true },
+      { label: "Actor", value: (row) => row.actor?.id || row.actor?.type },
+      { label: "Target", value: (row) => row.target?.id || row.target?.type },
+      { label: "Request", value: (row) => row.requestId },
+    ], data.items || [], (event, actions) => {
+      const details = button("Details");
+      details.addEventListener("click", async () => {
+        details.disabled = true;
+        try {
+          const result = await request(`/audit-events/${encodeURIComponent(event.eventId)}`);
+          const current = result.auditEvent || result;
+          await wsDialog({
+            title: current.action,
+            description: "Secrets are redacted by the server before this event reaches the browser.",
+            submitLabel: "Close",
+            fields: [
+              { label: "Event ID", name: "eventId", value: current.eventId, readOnly: true },
+              { label: "Request ID", name: "requestId", value: current.requestId, readOnly: true },
+              { label: "Outcome", name: "outcome", value: current.outcome, readOnly: true },
+              { label: "Actor", name: "actor", multiline: true, value: JSON.stringify(current.actor, null, 2), readOnly: true },
+              { label: "Target", name: "target", multiline: true, value: JSON.stringify(current.target, null, 2), readOnly: true },
+              { label: "Metadata", name: "metadata", multiline: true, rows: 6, value: JSON.stringify(current.metadata, null, 2), readOnly: true },
+            ],
+          });
+        } catch (error) { notice(error.message, true); }
+        finally { details.disabled = false; }
+      });
+      actions.append(details);
+    });
+    fragment.append(table, wsPagination({
+      pageInfo: data.page,
+      visibleCount: (data.items || []).length,
+      cursor,
+      trail,
+      onPage: (nextCursor, nextTrail) => renderAuditWorkspace(filters, nextCursor, nextTrail),
+    }));
+    page.replaceChildren(fragment);
+    status(`${(data.items || []).length} audit events loaded on this page`);
+  } catch (error) { renderError("audit", error); }
+  finally { page.setAttribute("aria-busy", "false"); }
+}
+
+async function renderOperationsWorkspace(
+  backupCursor = null,
+  backupTrail = [],
+  drillCursor = null,
+  drillTrail = [],
+) {
+  loading();
+  notice("");
+  try {
+    const backupQuery = wsAddCursor(new URLSearchParams({ limit: "25" }), backupCursor);
+    const drillQuery = wsAddCursor(new URLSearchParams({ limit: "25" }), drillCursor);
+    const [health, backups, drills] = await Promise.all([
+      request("/operations/health"),
+      request(`/operations/backups?${backupQuery}`),
+      request(`/operations/restore-drills?${drillQuery}`),
+    ]);
+    const fragment = document.createDocumentFragment();
+    const head = header("operations");
+    const create = button("Create verified backup", "button-primary");
+    create.addEventListener("click", async () => {
+      const values = await wsDialog({
+        title: "Create verified backup",
+        description: "Practenture creates an online SQLite backup and immediately proves it with a disposable restore drill.",
+        submitLabel: "Create and verify",
+        fields: [{ label: "Label (optional)", name: "label", maxLength: 100 }],
+      });
+      if (!values) return;
+      create.disabled = true;
+      try {
+        const result = await wsRecentMutation("/operations/backups", { body: values.label.trim() ? { label: values.label.trim() } : {} });
+        await renderOperationsWorkspace();
+        notice(`Backup ${result.backup?.id || "completed"} was created and verified.`);
+      } catch (error) { if (!/cancelled/i.test(error.message)) notice(error.message, true); }
+      finally { create.disabled = false; }
+    });
+    head.append(create);
+    fragment.append(head);
+    const summary = wsElement("div", "metric-grid");
+    for (const [label, value] of [["Overall status", health.status], ["Passed checks", health.summary?.passed], ["Warnings", health.summary?.warnings], ["Failed checks", health.summary?.failed]]) {
+      const card = wsElement("article", "metric");
+      card.append(wsElement("span", "", label), wsElement("strong", "", value ?? 0));
+      summary.append(card);
+    }
+    fragment.append(summary, wsElement("h2", "", "Health checks"));
+    fragment.append(wsTable([
+      { label: "Check", value: (row) => titleCase(row.code) },
+      { label: "Status", value: (row) => row.status, badge: true },
+      { label: "Severity", value: (row) => row.severity },
+      { label: "Details", value: (row) => row.details ? JSON.stringify(row.details) : "—" },
+      { label: "Affected", value: (row) => row.affectedCount },
+    ], health.checks || []));
+    fragment.append(wsElement("h2", "section-title", "Verified backups"));
+    fragment.append(wsTable([
+      { label: "Started", value: (row) => wsDate(row.startedAt) },
+      { label: "Status", value: (row) => row.status, badge: true },
+      { label: "Label", value: (row) => row.label },
+      { label: "Bytes", value: (row) => row.databaseSize },
+      { label: "SHA-256", value: (row) => row.sha256 },
+    ], backups.items || []), wsPagination({
+      pageInfo: backups.pageInfo,
+      totalCount: backups.totalCount,
+      visibleCount: (backups.items || []).length,
+      cursor: backupCursor,
+      trail: backupTrail,
+      onPage: (nextCursor, nextTrail) => renderOperationsWorkspace(nextCursor, nextTrail, drillCursor, drillTrail),
+    }));
+    fragment.append(wsElement("h2", "section-title", "Restore drills"));
+    fragment.append(wsTable([
+      { label: "Completed", value: (row) => wsDate(row.endedAt) },
+      { label: "Status", value: (row) => row.status, badge: true },
+      { label: "Backup", value: (row) => row.backupId },
+      { label: "Error", value: (row) => row.errorMessage },
+    ], drills.items || []), wsPagination({
+      pageInfo: drills.pageInfo,
+      totalCount: drills.totalCount,
+      visibleCount: (drills.items || []).length,
+      cursor: drillCursor,
+      trail: drillTrail,
+      onPage: (nextCursor, nextTrail) => renderOperationsWorkspace(backupCursor, backupTrail, nextCursor, nextTrail),
+    }));
+    page.replaceChildren(fragment);
+    status("Operations loaded");
+  } catch (error) { renderError("operations", error); }
+  finally { page.setAttribute("aria-busy", "false"); }
+}
+
+async function renderCleanupWorkspace() {
+  const fragment = document.createDocumentFragment();
+  fragment.append(header("cleanup"));
+  const warning = wsElement("section", "card danger-zone stack");
+  warning.append(
+    wsElement("h2", "", "Delete only explicitly named simulation sessions"),
+    wsElement("p", "", "Cleanup is fail-closed: the server requires a current verified backup, a successful restore drill, a fresh plan hash, exact confirmation, and recent Administrator authentication."),
+  );
+  const form = wsElement("form", "stack");
+  form.append(wsField("Session codes (comma or newline separated)", "sessionCodes", { multiline: true, rows: 4, required: true, placeholder: "ABC123\nDEF456" }));
+  const submit = button("Preview cleanup plan", "button-primary");
+  submit.type = "submit";
+  form.append(submit);
+  warning.append(form);
+  fragment.append(warning);
+  page.replaceChildren(fragment);
+  page.setAttribute("aria-busy", "false");
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const raw = new FormData(form).get("sessionCodes") || "";
+    const codes = [...new Set(String(raw).split(/[\s,]+/).map((item) => item.trim()).filter(Boolean))].sort();
+    if (!codes.length) { notice("Enter at least one session code.", true); return; }
+    submit.disabled = true;
+    try {
+      const response = await wsRecentMutation("/operations/cleanup-plans", { body: { selector: { sessionCodes: codes } } });
+      const plan = response.plan;
+      const panel = wsElement("section", "card stack cleanup-plan");
+      panel.append(wsElement("h2", "", "Review deletion plan"));
+      panel.append(wsElement("p", "muted", `Plan expires ${wsDate(plan.expiresAt)}. Any data drift invalidates it.`));
+      panel.append(wsTable([
+        { label: "Record type", value: (row) => row.type },
+        { label: "Count", value: (row) => row.count },
+      ], Object.entries(plan.previewCounts || {}).map(([type, count]) => ({ type: titleCase(type), count }))));
+      const confirmation = wsField("Type the exact confirmation text", "confirmation", { required: true, value: "" });
+      panel.append(wsElement("code", "confirmation-text", plan.confirmationText), confirmation);
+      const execute = button("Execute bounded cleanup", "button-danger");
+      panel.append(execute);
+      execute.addEventListener("click", async () => {
+        const typed = confirmation.querySelector("input").value;
+        if (typed !== plan.confirmationText) { notice("Confirmation text does not match the server plan.", true); return; }
+        execute.disabled = true;
+        try {
+          const result = await wsRecentMutation(`/operations/cleanup-plans/${encodeURIComponent(plan.id)}/execute`, {
+            body: { planHash: plan.planHash, confirmation: typed },
+          });
+          await renderCleanupWorkspace();
+          notice(`Cleanup completed. ${Object.values(result.deletedCounts || {}).reduce((sum, value) => sum + value, 0)} records deleted from the scoped sessions.`);
+        } catch (error) { if (!/cancelled/i.test(error.message)) notice(error.message, true); }
+        finally { execute.disabled = false; }
+      });
+      warning.after(panel);
+      notice("Review the server-generated plan before executing.");
+    } catch (error) { if (!/cancelled/i.test(error.message)) notice(error.message, true); }
+    finally { submit.disabled = false; }
+  });
+  status("Scoped cleanup ready");
+}
+
+async function renderAccountWorkspace() {
+  loading();
+  notice("");
+  try {
+    const current = await request("/auth/session");
+    if (current?.session) {
+      state.session = current.session;
+      state.csrf = current.session.csrfToken;
+    }
+    const fragment = document.createDocumentFragment();
+    fragment.append(header("account"));
+    const sessionCard = wsElement("section", "card stack");
+    sessionCard.append(
+      wsElement("h2", "", "Administrator session"),
+      wsElement("p", "muted", "Authentication is held in a secure HTTP-only cookie and never stored in browser storage."),
+      wsTable([
+        { label: "Role", value: () => sessionRoleLabel(current.session.role) },
+        { label: "Created", value: () => wsDate(current.session.createdAt) },
+        { label: "Idle expiry", value: () => wsDate(current.session.idleExpiresAt) },
+        { label: "Absolute expiry", value: () => wsDate(current.session.absoluteExpiresAt) },
+      ], [current.session]),
+    );
+    const passwordCard = wsElement("section", "card stack");
+    passwordCard.append(wsElement("h2", "", "Change password"), wsElement("p", "muted", "Changing the password revokes every existing Administrator session and creates one replacement session for this browser."));
+    const change = button("Change Administrator password", "button-primary");
+    change.addEventListener("click", async () => {
+      const values = await wsDialog({
+        title: "Change Administrator password",
+        description: "Use at least 12 characters. A passphrase is recommended.",
+        submitLabel: "Change password",
+        fields: [
+          { label: "Current password", name: "currentPassword", type: "password", autocomplete: "current-password", required: true, maxLength: 1024 },
+          { label: "New password", name: "newPassword", type: "password", autocomplete: "new-password", required: true, minLength: 12, maxLength: 1024 },
+          { label: "Confirm new password", name: "confirmation", type: "password", autocomplete: "new-password", required: true, minLength: 12, maxLength: 1024 },
+        ],
+      });
+      if (!values) return;
+      if (values.newPassword !== values.confirmation) { notice("New password confirmation does not match.", true); return; }
+      change.disabled = true;
+      try {
+        await reauthenticate();
+        const response = await request("/auth/password/change", { method: "POST", body: JSON.stringify({ currentPassword: values.currentPassword, newPassword: values.newPassword }) });
+        setSession(response);
+        await renderAccountWorkspace();
+        notice("Administrator password changed and other sessions revoked.");
+      } catch (error) { if (!/cancelled/i.test(error.message)) notice(error.message, true); }
+      finally { change.disabled = false; }
+    });
+    passwordCard.append(change);
+    fragment.append(sessionCard, passwordCard);
+    page.replaceChildren(fragment);
+    status("Account security loaded");
+  } catch (error) { renderError("account", error); }
+  finally { page.setAttribute("aria-busy", "false"); }
+}

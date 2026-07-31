@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, Header, Request, Response
 from .cleanup_schemas import CleanupPlanCreateRequest, CleanupExecuteRequest, CleanupExecutionResponse, CleanupPlanResponse
 from .cleanup_service import CleanupService
-from .dependencies import require_admin_session, require_recent_auth_session
+from .dependencies import require_admin_session, require_csrf_session, require_recent_auth_session
 from .service import AuthenticatedSession
 
 router=APIRouter(prefix="/operations",tags=["admin-v2-operations"])
@@ -10,7 +10,7 @@ _service=CleanupService()
 def get_cleanup_service() -> CleanupService: return _service
 
 @router.post("/cleanup-plans",response_model=CleanupPlanResponse,status_code=201)
-def create_cleanup_plan(payload: CleanupPlanCreateRequest, session: AuthenticatedSession=Depends(require_admin_session), service: CleanupService=Depends(get_cleanup_service)):
+def create_cleanup_plan(payload: CleanupPlanCreateRequest, session: AuthenticatedSession=Depends(require_csrf_session), service: CleanupService=Depends(get_cleanup_service)):
     return service.create_plan(session=session,session_codes=payload.selector.session_codes)
 
 @router.get("/cleanup-plans/{plan_id}",response_model=CleanupPlanResponse)
