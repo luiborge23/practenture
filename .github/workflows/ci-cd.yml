@@ -58,7 +58,7 @@ jobs:
             --cov=. --cov-report=xml:coverage.xml
       - name: Upload backend evidence
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: backend-contract-evidence
           path: |
@@ -99,7 +99,7 @@ jobs:
             test_ai.py \
             --junitxml=pytest-regression.xml
       - if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: backend-regression-evidence
           path: backend/pytest-regression.xml
@@ -137,7 +137,7 @@ jobs:
           zricethezav/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
           dir /repo --no-banner --redact --config /repo/.gitleaks.toml
       - if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: admin-v2-security-evidence
           path: backend/pytest-admin-v2.xml
@@ -176,7 +176,7 @@ jobs:
             -resultBundlePath "$RUNNER_TEMP/PractentureTests.xcresult" | tee "$RUNNER_TEMP/ios-test.log"
       - name: Upload iOS evidence
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: ios-test-evidence
           path: |
