@@ -29,6 +29,8 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
@@ -74,6 +76,8 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
@@ -113,6 +117,8 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
@@ -152,6 +158,8 @@ jobs:
       DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - name: Verify pinned Xcode toolchain
         run: |
           set -euo pipefail
@@ -161,7 +169,16 @@ jobs:
         id: simulator
         run: |
           set -euo pipefail
-          xcodebuild -downloadPlatform iOS | tee "$RUNNER_TEMP/ios-platform-download.log"
+          for attempt in 1 2 3; do
+            if xcodebuild -downloadPlatform iOS >> "$RUNNER_TEMP/ios-platform-download.log" 2>&1; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              cat "$RUNNER_TEMP/ios-platform-download.log" >&2
+              exit 1
+            fi
+            sleep $((attempt * 15))
+          done
           RUNTIME=$(xcrun simctl list runtimes --json | python3 -c 'import json,sys; runtimes=json.load(sys.stdin)["runtimes"]; candidates=[r for r in runtimes if r.get("isAvailable") and r.get("platform")=="iOS"]; candidates.sort(key=lambda r: tuple(map(int, r["version"].split("."))), reverse=True); print(candidates[0]["identifier"] if candidates else "")')
           test -n "$RUNTIME"
           export RUNTIME
@@ -213,6 +230,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: docker/setup-buildx-action@v4
       - name: Build without publishing
         uses: docker/build-push-action@v7
