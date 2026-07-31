@@ -170,7 +170,10 @@ jobs:
           xcrun simctl erase "$UDID"
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
-          echo "destination=platform=iOS Simulator,id=$UDID" >> "$GITHUB_OUTPUT"
+          # GitHub's arm64 image exposes this UDID for both arm64 and x86_64.
+          # Selecting by UDID alone emits an ambiguous-destination warning and can
+          # launch the XCTest host with the wrong architecture.
+          echo "destination=platform=iOS Simulator,arch=arm64,id=$UDID" >> "$GITHUB_OUTPUT"
       - name: Build for testing
         run: |
           set -euo pipefail
