@@ -146,8 +146,18 @@ jobs:
     name: iOS build-for-testing and tests
     needs: backend-contracts
     runs-on: macos-latest
+    env:
+      # Xcode 26.6 deterministically aborts the GoldenFormulaParity XCTest host
+      # on GitHub's arm64 runner (malloc invalid-free). Pin the known-good 26.5
+      # toolchain until that upstream runner/Xcode regression is resolved.
+      DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
     steps:
       - uses: actions/checkout@v5
+      - name: Verify pinned Xcode toolchain
+        run: |
+          set -euo pipefail
+          xcodebuild -version | tee "$RUNNER_TEMP/xcode-version.log"
+          xcodebuild -version | grep -Fx 'Xcode 26.5'
       - name: Select an available iPhone simulator
         id: simulator
         run: |
@@ -188,6 +198,7 @@ jobs:
           path: |
             ${{ runner.temp }}/ios-build.log
             ${{ runner.temp }}/ios-test.log
+            ${{ runner.temp }}/xcode-version.log
             ${{ runner.temp }}/PractentureTests.xcresult
 
   docker-build:
