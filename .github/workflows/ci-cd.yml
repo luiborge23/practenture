@@ -151,6 +151,7 @@ jobs:
       # on GitHub's arm64 runner (malloc invalid-free). Pin the known-good 26.5
       # toolchain until that upstream runner/Xcode regression is resolved.
       DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
+      PRACTENTURE_PARITY_DIAGNOSTICS: "1"
     steps:
       - uses: actions/checkout@v5
       - name: Verify pinned Xcode toolchain
