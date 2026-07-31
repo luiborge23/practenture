@@ -154,6 +154,12 @@ jobs:
           set -euo pipefail
           UDID=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; rows=[x for runtime in d.values() for x in runtime if x.get("isAvailable") and x["name"].startswith("iPhone")]; print(rows[-1]["udid"] if rows else "")')
           test -n "$UDID"
+          # CI runners may retain simulator state from setup tooling. Reset the selected
+          # device before building so the test process always starts from a known state.
+          xcrun simctl shutdown "$UDID" || true
+          xcrun simctl erase "$UDID"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
           echo "destination=platform=iOS Simulator,id=$UDID" >> "$GITHUB_OUTPUT"
       - name: Build for testing
         run: |
