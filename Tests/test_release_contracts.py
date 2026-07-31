@@ -89,6 +89,10 @@ def test_deploy_consumes_verified_artifact_and_restores_release_on_rollback() ->
     assert deploy.index(proxy_probe) < deploy.index('mv -Tf "$LINK_TMP" "$HOME/practenture-current"')
     assert "ln -sfn" not in deploy
     assert "MANIFEST_SOURCE_REVISION" in deploy
+    assert "open(sys.argv[1], encoding='utf-8')" in deploy
+    assert '"\\$RELEASE_TMP/RELEASE-MANIFEST.json"' in deploy
+    assert "practenture-releases/.staging-$RELEASE_SHA" in deploy
+    assert 'mv "\\$RELEASE_TMP" "\\$RELEASE_PATH"' in deploy
     assert '--build-arg "PRACTENTURE_RELEASE_SHA=$SOURCE_REVISION"' in deploy
     assert '"practenture-backend:rollback-$DEPLOY_ID" > .rollback-image' in deploy
     assert "docker-compose -p practenture stop nginx practenture-backend" in deploy

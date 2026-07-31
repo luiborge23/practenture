@@ -353,13 +353,18 @@ set -euo pipefail
 cd ~/practenture-artifacts
 sha256sum -c practenture-release.tar.gz.sha256
 RELEASE_PATH="\$HOME/practenture-releases/$RELEASE_SHA"
+RELEASE_TMP="\$HOME/practenture-releases/.staging-$RELEASE_SHA-\$\$"
 test ! -e "\$RELEASE_PATH"
-mkdir "\$RELEASE_PATH"
-tar -xzf practenture-release.tar.gz -C "\$RELEASE_PATH"
-MANIFEST_SOURCE_REVISION=\$(python3 -c "import json; print(json.load(open('RELEASE-MANIFEST.json', encoding='utf-8'))['sourceRevision'])" < "\$RELEASE_PATH/RELEASE-MANIFEST.json")
+test ! -e "\$RELEASE_TMP"
+trap 'rm -rf "\$RELEASE_TMP"' EXIT
+mkdir "\$RELEASE_TMP"
+tar -xzf practenture-release.tar.gz -C "\$RELEASE_TMP"
+MANIFEST_SOURCE_REVISION=\$(python3 -c "import json,sys; print(json.load(open(sys.argv[1], encoding='utf-8'))['sourceRevision'])" "\$RELEASE_TMP/RELEASE-MANIFEST.json")
 test "\$MANIFEST_SOURCE_REVISION" = "$SOURCE_REVISION"
-printf '%s\n' "\$MANIFEST_SOURCE_REVISION" > "\$RELEASE_PATH/.source-revision"
-install -m 600 .env "\$RELEASE_PATH/.env"
+printf '%s\n' "\$MANIFEST_SOURCE_REVISION" > "\$RELEASE_TMP/.source-revision"
+install -m 600 .env "\$RELEASE_TMP/.env"
+mv "\$RELEASE_TMP" "\$RELEASE_PATH"
+trap - EXIT
 readlink "\$HOME/practenture-current" > previous-release 2>/dev/null || true
 printf '%s\n' "\$RELEASE_PATH" > candidate-release
 REMOTE_STAGE
