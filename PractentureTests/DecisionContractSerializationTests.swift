@@ -1,6 +1,7 @@
 import XCTest
 @testable import Practenture
 
+@MainActor
 final class DecisionContractSerializationTests: XCTestCase {
     func testJoinRequestUsesExactCamelCaseContract() throws {
         let data = try JSONEncoder().encode(JoinRequestBackend(teamName: "Team Alpha", studentId: "STU001"))

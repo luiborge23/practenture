@@ -228,7 +228,6 @@ final class SyncServiceTests: XCTestCase {
 
     /// Test that queueForSync adds the action to the internal queue.
     func testQueueForSyncAddsAction() {
-        let decision = makeSampleDecision()
         let action = SyncAction.joinSession(
             sessionId: "JOIN01", teamName: "Team A", studentId: "stu123"
         )

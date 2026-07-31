@@ -117,7 +117,6 @@ final class NetworkServiceTests: XCTestCase {
 
         // We verify the default timeout by inspecting the URLSessionConfiguration.
         // The default NetworkService.shared was created with timeout=15.
-        let config = URLSessionConfiguration.default
         // Default timeout from NetworkService is 15 seconds
         let expectedTimeout: TimeInterval = 15
 
