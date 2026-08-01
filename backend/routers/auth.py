@@ -77,8 +77,8 @@ async def login_endpoint(req: LoginRequest):
     
     Providers:
     - password: username/password (professor or student)
-    - apple: Apple Sign-In ID token (student)
-    - google: Google Sign-In ID token (student)
+    - apple: Apple Sign-In ID token (returning linked identity or invited professor enrollment)
+    - google: Google Sign-In ID token (returning linked identity or invited professor enrollment)
     """
     return login(req)
 

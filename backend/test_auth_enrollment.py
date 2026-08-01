@@ -46,3 +46,26 @@ def test_google_new_professor_enrollment():
         r=client.post('/api/auth/login',json={"provider":"google","id_token":"valid","provider_nonce":"nonce-g","professor_code":c})
         assert r.status_code==200, r.text
         assert r.json()['role']=='professor' and r.json()['accessToken']
+
+def test_returning_legacy_social_student_keeps_student_role():
+    subject=f"legacy-google-{secrets.token_hex(5)}"
+    username=f"social_student_{secrets.token_hex(4)}"
+    assert db.create_user(
+        username=username,
+        password_hash="",
+        role="student",
+        name="Legacy Social Student",
+        student_id=username,
+        email=f"{username}@example.edu",
+        provider="google",
+        provider_uid=subject,
+    )
+    payload={"sub":subject,"email":f"{username}@example.edu","name":"Legacy Social Student"}
+    with patch('auth.verify_google_id_token',return_value=payload):
+        response=client.post('/api/auth/login',json={"provider":"google","id_token":"valid"})
+
+    assert response.status_code==200, response.text
+    assert response.json()['userId']==username
+    assert response.json()['role']=='student'
+    assert response.json()['professorCodeRequired'] is False
+    assert response.json()['accessToken']

@@ -321,7 +321,10 @@ struct LoginView: View {
 
     private var stepSubtitleText: String? {
         switch step {
-        case .authenticationMethods: return selectedRole == .professor ? "Sign in to manage simulations or enroll with an invitation" : "Sign in to join your class and run your business"
+        case .authenticationMethods:
+            return selectedRole == .professor
+                ? "Continue with Apple or Google, or use the same Practenture credentials you enrolled with"
+                : "Use your student ID and password to join your class and run your business"
         case .roleSelection: return "Choose your account type"
         case .professorLogin: return "Enter your credentials to manage sessions"
         case .professorCodeEntry: return "Enter the access code provided by your administrator"
@@ -376,6 +379,13 @@ struct LoginView: View {
                 .disabled(isLoading)
             #endif
 
+            Text(selectedRole == .professor
+                 ? "First-time Apple or Google professors will need a one-time invitation. Returning professors should use the same method they enrolled with."
+                 : "Apple and Google are for returning linked student accounts. New students should create Practenture credentials below.")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.58))
+                .multilineTextAlignment(.center)
+
             authenticationDivider("OR USE PRACTENTURE")
                 .padding(.vertical, 2)
 
@@ -385,7 +395,7 @@ struct LoginView: View {
                 step = selectedRole == .professor ? .professorLogin : .studentLogin
             } label: {
                 Label(
-                    selectedRole == .professor ? "Professor credentials" : "Student credentials",
+                    selectedRole == .professor ? "Use Practenture credentials" : "Use student credentials",
                     systemImage: "person.badge.key.fill"
                 )
                 .font(.headline)
@@ -1384,6 +1394,11 @@ struct LoginView: View {
                     providerNonce: nonce
                 )
                 if response.professorCodeRequired == true {
+                    guard selectedRole == .professor else {
+                        activeAppleNonce = nil
+                        errorMessage = "No student account is linked to this Apple ID. New students must create a Practenture account."
+                        return
+                    }
                     // New user — store token and ask for professor code
                     pendingOAuthProvider = "apple"
                     pendingOAuthIdToken = idToken
@@ -1443,6 +1458,10 @@ struct LoginView: View {
                 do {
                     let response = try await AuthManager.shared.loginWithGoogle(idToken: idToken)
                     if response.professorCodeRequired == true {
+                        guard selectedRole == .professor else {
+                            errorMessage = "No student account is linked to this Google account. New students must create a Practenture account."
+                            return
+                        }
                         // New user — store token and ask for professor code
                         pendingOAuthProvider = "google"
                         pendingOAuthIdToken = idToken

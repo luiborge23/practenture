@@ -20,6 +20,41 @@ final class PractentureUITests: XCTestCase {
                       "Deterministic QA harness did not launch")
     }
 
+    private func launchAuthentication(role: String) {
+        app.launchArguments = ["-UITesting"]
+        app.launchEnvironment = [
+            "PRACTENTURE_UI_AUTH_ROLE": role,
+            "PRACTENTURE_UI_AUTH_STEP": "authenticationMethods",
+        ]
+        app.launch()
+        let title = role == "professor" ? "Professor access" : "Student access"
+        XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: 15),
+                      "Authentication method chooser did not launch for \(role)")
+    }
+
+    func testProfessorAuthenticationOffersThreePrimaryMethods() {
+        launchAuthentication(role: "professor")
+
+        XCTAssertTrue(app.buttons["Sign in with Apple"].exists)
+        XCTAssertTrue(app.buttons["Sign in with Google"].exists)
+        XCTAssertTrue(app.buttons["Use Practenture credentials"].exists)
+        XCTAssertTrue(app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@", "same method they enrolled with")
+        ).firstMatch.exists)
+    }
+
+    func testStudentAuthenticationLimitsProvidersToReturningLinkedAccounts() {
+        launchAuthentication(role: "student")
+
+        XCTAssertTrue(app.buttons["Sign in with Apple"].exists)
+        XCTAssertTrue(app.buttons["Sign in with Google"].exists)
+        XCTAssertTrue(app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@", "returning linked student accounts")
+        ).firstMatch.exists)
+        XCTAssertTrue(app.buttons["Use student credentials"].exists)
+        XCTAssertTrue(app.buttons["Create student account"].exists)
+    }
+
     func testProfessorCreatesSessionAndAdvancesRound() {
         launch("professor")
 
