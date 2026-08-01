@@ -15,7 +15,7 @@ android {
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "PRACTENTURE_BASE_URL", "\"http://18.215.180.58/\"")
+        buildConfigField("String", "PRACTENTURE_BASE_URL", "\"https://practenture.com/\"")
     }
 
     buildFeatures { compose = true; buildConfig = true }

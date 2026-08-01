@@ -62,14 +62,14 @@ final class NetworkService {
     private let baseURLOverride: String?
 
     /// Environment-aware base URL. Single source of truth: Info.plist PRACTENTURE_BACKEND_URL key.
-    /// Falls back to EC2 IP only if plist key is missing (never at runtime).
+    /// Falls back to the canonical HTTPS origin if the plist key is unavailable.
     var baseURL: String {
         if let baseURLOverride { return baseURLOverride }
         if let plistURL = Bundle.main.object(forInfoDictionaryKey: "PRACTENTURE_BACKEND_URL") as? String, !plistURL.isEmpty {
             return plistURL
         }
         // Only default to production — no env var fallback (prevents config drift)
-        return "https://api.practenture.com"
+        return "https://practenture.com"
     }
 
     private let session: URLSession

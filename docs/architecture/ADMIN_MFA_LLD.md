@@ -1,6 +1,6 @@
 # Administrator Multi-Factor Authentication LLD
 
-**Status:** Implemented, CI-qualified, deployed, and enrolled in production
+**Status:** Implemented in current source; Section 12 records the last deployed baseline
 **Updated:** 2026-07-31
 **Parent:** [Practenture System Architecture](SYSTEM_ARCHITECTURE.md)
 **Release:** `1abb1aaee2dd49b59790a4b3c232cacdb3e2848a`
@@ -43,7 +43,7 @@ backend/admin_v2/routes.py
   -> SQLite
        mfa_secrets
        admin_mfa_replay_state
-       admin_login_attempts
+       privileged_login_buckets
        admin_sessions
        admin_audit_events
 ```
@@ -54,6 +54,7 @@ Primary implementation files:
 - `backend/admin_v2/schemas.py` — camelCase request/response models.
 - `backend/admin_v2/service.py` — lifecycle orchestration and security policy.
 - `backend/admin_v2/repository.py` — transactional verification, replay, recovery consumption, sessions, and throttle persistence.
+- `backend/migrations/versions/007_track_admin_mfa_login_reservation.py` — preserves the original password-stage identity, identity/client pair, and client reservation window markers across the MFA challenge boundary so each successful reservation can be released exactly even if the client address changes. The migration invalidates transient pre-007 challenges, which lack that metadata, and requires those users to restart login.
 - `backend/mfa.py` — shared cryptographic primitives.
 - `backend/static/admin_v2/admin-workspaces.js` — Account security UI.
 - `backend/tests/admin_v2/test_admin_mfa_lifecycle.py` — lifecycle and adversarial coverage.
@@ -143,7 +144,7 @@ Admin MFA uses SQLite-backed attempt records rather than process memory. Policy 
 - client-pair dimensions for additional abuse containment;
 - challenge identity for login challenge attempts.
 
-Reservations happen before password or factor checks. Denied reservations return `429` with retry timing. Failed checks remain counted. A completed strong verification resets the applicable owner/client or challenge reservation inside the successful security transaction.
+Reservations happen before password or factor checks. Denied reservations return `429` with retry timing. Failed checks remain counted. A completed direct login releases its own password reservation in each identity, pair, and client dimension. A completed challenge login atomically releases both the original password-stage reservation and the challenge/owner factor-stage reservations. Every release matches the reservation's window marker and decrements only that successful request, so concurrent or otherwise unrelated failures remain counted.
 
 ## 9. Recovery-code lifecycle
 
@@ -184,7 +185,7 @@ Metadata may contain non-secret counts, such as the number of recovery codes iss
 
 ## 12. Verification and release evidence
 
-Release `1abb1aaee2dd49b59790a4b3c232cacdb3e2848a` was qualified and deployed on 2026-07-31.
+The core MFA lifecycle baseline, release `1abb1aaee2dd49b59790a4b3c232cacdb3e2848a`, was qualified and deployed on 2026-07-31.
 
 - Full local backend/release suite: **502 passed**.
 - Exact-SHA GitHub Actions run: `30670330492`.
@@ -196,6 +197,8 @@ Release `1abb1aaee2dd49b59790a4b3c232cacdb3e2848a` was qualified and deployed on
 - Production Administrator enrollment: completed through Admin V2.
 - Fresh post-enrollment password + TOTP login: passed.
 - Production state: encrypted seed, ten hashed recovery codes, replay state present, database integrity `ok`, zero foreign-key violations.
+
+Current source additionally ensures a successful challenge login releases both its password-stage and factor-stage throttle reservations atomically. Its regression test belongs to the next exact-SHA qualification; this statement does not imply deployment beyond the baseline identified above.
 
 ## 13. Operational rules
 

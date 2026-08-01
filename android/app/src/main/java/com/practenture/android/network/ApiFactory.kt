@@ -7,7 +7,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 object ApiFactory {
-    fun create(baseUrl: String = BuildConfig.PRACTENTURE_BASE_URL, token: String? = null): practentureApi {
+    fun create(baseUrl: String = BuildConfig.PRACTENTURE_BASE_URL, token: String? = null): PractentureApi {
         val client = OkHttpClient.Builder()
             .addInterceptor { chain ->
                 val builder = chain.request().newBuilder().header("Accept", "application/json")
@@ -17,6 +17,6 @@ object ApiFactory {
             .addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })
             .build()
         return Retrofit.Builder().baseUrl(baseUrl).client(client)
-            .addConverterFactory(GsonConverterFactory.create()).build().create(practentureApi::class.java)
+            .addConverterFactory(GsonConverterFactory.create()).build().create(PractentureApi::class.java)
     }
 }

@@ -1,10 +1,10 @@
-# Practenture iOS App Setup
+# Practenture
 
 ## Prerequisites
 
-- Xcode 15.4+ (with iOS 17.4 SDK)
+- Xcode 26.5 with the iOS 26.5 runtime
 - Apple Developer account ($99/yr)
-- Physical device for testing (XCTest requires concrete device)
+- A concrete iPhone simulator destination; a connected device is optional for production integration checks
 
 ## Quick Start
 
@@ -18,25 +18,20 @@ The app reads backend URL from `Info.plist`:
 
 ```xml
 <key>PRACTENTURE_BACKEND_URL</key>
-<string>https://api.practenture.com</string>
+<string>https://practenture.com</string>
 ```
 
-For local development, ensure backend is running on port 8000:
-
-```bash
-cd /Users/luisborges/2026/Practenture-ios/Practenture/backend
-./venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-```
+Debug and Release xcconfig files currently publish the same canonical HTTPS origin. Do not add raw-IP HTTP or ATS exceptions for production.
 
 ## Running Tests
 
-Tests require a physical device:
+CI and local qualification use the pinned iPhone 17 Pro simulator on iOS 26.5. Production integration checks may additionally use a connected physical device.
 
 ```bash
 xcodebuild -project Practenture.xcodeproj \
   -scheme Practenture \
   -configuration Debug \
-  -sdk iphonesimulator \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
   test
 ```
 
@@ -51,7 +46,7 @@ xcodebuild -project Practenture.xcodeproj \
 ## Common Issues
 
 ### "Cannot test target on Any iOS Simulator Device"
-- XCTest requires physical device. Connect iPhone/iPad and select as target.
+- Select a concrete simulator such as iPhone 17 Pro on iOS 26.5 rather than the generic simulator destination.
 
 ### "Failed to resolve package dependencies"
-- Clean derived data: `rm -rf ~/Library/Developer/Xcode/DerivedData/*`
+- Resolve package versions in Xcode, then retry with a fresh project-specific `-derivedDataPath`.

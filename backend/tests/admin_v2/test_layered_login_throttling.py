@@ -144,7 +144,7 @@ def test_longest_active_bucket_controls_retry_after_and_expiry_clock():
     assert bucket("identity", identity)["attempt_count"] == 1
 
 
-def test_success_reset_only_removes_its_client_reservation():
+def test_success_reset_only_removes_its_exact_reservations():
     repo = AdminSessionRepository(db)
     client = "198.51.100.77"
     first = reserve(repo, "successful-owner", client)
@@ -159,12 +159,47 @@ def test_success_reset_only_removes_its_client_reservation():
             conn,
             "SUCCESSFUL-OWNER",
             client,
+            identity_window_started_at=(
+                successful_reservation.identity_window_started_at
+            ),
+            pair_window_started_at=successful_reservation.pair_window_started_at,
             client_window_started_at=successful_reservation.client_window_started_at,
         )
 
-    assert bucket("identity", "successful-owner") is None
+    assert bucket("identity", "successful-owner")["attempt_count"] == 2
     assert bucket("identity", "unrelated-owner")["attempt_count"] == 1
+    pair_key = repo.pair_scope_key(
+        repo.normalize_identity("successful-owner"),
+        repo.normalize_client_signal(client),
+    )
+    assert bucket("pair", pair_key)["attempt_count"] == 2
     assert bucket("client", client)["attempt_count"] == 3
+
+
+def test_delayed_success_does_not_decrement_a_newer_window():
+    repo = AdminSessionRepository(db)
+    identity = "delayed-owner"
+    client = "198.51.100.78"
+    delayed = reserve(repo, identity, client, now=1_000.0)
+    newer = reserve(repo, identity, client, now=1_060.0)
+    assert delayed.allowed and newer.allowed
+
+    with repo._transaction() as conn:
+        repo.reset_login_attempt_in_transaction(
+            conn,
+            identity,
+            client,
+            identity_window_started_at=delayed.identity_window_started_at,
+            pair_window_started_at=delayed.pair_window_started_at,
+            client_window_started_at=delayed.client_window_started_at,
+        )
+
+    identity_key = repo.normalize_identity(identity)
+    client_key = repo.normalize_client_signal(client)
+    pair_key = repo.pair_scope_key(identity_key, client_key)
+    assert bucket("identity", identity_key)["attempt_count"] == 1
+    assert bucket("pair", pair_key)["attempt_count"] == 1
+    assert bucket("client", client_key)["attempt_count"] == 1
 
 
 def test_stale_expired_history_is_cleaned_during_reservation():

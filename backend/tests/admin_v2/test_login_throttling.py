@@ -128,7 +128,9 @@ def test_forwarding_headers_cannot_split_route_counter(identity, monkeypatch):
     assert rows[0]["attempt_count"] == 3
 
 
-def test_failed_password_and_failed_mfa_stay_counted_then_success_resets_pair(identity, monkeypatch):
+def test_success_releases_only_its_reservation_and_preserves_prior_failures(
+    identity, monkeypatch,
+):
     db.create_user(identity, hash_password(PASSWORD), "owner", "Throttle Owner")
     db.set_mfa_secret(identity, "JBSWY3DPEHPK3PXP")
     db.enable_mfa(identity, ["GOODBACKUP"])
@@ -148,7 +150,7 @@ def test_failed_password_and_failed_mfa_stay_counted_then_success_resets_pair(id
         identity, PASSWORD, mfa_code="GOODBACKUP", client_signal=signal
     )
     assert session.record.owner_user_id == identity
-    assert row(identity, signal) is None
+    assert row(identity, signal)["attempt_count"] == 2
 
 
 def test_separate_repository_and_database_instances_observe_durable_state(identity):

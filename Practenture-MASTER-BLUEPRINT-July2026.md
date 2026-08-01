@@ -57,7 +57,7 @@ Component 1 — Student Interface (iOS):
 • Live: TeamDashboardView with BackendState live sync (team count, submission count, backendCurrentRound), online indicator, announcements StudentAnnouncementsView relative time, leaderboard StudentLeaderboardView + ProfessorLeaderboardView, performance history charts, waiting room.
 • AI Coach: AICoachView contextual suggestions adaptive to performance.
 • Export: PDFExporter.swift 174 lines UIGraphicsPDFRenderer, CSVExportViewModel.
-• Services: NetworkService (baseURL from 4 places priority order, URLSession cache 10MB mem/50MB disk, .returnCacheDataElseLoad, timeout 15s, waitsForConnectivity, JSONEncoder snake_case, refreshToken coalescing NSLock+Task, 401→refresh), SyncService (FirebaseSyncAdapter+LocalSyncAdapter protocol), WebSocketManager (session rooms, JWT query param).
+• Services: NetworkService (xcconfig-fed Info.plist HTTPS origin with matching code fallback, authoritative-response cache bypass, bounded timeout, JSONEncoder snake_case, refreshToken coalescing NSLock+Task, 401→refresh), SyncService (FirebaseSyncAdapter+LocalSyncAdapter protocol), WebSocketManager (session rooms, JWT query parameter).
 • Analytics: AnalyticsDashboardView 380 lines — class overview 6 cards, round trends Chart API, team comparison, strategy distribution bar chart, tab selector Trends/Teams/Strategies, predictive modeling ready.
 • i18n: I18NManager 140 lines, 8 locales, L10n enum 60+ keys, SettingsView language picker, notification locale change.
 
@@ -161,7 +161,7 @@ US-003 iOS Auth Integration P3 — AuthService, Keychain not UserDefaults, auto-
 US-004 iOS WebSocket P4 — WebSocketService URLSessionWebSocketTask, auto-reconnect max 3 exponential, UI updates round_complete/leaderboard_update, status indicator, fallback polling — COMPLETED ReconnectableWSClient + WebSocketManager.
 US-001 Prof Web Dashboard Session Mgmt P5 — Login at /dashboard/login, dashboard shows active sessions status, create form name/rounds/teams/config, detail with live leaderboard, Start/End/Advance, WebSocket real-time, configurable backend URL — COMPLETED templates/dashboard.html Jinja2 + router dashboard.py.
 US-002 Prof Web Dashboard Grade Export P6 — Export Grades + Leaderboard buttons, browser download correct filename, existing /export/grades & /export/leaderboard — COMPLETED.
-US-007 Integration Tests P7 — session creation REST, student login token verify, join REST, decision submission REST, WS connect broadcast, grade CSV export, dashboard HTML render, Apple/Google verification, 40+ total — 31 passing (18+13) originally, 60/60 now (with e2e), target met.
+US-007 Integration Tests P7 — session creation REST, student login token verification, join REST, decision submission REST, WS connect/broadcast, grade CSV export, dashboard render, Apple/Google verification, 20-student E2E, and exact-SHA CI gates — deployed baseline passed 502 local backend/release tests.
 US-014 LoginView 3-mode P14 — Professor Login, Student Login, Student Register, professor validates /api/auth/login password provider, student Apple/Google, register via /api/auth/register, error messages — COMPLETED LoginView.swift 3 tabs.
 US-015 LaunchView auth check P15 — checks token on appear, no token shows LoginView sheet medium detent, authenticated shows Welcome back name, logout button — COMPLETED.
 
@@ -237,9 +237,9 @@ Push/MFA/Extras:
 • Maintainability: FastAPI pydantic models, SQLAlchemy ORM Base, Alembic migrations, Swift @Observable, Clean Views/ViewModels.
 
 4.7 Acceptance Criteria (Release):
-• Backend: 60/60 tests passing, health returns healthy, professor login JWT, session lifecycle create/join/start/process/end, leaderboard/results/grades/announcements working live verified curl manual E2E.
-• iOS: BUILD SUCCEEDED zero errors/warnings iPhone 17 Pro sim, 3-mode login flows, team dashboard decision input all categories, round results leaderboard announcements AI coach performance history waiting room join session all views render, NetworkService baseURL 4-location update pattern works, WebSocket connects.
-• Infra: Docker Compose up -d --build both containers healthy, nginx proxies /api/* /ws/* to backend:8005 with 86400s timeout buffering off, EC2 provisioning idempotent key handling python write not shell redirect, state file .ec2-state.json, ec2-deploy.sh provision/deploy/destroy verified.
+• Backend: deployed baseline passed 502 local backend/release tests and all five exact-SHA CI gates; health, authentication, session lifecycle, leaderboard/results/grades/announcements, and 20-student E2E are release-gated.
+• iOS: BUILD SUCCEEDED on the pinned iPhone 17 Pro simulator with zero CI annotations; login, dashboard, decision, results, leaderboard, announcements, coaching, history, waiting-room, canonical HTTPS, and WebSocket paths remain release-gated.
+• Infra: Docker Compose services healthy, Nginx terminates TLS and proxies /api/* and /ws/* to backend:8000, and ./ec2-deploy.sh deploy provides deterministic artifacts, migrations, health gates, atomic release swaps, and rollback preservation.
 • Docs: System Architecture doc + MOP doc live in Drive, PRD.md, PROGRESS.md progress log, USER_JOURNEY.md, this master blueprint.
 
 4.8 Metrics/KPIs Product:
@@ -262,25 +262,25 @@ Business: # active sessions, # students served, institutional conversions, cost 
 |  +-------------------+   HTTP/WS REST   +------------------------------+      |
 |  | iOS App (SwiftUI) | <------------->  | FastAPI Backend              |      |
 |  | 83 files 19.3k LoC|                  | Docker: practenture-backend     |      |
-|  | - Auth JWT Keych  |   /api/* /ws/*   | Port 8005 internal only      |      |
+|  | - Auth JWT Keych  |   /api/* /ws/*   | Port 8000 internal only      |      |
 |  | - Sessions Join   |                  | + Simulation Engine (det)    |      |
 |  | - Dashboard Decis |                  | + WebSocket Manager rooms    |      |
 |  | - WS heartbeat    |                  | + SQLite/PostgreSQL + Alembic|      |
 |  | - Offline Queue   |                  | + Auth JWT+JWKS 6h cache     |      |
 |  +-------------------+                  +------------------------------+      |
 |        ^                                          |                          |
-|        | HTTP via nginx                          |                          |
+|        | HTTPS/WSS via nginx                     |                          |
 |  +-------------------+   HTTP WS      +-----------v------------------+      |
 |  | Prof Web Browser  | <------------> | Nginx Reverse Proxy          |      |
-|  | /dashboard SPA    |   Port 80      | nginx:1.25-alpine            |      |
-|  | Canvas/LMS etc    |                | /api/→backend:8005           |      |
-|  +-------------------+                | /ws/→backend:8005 upgrade   |      |
+|  | /dashboard SPA    |   Port 443     | nginx:1.25-alpine            |      |
+|  | Canvas/LMS etc    |                | /api/→backend:8000           |      |
+|  +-------------------+                | /ws/→backend:8000 upgrade   |      |
 |                                       | 86400s timeout buffering off |      |
 |                                       +------------------------------+      |
 |                                                    |                        |
 +----------------------------------------------------|                        |
 | AWS EC2 us-east-1 t3.micro AL2023 20GB gp3         v                       |
-| IP 18.215.180.58 SG 80/443/22 | practenture-net bridge isol + DNS backend:8005 |
+| DNS practenture.com SG 80/443/22 | practenture-net bridge + DNS backend:8000   |
 +--------------------------------------------------------------------------------+
 
 5.1.1 Active Architecture Correction and Administrator Control Plane (2026-07-31):
@@ -297,7 +297,7 @@ Auth flow: LaunchView checks Keychain JWT → no token → LoginView sheet 3-mod
 
 Backend (main.py lifespan):
 • asynccontextmanager startup print config host/port/cors/jwt_secret_configured/jwt_expiry/DATABASE_URL, await init_db() → close_db on shutdown.
-• CORSMiddleware allow_origins *, allow_credentials *, allow_methods *, allow_headers * (configurable via PRACTENTURE_CORS_ORIGINS for prod).
+• CORSMiddleware uses deployment-configured explicit origins from PRACTENTURE_CORS_ORIGINS; wildcard production origins are not the intended configuration.
 • Global error handlers RequestValidationError 400 detail errors(), general Exception 500 internal server error.
 • Routers include auth, websocket, sessions, decisions, announcements, grades, leaderboard, dashboard, push.
 • Endpoints /teams and /results and /advance in main.py convenience.
@@ -321,31 +321,28 @@ Auth Providers (auth_providers.py):
 Frontend iOS Architecture:
 • App: PractentureApp entry.
 • Models: SimulationSession (code, state ACTIVE/PAUSED/FINISHED, currentRound, backendCurrentRound, totalRounds, startingCash, numberOfAICompetitors, plantCapacity, isAI etc), Team local+synced name members decisions submissionCount currentScore, Decision pricing/inventory/marketing, RoundResultBackend flat approx vs RoundResult detailed, Announcement, CreditRating enum.
-• Services: AuthManager (JWT Keychain), AuthState Observable, KeychainWrapper, NetworkService shared @Observable baseURL 4-location priority: ProcessInfo env PRACTENTURE_BACKEND_URL (xcconfig build time) > Bundle.main.object(forInfoDictionaryKey:) Info.plist > #if DEBUG hardcoded http://18.215.180.58 > #else production herokuapp.com, URLSession config cache 10MB mem 50MB disk returnCacheDataElseLoad 15s timeout waitsForConnectivity, JSONEncoder/Decoder snakeCase, post/get/put/delete generic, token refresh coalescing, postVoid internal.
+• Services: AuthManager (JWT Keychain), AuthState Observable, KeychainWrapper, and NetworkService shared @Observable. The base URL comes from the Info.plist PRACTENTURE_BACKEND_URL key populated by the active xcconfig; the code fallback is the same canonical HTTPS origin. URLSession bypasses response caching for authoritative backend state, uses bounded timeouts, and supports coalesced token refresh.
 • SyncService dual adapter FirebaseSyncAdapter+LocalSyncAdapter protocol abstraction, FirebaseRealtimeSync live listeners.
 • WebSocketManager session rooms heartbeat auto-reconnect.
 • ViewModels: SessionListViewModel loadSessions backend API in-mem currently needs backend integration gap #1 fix ~1h, SessionMonitorViewModel startPolling 10s pollBackendStatus processRoundWithBackend endSessionWithBackend fallback local engine, LeaderboardViewModel getLeaderboard wiring needed Gap #1, JoinSessionViewModel getSession(byCode) getTeams syncAnnouncements config from backend SessionBackend.config fallback defaults, CSVExportViewModel real data fetch.
 • Views: Professor tab 10 views (AnalyticsDashboard, Announcements, CreateSession, GradeMapping, ProfessorLeaderboard, ProfessorTabView, RoundControl, SessionList, SessionMonitor, SessionResults, TeamManagement), Student tab 7 views (AICoach, JoinSession, PerformanceHistory, RoundResults, StudentAnnouncements, StudentLeaderboard, TeamDashboard, WaitingRoom), Shared (Login, Settings About CoachingBubbles MetricCards RoundCharts StatusBadges LeaderboardRows), Launch.
 • Engine local iOS mirrored simulation for offline test.
-• Config: Debug.xcconfig PRACTENTURE_BACKEND_URL=http://18.215.180.58 env Debug, Release.xcconfig, Staging.xcconfig, Info.plist PRACTENTURE_BACKEND_URL string + NSExceptionDomains fix, project.pbxproj Debug build settings.
+• Config: Debug, Staging, and Release xcconfig files define PRACTENTURE_BACKEND_URL. Debug and Release use https://practenture.com; the build publishes the selected value through Info.plist. No production ATS exception is required.
 
 Infrastructure:
-• Dockerfile multi-stage python:3.12-slim builder pip install --prefix /install requirements.txt system deps libpq5 ca-certificates curl tini non-root user practenture expose 8005 healthcheck curl -f http://localhost:8005/api/health entrypoint tini uvicorn main:app --host 0.0.0.0 --port 8005.
-• docker-compose.yml services backend build Dockerfile container practenture-backend restart unless-stopped env JWT_SECRET PROFESSOR_USERNAME PASSWORD JWT_EXPIRY APPLE_AUDIENCE GOOGLE_AUDIENCE healthcheck 30s 3 retries network practenture-net bridge; nginx image nginx:1.25-alpine container practenture-nginx restart unless-stopped ports 80:80 volumes ./nginx.conf:/etc/nginx/conf.d/default.conf:ro depends_on backend service_healthy network practenture-net.
-• nginx.conf upstream backend:8005 (NOT 127.0.0.1 Docker DNS), HTTP server port 80 /api/ proxy_pass http://backend:8005 with WS upgrade headers 86400s timeout, /ws/ same, /health proxy, deny hidden files, NO SSL HTTP-only raw IP add certbot for domain HTTPS, proxy buffering off large CSV.
+• Dockerfile uses a Python 3.12 slim multi-stage build, a non-root practenture user, Uvicorn on port 8000, and an internal /api/health check.
+• docker-compose.yml binds backend diagnostics only to host loopback, persists SQLite and encrypted Admin backups in db-data, requires deployment-managed secrets, and exposes only the pinned Nginx service on public ports 80/443.
+• nginx-practenture.conf terminates public HTTPS for practenture.com, redirects HTTP to HTTPS, applies HSTS/security headers, and proxies API/WebSocket traffic to backend:8000 over the private Compose network.
 • ec2-deploy.sh REGION us-east-1 INSTANCE_TYPE t3.micro KEY_NAME practenture STATE .ec2-state.json, provision 7 steps verify prereqs aws jq, create SSH key pair check local ~/.ssh/practenture never overwrite Python write not shell redirect security tools intercept, SG practenture-sg 80/443/22, launch ami-0c101f26f147fa7fd 20GB gp3 tag Name=practenture-backend, wait running+status OK, save state, configure SSH remove old known_hosts -R wait SSH up to 40*5s test echo ready, install Docker dnf docker git wget jq, systemctl start enable, usermod -aG docker ec2-user, install docker-compose binary curl GitHub v2.24.0 /usr/local/bin/docker-compose chmod +x AL2023 no plugin, verify docker --version.
-• deploy 4 steps gen JWT secret token_hex 32 + professor password token_urlsafe 16 .env PRACTENTURE_JWT_SECRET USERNAME professor PASSWORD generated EXPIRY 24 NGINX_HTTP_PORT 80, rsync backend excluding venv __pycache__ .git .ec2-state.json data.db -e ssh -i ~/.ssh/practenture, docker-compose down --remove-orphans, up -d --build, health poll http://PUBLIC_IP/api/health 30*3s expect status healthy.
+• Deployment uses only ./ec2-deploy.sh deploy: deterministic artifact staging, source/manifest validation, encrypted backup and restore drill, migrations, health checks, atomic release pointer swap, public HTTPS verification, and rollback-image preservation. Runtime secrets remain deployment-managed and are never generated into documentation.
 • destroy terminate instance wait terminated rm state, SSH key+SG remain reusable.
 • Issues fixed 9 documented in MOP section 5.
 
-iOS Backend URL 4-location update checklist (critical — cause of many bugs):
-1. Debug.xcconfig PRACTENTURE_BACKEND_URL highest priority overrides everything — baked at build time need clean build Cmd+Shift+K→R.
-2. NetworkService.swift #if DEBUG block return "http://18.215.180.58"
-3. Info.plist PRACTENTURE_BACKEND_URL string http://18.215.180.58
-4. project.pbxproj Debug build settings PRACTENTURE_BACKEND_URL = "http://18.215.180.58"
-Priority env (xcconfig) > Info.plist > #if DEBUG hardcoded > #else production herokuapp.com.
-For local: Mac LAN IP not localhost/10.0.2.2.
-For EC2: public IP port 80 nginx proxies 80→8005 no port in URL.
+iOS backend URL configuration checklist:
+1. Set PRACTENTURE_BACKEND_URL in the intended Debug, Staging, or Release xcconfig.
+2. Confirm the built Info.plist exposes that value under PRACTENTURE_BACKEND_URL.
+3. Keep NetworkService's missing-key fallback aligned with the canonical HTTPS origin.
+4. Clean and reinstall the app when validating a changed build configuration; do not introduce raw-IP HTTP or ATS exceptions for production.
 
 5.3 Scalability Path:
 Current: t3.micro 2 vCPU 1GB RAM handles 1-2 concurrent sessions 30 teams each easily (SQLite in-mem cheap). Cost $0 free tier first yr then ~$6/mo + EBS $2 = $8/mo vs Render/Railway $20-30/mo — EC2 choice correct for control/cost predictability at scale as Luis requires.
@@ -400,7 +397,7 @@ Practenture-ios/Practenture/
 │   └── ...
 ├── PRD/ practenture_prd.md, prd.json (US-005 etc), sota_research.md, prompt_generation.md
 ├── PRD.md (canonical Product Requirements)
-├── PROGRESS.md (cron health checks all clear 60/60)
+├── PROGRESS.md (historical progress log; exact-SHA CI is authoritative)
 ├── USER_JOURNEY.md (prof + student + AI behaviors + tech flow)
 ├── IMPLEMENTATION_PLAN.md
 ├── PROFESSOR_API_ANALYSIS.md
@@ -486,7 +483,7 @@ Common Issues: Can't find code check LMS ask prof resend PIN; Team not showing a
 • Invalid decision field gt/ge/le validation: 400 detail errors array → show inline error validation exception handler.
 • WebSocket disconnect: auto reconnect max 3 attempts exponential 1s 2s 4s show offline indicator retry manual button.
 • EC2 down: Health check fails show maintenance message.
-• ATS -1022 error: NSExceptionDomains correct key prefix + explicit IP exception documented.
+• ATS -1022 error: verify the built HTTPS origin and certificate trust; production does not use a raw-IP exception.
 
 ═══════════════════════════════════════════════════════════════════════════════
 7. COMPETITIVE LANDSCAPE & ADVANTAGE
@@ -535,7 +532,7 @@ Long: Open-source contribution community professors build scenarios share; platf
 ═══════════════════════════════════════════════════════════════════════════════
 
 STRENGTHS:
-• Technical: LIVE EC2 Docker, 60/60 tests, Swift6 zero warnings, 19.3k LoC iOS, deterministic engine, real-time WS, offline-first, JWT+JWKS 6h cache, token refresh coalescing.
+• Technical: LIVE EC2 Docker over HTTPS, exact-SHA five-gate CI, Swift 6 qualified build, deterministic engine, real-time WS, offline-first, JWT/JWKS validation, and Administrator MFA.
 • Product: Real-time only platform, professor intervention tools, full decision richness 25+ vars 6 areas, AI strategies 4 adaptive, analytics 6cards+trends+comparison, i18n 8 languages, PDF+CSV exports, push+MFA+multi-tenant implemented.
 • Cost: Zero per-student self-hosted, $8/mo infra t3.micro vs $20-30 Render, free tier eligible, vs $35-60 competitor per student per course 100 students saves $3500-6000 per course per semester $7k-12k per year per course.
 • Team/Execution: Single dev Luis full-stack iOS+backend+infra deployed end-to-end 9 issues fixed methodically MOP documented, health checks cron all clear, Ctrl cost control EC2 correct choice for scale vs Platform-as-a-Service lock.
@@ -548,11 +545,11 @@ WEAKNESSES:
 • Gap #3 FirebaseRealtimeSync startListening activation inconsistent after join.
 • Gap #4 Session status periodic refresh needs timer or Firebase listener.
 • GoogleSignIn SPM dependency needs add Xcode project runtime Google auth ~30min.
-• iOS backend URL 4-location update pattern brittle requires clean build doc risk human error.
-• Currently HTTP-only raw IP no SSL domain yet ATS exception workaround needed future certbot domain HTTPS needed for App Store release (NSAllowsArbitraryLoads not allowed prod App Store review requires justification explicit exception domain okay).
-• SQLite in-mem default loses data on restart unless file path DATABASE_URL set — production should use file or PostgreSQL.
-• Single t3.micro single point failure not HA, no backup strategy yet for DB file.
-• Android missing (iOS only v1) limits TAM 50% students Android.
+• iOS backend-origin changes remain build-time configuration and require a clean rebuild plus client-contract verification.
+• TLS certificate renewal and public HTTPS health must remain monitored; raw-IP HTTP and broad ATS exceptions are prohibited.
+• Production uses persistent SQLite with integrity/foreign-key checks; PostgreSQL remains the scale-up path rather than a current deployment requirement.
+• Single t3.micro remains a single-availability-zone risk, mitigated by backup-gated releases and an immutable rollback image but not by active-active HA.
+• Android thin-client implementation exists but still needs complete authentication modernization, UX validation, and distribution qualification.
 • Web student app missing limits accessibility non-iOS users.
 • Course management limited single session no multi-classroom bulk import yet.
 • Brand unknown vs Capsim established 30+ years.
@@ -576,8 +573,8 @@ THREATS:
 • Incumbents Capsim/Cesim well entrenched department contracts multi-year bundling textbook publishers (Pearson McGraw).
 • Price war — incumbents could drop student pricing bundle if threatened.
 • Low switching cost for students but high for professors (curriculum integration lesson plans).
-• Apple App Store review rejection if ATS NSAllowsArbitraryLoads true without justification — need HTTPS domain before submission.
-• EC2 IP 18.215.180.58 raw IP no domain phishing risk, no SSL MITM risk.
+• Reintroducing broad ATS exceptions or cleartext origins could create App Store review and transport-security failures.
+• Certificate expiry, DNS drift, or rollback corruption could affect the single production origin; release gates and recovery drills must detect these failures.
 • Copycats — open-source real-time could be cloned quickly; need differentiate brand community.
 • Economic downturn reduces discretionary MBA enrollments.
 • Technical — WS at scale naive in-mem per-instance no Redis pubsub will break multi-instance; need future proof now design.
@@ -694,9 +691,9 @@ Phase C Scale (2027): LTI integration Canvas, Android app, web student app, temp
 Phase D Expand (2028+): Corporate training product, white-label, global i18n GTM LATAM EMEA Asia, AI scenario generation.
 
 10.11 Risks GTM & Mitigations:
-• App Store review ATS -1022 HTTP block → mitigated buy domain + HTTPS certbot before submission, explicit NSExceptionDomains allowed for domain.
+• App Store review transport-security regression → mitigated by the canonical HTTPS origin, valid public certificate, and no production ATS exception.
 • Professor inertia switching cost → free pilot low risk taking existing syllabus provide mapping lesson plans.
-• Single dev bus factor → docs MOP excellent, tests 60/60, open-source contributor guide good first issues.
+• Single-developer bus factor → mitigate with authoritative PRD/HLD/LLD/runbooks, exact-SHA CI evidence, deterministic deployment, and reviewed operational procedures.
 • Support load self-hosted → community Discord, docs, video guides, limited managed SLA only for paying.
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -751,17 +748,17 @@ Q4 2026 (Growth):
 ═══════════════════════════════════════════════════════════════════════════════
 
 Tech:
-• Single instance no HA → mitigate daily snapshot AMI + EBS backup + DB file backup S3 cron.
-• SQLite loses on restart → use DATABASE_URL file path persistent volume Docker volume mount data.db not in-memory prod.
+• Single instance has no HA; persistent storage, encrypted application backups, verified restore drills, and rollback images reduce recovery risk but do not provide automatic failover.
+• SQLite is persistent and integrity-checked but remains a single-writer capacity/availability boundary; managed PostgreSQL is the scale/HA target.
 • WS multi-instance no pubsub → add Redis later list already in roadmap.
-• Rate limiting none → SlowAPI add.
+• Privileged authentication uses durable multidimensional throttling; broader public API abuse controls remain a roadmap item.
 • No monitoring alerting → add CloudWatch alarms EC2 CPU + health endpoint UptimeRobot 1-min check Slack webhook.
-• Secrets in .env generated at deploy generated secure token_hex should be in AWS Secrets Manager future.
-• Nginx HTTP-only MITM → HTTPS domain priority before pilot.
+• Runtime secrets are deployment-managed, excluded from Git and release artifacts, and remain candidates for migration to a managed secret store.
+• TLS/HSTS are active; certificate renewal and fail-closed public HTTPS health remain operational controls.
 
 Product:
-• Professor workflow gaps dashboard HTML → fix 2-4h.
-• Android missing 50% market → Web student app mitigate quick win 1-week.
+• Continue validating Professor workflow depth and discoverability end to end; do not treat the deployed Admin V2 control plane as a substitute for Professor-facing UX.
+• Android thin client exists and remains backend-authoritative; continue emulator-first contract and UX parity validation before broader distribution.
 
 Business:
 • Legal FERPA self-hosted helps but need DPA template.
@@ -836,28 +833,23 @@ A+ Excellent, A Strong, A- Good, B+ Adequate, B Fair, B- Marginal, C+ Weak, C Po
 14.6 Environment Variables Full List:
 PRACTENTURE_JWT_SECRET configures JWT signing; PRACTENTURE_JWT_EXPIRY_HOURS configures expiry; PRACTENTURE_CORS_ORIGINS configures approved browser origins; PRACTENTURE_HOST/PRACTENTURE_PORT configure the service listener; Administrator and Professor bootstrap credentials are required deployment secrets with no documented defaults; PRACTENTURE_APPLE_AUDIENCE and PRACTENTURE_GOOGLE_AUDIENCE configure OAuth audiences; DATABASE_URL configures persistence; NGINX_HTTP_PORT configures the edge listener; MFA protection keys and throttle policy are deployment secrets/configuration. Values never belong in source documentation.
 
-14.7 iOS 4-Location Backend URL Update Runbook (from MOP):
-File1 Debug.xcconfig PRACTENTURE_BACKEND_URL = http://18.215.180.58 highest priority overrides everything baked build time need clean Cmd+Shift+K→Cmd+R.
-File2 Services/NetworkService.swift #if DEBUG block return "http://18.215.180.58"
-File3 Info.plist key PRACTENTURE_BACKEND_URL string http://18.215.180.58 + NSExceptionDomains dict key 18.215.180.58 dict NSExceptionAllowsInsecureHTTPLoads true plus NSAllowsArbitraryLoads true fallback.
-File4 project.pbxproj Debug build settings PRACTENTURE_BACKEND_URL.
-Local testing use Mac LAN IP not localhost.
-EC2 public IP port 80 nginx proxies 80→8005 no port in URL path.
+14.7 iOS Backend Origin Runbook:
+Debug.xcconfig and Release.xcconfig set PRACTENTURE_BACKEND_URL to `https://practenture.com`; Staging.xcconfig owns the staging origin. NetworkService reads the generated Info.plist value and falls back only to an HTTPS production origin. Raw EC2 addresses, cleartext ATS exceptions, and `NSAllowsArbitraryLoads` are not approved production configuration. After changing an xcconfig-backed value, clean and rebuild so the generated bundle metadata is refreshed.
 
 14.8 9 Pitfalls Fixed (MOP Section 5):
 1 curl-minimal conflicts curl AL2023 remove curl from dnf.
 2 docker-compose-plugin not available AL2023 install binary GitHub v2.24.0 /usr/local/bin/docker-compose.
 3 docker compose vs docker-compose syntax unknown shorthand -d changed to docker-compose.
 4 PyJWT missing ModuleNotFoundError jwt added PyJWT==2.9.0 requirements.txt.
-5 Nginx SSL cert not found openssl missing alpine removed SSL HTTP-only raw IP.
-6 Nginx upstream 127.0.0.1→backend:8005 Docker service name 502 fix.
+5 Original Nginx certificate bootstrap failed when certificate files were absent; the resolved deployment stages TLS material and fails closed on public HTTPS health.
+6 Original Nginx upstream 127.0.0.1 caused a 502; the current Compose service route is backend:8000.
 7 No HTTP listener health times out added port 80 server block.
 8 dnf update noise 500 lines removed.
-9 listen 443 ssl http2 deprecated → listen 443 ssl + http2 on separate (later removed).
+9 Nginx HTTP/2 uses `listen 443 ssl` with the supported separate `http2 on` directive.
 
 14.9 Learning Lessons July 2026:
 Apple Sign-In 500 InvalidAudienceError + KeyError x — RCA RSA vs EC keys Apple JWKS RSA RS256 n/e not EC ES256 x/y use RSAAlgorithm.from_jwk; PyJWT validates aud claim even without expected audience when present in token so verify_aud False when PRACTENTURE_APPLE_AUDIENCE empty GoogleLogin validation pattern test Google first simpler token isolates Apple issues.
-ATS -1022 NSExceptionDomains fix ExceptionDomains→NSExceptionDomains + explicit IP exception + NSAllowsArbitraryLoads true fallback.
+ATS -1022 was encountered during the original raw-IP deployment. The current resolution is the canonical HTTPS origin; the production client does not retain an arbitrary-load or raw-IP exception.
 
 14.10 Current Live Deployment:
 Public origin https://practenture.com; AWS instance i-0f2ce26d05e4439cd at 100.58.36.238; containers practenture-backend and practenture-nginx healthy; persistent SQLite integrity verified; exact deployed source/image revision 1abb1aaee2dd49b59790a4b3c232cacdb3e2848a. All production changes use ./ec2-deploy.sh deploy; manual container replacement is not an approved release path.

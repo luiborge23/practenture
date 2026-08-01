@@ -92,13 +92,13 @@ The Owner console is a separate route and authorization surface from the Profess
 - **Scoped cleanup workflow**: explicitly tagged disposable data with dry-run preview
 - **Searchable administrative audit log**: all Owner actions recorded
 
-Every Admin V2 endpoint requires the assurance appropriate to its operation:
-1. A server-managed opaque session in a `Secure`, `HttpOnly`, `SameSite=Strict` cookie with `role: owner`.
-2. CSRF validation for every mutation.
-3. Recent password plus current TOTP/recovery-factor proof for high-assurance changes.
-4. Durable account/client throttling around password and factor verification.
-5. Idempotency where retrying a mutation could duplicate work.
-6. Structured, redacted audit event emission in the mutation transaction.
+Admin V2 applies controls by route category:
+1. Login, MFA challenge verification, and recovery bootstrap routes are intentionally unauthenticated; they use durable anti-enumeration/throttle controls and do not require CSRF.
+2. Authenticated reads require a server-managed opaque session in a `Secure`, `HttpOnly`, `SameSite=Strict` cookie with `role: owner`.
+3. Authenticated mutations additionally require CSRF validation.
+4. High-assurance changes require recent password authentication plus current TOTP/recovery-factor proof.
+5. Password and factor verification execute inside durable account/client/challenge throttle boundaries; completed successful logins release the reservations created by both password and factor stages.
+6. State-changing administrative services use idempotency where a retry could duplicate work and emit structured, redacted audit events in the same mutation transaction. Authentication bootstrap/session routes use their dedicated atomic repositories instead of the generic mutation/audit wrapper.
 
 Administrator MFA uses a pending-enrollment state, AES-GCM-protected TOTP seeds, hashed one-time recovery codes, transactional replay protection, and atomic challenge/session creation. See [Administrator MFA LLD](ADMIN_MFA_LLD.md).
 

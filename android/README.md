@@ -11,4 +11,6 @@ Thin Kotlin/Jetpack Compose client for the FastAPI backend. Online simulation fo
 ./gradlew testDebugUnitTest assembleDebug
 ```
 
-The default debug backend is `http://18.215.180.58/`. Production should use HTTPS and disable cleartext traffic.
+The debug and production clients use the canonical backend origin `https://practenture.com/`. Cleartext traffic is disabled.
+
+Password/session contracts are covered by JVM tests. Google authentication still uses the legacy Android API and must be migrated to Credential Manager and device-validated before distribution.

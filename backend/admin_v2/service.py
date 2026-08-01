@@ -180,6 +180,8 @@ class AdminAuthService:
             mfa_code=mfa_code,
             login_identity=username,
             client_signal=client_signal,
+            identity_window_started_at=decision.identity_window_started_at,
+            pair_window_started_at=decision.pair_window_started_at,
             client_window_started_at=decision.client_window_started_at,
             replacement_token_hash=(
                 self._hash_secret(replacement_token) if replacement_token else None
@@ -194,6 +196,11 @@ class AdminAuthService:
                 user_id=user["username"],
                 created_at=now.isoformat(),
                 expires_at=(now + timedelta(minutes=5)).isoformat(),
+                login_identity=self.repository.normalize_identity(username),
+                login_client_signal=self.repository.normalize_client_signal(client_signal),
+                login_identity_window_started_at=decision.identity_window_started_at,
+                login_pair_window_started_at=decision.pair_window_started_at,
+                login_client_window_started_at=decision.client_window_started_at,
             )
             raise AdminError(
                 401,
@@ -280,8 +287,13 @@ class AdminAuthService:
             idle_expires_at=idle_expires.isoformat(),
             absolute_expires_at=(now + ABSOLUTE_TIMEOUT).isoformat(),
             challenge_throttle_identity=f"mfa-challenge:{challenge_hash}",
+            challenge_identity_window_started_at=(
+                challenge_decision.identity_window_started_at
+            ),
             owner_throttle_identity=f"mfa-owner:{owner_user_id.casefold()}",
             client_signal=client_signal,
+            owner_identity_window_started_at=owner_decision.identity_window_started_at,
+            owner_pair_window_started_at=owner_decision.pair_window_started_at,
             owner_client_window_started_at=owner_decision.client_window_started_at,
         )
         error_map = {
@@ -526,6 +538,8 @@ class AdminAuthService:
                 conn,
                 throttle_identity,
                 client_signal,
+                identity_window_started_at=throttle_decision.identity_window_started_at,
+                pair_window_started_at=throttle_decision.pair_window_started_at,
                 client_window_started_at=throttle_decision.client_window_started_at,
             )
             return StoredResponse(
@@ -617,6 +631,8 @@ class AdminAuthService:
                 conn,
                 throttle_identity,
                 client_signal,
+                identity_window_started_at=throttle_decision.identity_window_started_at,
+                pair_window_started_at=throttle_decision.pair_window_started_at,
                 client_window_started_at=throttle_decision.client_window_started_at,
             )
             return StoredResponse(200, {"status": "enabled"}, {})
@@ -681,6 +697,8 @@ class AdminAuthService:
                 conn,
                 throttle_identity,
                 client_signal,
+                identity_window_started_at=throttle_decision.identity_window_started_at,
+                pair_window_started_at=throttle_decision.pair_window_started_at,
                 client_window_started_at=throttle_decision.client_window_started_at,
             )
             return StoredResponse(200, {"status": "regenerated"}, {})
@@ -725,6 +743,8 @@ class AdminAuthService:
                 conn,
                 throttle_identity,
                 client_signal,
+                identity_window_started_at=throttle_decision.identity_window_started_at,
+                pair_window_started_at=throttle_decision.pair_window_started_at,
                 client_window_started_at=throttle_decision.client_window_started_at,
             )
             return StoredResponse(200, {"status": "disabled"}, {})
@@ -777,6 +797,8 @@ class AdminAuthService:
                 conn,
                 throttle_identity,
                 client_signal,
+                identity_window_started_at=throttle_decision.identity_window_started_at,
+                pair_window_started_at=throttle_decision.pair_window_started_at,
                 client_window_started_at=throttle_decision.client_window_started_at,
             )
             return StoredResponse(200, {"status": "reauthenticated"}, {})

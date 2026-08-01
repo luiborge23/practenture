@@ -1,6 +1,6 @@
 package com.practenture.android
 
-import com.practenture.android.data.practentureRepository
+import com.practenture.android.data.PractentureRepository
 import com.practenture.android.network.ApiFactory
 import com.practenture.android.network.PlayerDecision
 import com.google.gson.JsonParser
@@ -16,12 +16,12 @@ import java.util.concurrent.TimeUnit
 
 class BackendAuthoritativeContractTest {
     private lateinit var server: MockWebServer
-    private lateinit var repository: practentureRepository
+    private lateinit var repository: PractentureRepository
 
     @Before
     fun setUp() {
         server = MockWebServer().also { it.start() }
-        repository = practentureRepository(ApiFactory.create(server.url("/").toString()))
+        repository = PractentureRepository(ApiFactory.create(server.url("/").toString()))
     }
 
     @After
@@ -156,7 +156,7 @@ class BackendAuthoritativeContractTest {
 
     @Test
     fun statusUsesBearerAuthentication() = runTest {
-        val authenticatedRepository = practentureRepository(
+        val authenticatedRepository = PractentureRepository(
             ApiFactory.create(server.url("/").toString(), "jwt-status-token")
         )
         enqueueJson(

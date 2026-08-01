@@ -31,7 +31,6 @@ backend/.venv/
 node_modules/
 android/app/build/
 android/.gradle/
-android/gradle/wrapper/gradle-wrapper.jar
 
 # Xcode
 build/

@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import mfa
+from admin_v2.errors import AdminError
 from admin_v2.service import auth_service
 from database import db
 from main import app
@@ -146,6 +147,115 @@ def test_mfa_owner_budget_survives_fresh_challenges_and_client_rotation(
     assert throttled.json()["error"]["code"] == "ADMIN_MFA_CHALLENGE_THROTTLED"
     assert int(throttled.headers["Retry-After"]) > 0
     assert session_rows(owner) == []
+
+
+@pytest.mark.parametrize(
+    ("password_client", "factor_client"),
+    (("198.51.100.10", "198.51.100.11"), (None, None)),
+)
+def test_successful_challenge_logins_release_password_and_factor_budgets(
+    owner: str,
+    monkeypatch: pytest.MonkeyPatch,
+    password_client: str | None,
+    factor_client: str | None,
+) -> None:
+    enable_mfa(owner)
+    now = [FIXED_TIME]
+    monkeypatch.setattr(mfa.time, "time", lambda: now[0])
+    monkeypatch.setattr(auth_service, "login_threshold", 2)
+    monkeypatch.setattr(auth_service, "login_identity_threshold", 2)
+    monkeypatch.setattr(auth_service, "login_client_threshold", 2)
+    monkeypatch.setattr(auth_service, "mfa_owner_threshold", 2)
+    for _ in range(3):
+        with pytest.raises(AdminError) as challenge_error:
+            auth_service.login(
+                owner,
+                PASSWORD,
+                mfa_code=None,
+                client_signal=password_client,
+            )
+        assert challenge_error.value.code == "ADMIN_MFA_REQUIRED"
+        challenge_token = challenge_error.value.headers["X-Admin-MFA-Challenge"]
+        session, _token, _csrf = auth_service.verify_mfa_challenge(
+            challenge_token,
+            mfa._hotp(TOTP_SECRET, int(now[0]) // 30),
+            client_signal=factor_client,
+        )
+        assert session.record.owner_user_id == owner
+        now[0] += 30
+
+    with db._lock:
+        identity_key = auth_service.repository.normalize_identity(owner)
+        factor_identity = f"mfa-owner:{identity_key}"
+        password_client_key = auth_service.repository.normalize_client_signal(password_client)
+        factor_client_key = auth_service.repository.normalize_client_signal(factor_client)
+        pair_keys = (
+            auth_service.repository.pair_scope_key(identity_key, password_client_key),
+            auth_service.repository.pair_scope_key(factor_identity, factor_client_key),
+        )
+        remaining = db._get_conn().execute(
+            """SELECT COUNT(*) FROM privileged_login_buckets
+               WHERE (scope_type='identity' AND scope_key IN (?, ?))
+                  OR (scope_type='pair' AND scope_key IN (?, ?))
+                  OR (scope_type='client' AND scope_key IN (?, ?))""",
+            (
+                identity_key,
+                factor_identity,
+                *pair_keys,
+                password_client_key,
+                factor_client_key,
+            ),
+        ).fetchone()[0]
+    assert remaining == 0
+
+
+def test_challenge_success_preserves_unrelated_same_identity_pair_failure(
+    owner: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_mfa(owner)
+    monkeypatch.setattr(mfa.time, "time", lambda: FIXED_TIME)
+    password_client = "198.51.100.20"
+    factor_client = "198.51.100.21"
+    unrelated = auth_service.repository.reserve_login_attempt(
+        owner,
+        password_client,
+        now=auth_service._now().timestamp(),
+        threshold=auth_service.login_threshold,
+        window_seconds=auth_service.login_window_seconds,
+        identity_threshold=auth_service.login_identity_threshold,
+        client_threshold=auth_service.login_client_threshold,
+    )
+    assert unrelated.allowed
+
+    with pytest.raises(AdminError) as challenge_error:
+        auth_service.login(
+            owner,
+            PASSWORD,
+            mfa_code=None,
+            client_signal=password_client,
+        )
+    auth_service.verify_mfa_challenge(
+        challenge_error.value.headers["X-Admin-MFA-Challenge"],
+        current_totp(),
+        client_signal=factor_client,
+    )
+
+    identity_key = auth_service.repository.normalize_identity(owner)
+    client_key = auth_service.repository.normalize_client_signal(password_client)
+    pair_key = auth_service.repository.pair_scope_key(identity_key, client_key)
+    with db._lock:
+        rows = db._get_conn().execute(
+            """SELECT scope_type, attempt_count FROM privileged_login_buckets
+               WHERE (scope_type='identity' AND scope_key=?)
+                  OR (scope_type='pair' AND scope_key=?)
+                  OR (scope_type='client' AND scope_key=?)""",
+            (identity_key, pair_key, client_key),
+        ).fetchall()
+    assert {row["scope_type"]: row["attempt_count"] for row in rows} == {
+        "identity": 1,
+        "pair": 1,
+        "client": 1,
+    }
 
 
 def test_invalid_totp_is_rejected_without_creating_session(

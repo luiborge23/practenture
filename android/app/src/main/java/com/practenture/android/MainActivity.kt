@@ -15,7 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.practenture.android.data.practentureRepository
+import com.practenture.android.data.PractentureRepository
 import com.practenture.android.network.PlayerDecision
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
@@ -33,7 +33,7 @@ class MainActivity : ComponentActivity() {
                     val prefs = getSharedPreferences("practenture", MODE_PRIVATE)
                     prefs.edit().putString("googleIdToken", idToken).apply()
                     // Trigger login with ID token via repo
-                    val repo = practentureRepository.create()
+                    val repo = PractentureRepository.create()
                     CoroutineScope(Dispatchers.Main).launch {
                         try {
                             val loginResponse = repo.loginWithGoogle(idToken)
@@ -82,7 +82,7 @@ private fun practentureApp(prefs: android.content.SharedPreferences) {
 @Composable
 private fun LoginScreen(onLogin: (com.practenture.android.network.LoginResponse) -> Unit) {
     val scope = rememberCoroutineScope()
-    val repo = remember { practentureRepository.create() }
+    val repo = remember { PractentureRepository.create() }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("Sign in with your Practenture account") }
@@ -146,7 +146,7 @@ private fun LoginScreen(onLogin: (com.practenture.android.network.LoginResponse)
 @Composable
 private fun SessionScreen(token: String, role: String, userId: String, prefs: android.content.SharedPreferences, onLogout: () -> Unit) {
     val scope = rememberCoroutineScope()
-    val repo = remember(token) { practentureRepository.create(token) }
+    val repo = remember(token) { PractentureRepository.create(token) }
     var code by remember { mutableStateOf(prefs.getString("sessionCode", "") ?: "") }
     var teamName by remember { mutableStateOf(prefs.getString("teamName", "") ?: "") }
     var teamId by remember { mutableStateOf(prefs.getString("teamId", "") ?: "") }

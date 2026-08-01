@@ -1,7 +1,8 @@
 """Transactional persistence for opaque Admin V2 sessions and login throttles.
 
-Schema ownership belongs exclusively to Alembic revision 003.  This module never
-creates or evolves tables at import/runtime.
+Schema ownership belongs exclusively to Alembic (baseline revision 003 plus
+follow-up revisions such as 007). This module never creates or evolves tables
+at import/runtime.
 """
 
 from __future__ import annotations
@@ -43,6 +44,8 @@ class AdminSessionRecord:
 class LoginAttemptDecision:
     allowed: bool
     retry_after: int = 0
+    identity_window_started_at: float | None = None
+    pair_window_started_at: float | None = None
     client_window_started_at: float | None = None
     lock_created: bool = False
 
@@ -140,7 +143,7 @@ class AdminSessionRepository:
             if retry_after:
                 return LoginAttemptDecision(False, max(1, retry_after))
 
-            client_window_started_at = now
+            window_markers: dict[str, float] = {}
             lock_created = False
             for scope_type, scope_key, limit, window, row in states:
                 if row is None or now >= float(row[1]) + window:
@@ -170,11 +173,12 @@ class AdminSessionRepository:
                         now,
                     ),
                 )
-                if scope_type == "client":
-                    client_window_started_at = window_started_at
+                window_markers[scope_type] = window_started_at
             return LoginAttemptDecision(
                 True,
-                client_window_started_at=client_window_started_at,
+                identity_window_started_at=window_markers.get("identity"),
+                pair_window_started_at=window_markers.get("pair"),
+                client_window_started_at=window_markers.get("client"),
                 lock_created=lock_created,
             )
 
@@ -184,31 +188,35 @@ class AdminSessionRepository:
         identity: str,
         client_signal: str | None,
         *,
+        identity_window_started_at: float | None,
+        pair_window_started_at: float | None,
         client_window_started_at: float | None,
     ) -> None:
         identity_key = self.normalize_identity(identity)
         client_key = self.normalize_client_signal(client_signal)
-        conn.execute(
-            """DELETE FROM privileged_login_buckets
-               WHERE (scope_type='identity' AND scope_key=?)
-                  OR (scope_type='pair' AND scope_key=?)""",
-            (identity_key, self.pair_scope_key(identity_key, client_key)),
+        reservations = (
+            ("identity", identity_key, identity_window_started_at),
+            ("pair", self.pair_scope_key(identity_key, client_key), pair_window_started_at),
+            ("client", client_key, client_window_started_at),
         )
-        if client_window_started_at is not None:
-            # Remove exactly this successful request's client-wide reservation;
-            # unrelated identities' failures on this client remain counted.
+        for scope_type, scope_key, window_started_at in reservations:
+            if window_started_at is None:
+                continue
+            # Remove exactly this successful request's reservation. Matching the
+            # window marker prevents a delayed success from decrementing a newer
+            # window, while a conditional decrement preserves concurrent failures.
             conn.execute(
                 """UPDATE privileged_login_buckets
                    SET attempt_count=attempt_count-1, locked_until=NULL
-                   WHERE scope_type='client' AND scope_key=?
+                   WHERE scope_type=? AND scope_key=?
                      AND window_started_at=? AND attempt_count > 0""",
-                (client_key, client_window_started_at),
+                (scope_type, scope_key, window_started_at),
             )
             conn.execute(
                 """DELETE FROM privileged_login_buckets
-                   WHERE scope_type='client' AND scope_key=?
+                   WHERE scope_type=? AND scope_key=?
                      AND window_started_at=? AND attempt_count=0""",
-                (client_key, client_window_started_at),
+                (scope_type, scope_key, window_started_at),
             )
 
     def reset_login_attempt(
@@ -216,6 +224,8 @@ class AdminSessionRepository:
         identity: str,
         client_signal: str | None,
         *,
+        identity_window_started_at: float | None,
+        pair_window_started_at: float | None,
         client_window_started_at: float | None,
     ) -> None:
         """Clear a successful reservation without erasing unrelated client failures."""
@@ -224,6 +234,8 @@ class AdminSessionRepository:
                 conn,
                 identity,
                 client_signal,
+                identity_window_started_at=identity_window_started_at,
+                pair_window_started_at=pair_window_started_at,
                 client_window_started_at=client_window_started_at,
             )
 
@@ -241,6 +253,8 @@ class AdminSessionRepository:
         mfa_code: str | None,
         login_identity: str,
         client_signal: str | None,
+        identity_window_started_at: float | None = None,
+        pair_window_started_at: float | None = None,
         client_window_started_at: float | None = None,
         replacement_token_hash: str | None = None,
     ) -> str:
@@ -342,6 +356,8 @@ class AdminSessionRepository:
                 conn,
                 login_identity,
                 client_signal,
+                identity_window_started_at=identity_window_started_at,
+                pair_window_started_at=pair_window_started_at,
                 client_window_started_at=client_window_started_at,
             )
             return "created"
@@ -402,7 +418,11 @@ class AdminSessionRepository:
 
     def create_mfa_challenge(
         self, *, challenge_id: str, token_hash: str, user_id: str,
-        created_at: str, expires_at: str,
+        created_at: str, expires_at: str, login_identity: str,
+        login_client_signal: str | None,
+        login_identity_window_started_at: float | None,
+        login_pair_window_started_at: float | None,
+        login_client_window_started_at: float | None,
     ) -> None:
         with self._transaction() as conn:
             conn.execute(
@@ -411,9 +431,24 @@ class AdminSessionRepository:
             )
             conn.execute(
                 """INSERT INTO admin_mfa_challenges
-                       (id, token_hash, owner_user_id, created_at, expires_at)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (challenge_id, token_hash, user_id, created_at, expires_at),
+                       (id, token_hash, owner_user_id, created_at, expires_at,
+                        login_identity, login_client_signal,
+                        login_identity_window_started_at,
+                        login_pair_window_started_at,
+                        login_client_window_started_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    challenge_id,
+                    token_hash,
+                    user_id,
+                    created_at,
+                    expires_at,
+                    login_identity,
+                    login_client_signal,
+                    login_identity_window_started_at,
+                    login_pair_window_started_at,
+                    login_client_window_started_at,
+                ),
             )
 
     def active_mfa_challenge_owner(self, token_hash: str, now: str) -> str | None:
@@ -440,21 +475,39 @@ class AdminSessionRepository:
         token_hash: str, csrf_hash: str, created_at: str,
         idle_expires_at: str, absolute_expires_at: str,
         challenge_throttle_identity: str,
+        challenge_identity_window_started_at: float | None,
         owner_throttle_identity: str,
         client_signal: str | None,
+        owner_identity_window_started_at: float | None,
+        owner_pair_window_started_at: float | None,
         owner_client_window_started_at: float | None,
     ) -> tuple[str, str | None]:
         """Consume one challenge/MFA credential and create one session atomically."""
         with self._transaction() as conn:
             challenge = conn.execute(
-                """SELECT owner_user_id FROM admin_mfa_challenges
+                """SELECT owner_user_id, login_identity, login_client_signal,
+                          login_identity_window_started_at,
+                          login_pair_window_started_at,
+                          login_client_window_started_at
+                   FROM admin_mfa_challenges
                    WHERE token_hash=? AND consumed_at IS NULL AND expires_at>?""",
                 (challenge_token_hash, created_at),
             ).fetchone()
             if challenge is None:
                 return "invalid_challenge", None
             user_id = str(challenge[0])
-            mfa_status = self.verify_mfa_in_transaction(conn, user_id, mfa_code, created_at)
+            if any(challenge[index] is None for index in range(1, 6)):
+                conn.execute(
+                    "DELETE FROM admin_mfa_challenges WHERE token_hash=?",
+                    (challenge_token_hash,),
+                )
+                return "invalid_challenge", None
+            mfa_status = self.verify_mfa_in_transaction(
+                conn,
+                user_id,
+                mfa_code,
+                created_at,
+            )
             if mfa_status not in {"accepted", "not_required"}:
                 return mfa_status, None
             consumed = conn.execute(
@@ -476,13 +529,30 @@ class AdminSessionRepository:
                 conn,
                 challenge_throttle_identity,
                 None,
+                identity_window_started_at=challenge_identity_window_started_at,
+                pair_window_started_at=None,
                 client_window_started_at=None,
             )
             self.reset_login_attempt_in_transaction(
                 conn,
                 owner_throttle_identity,
                 client_signal,
+                identity_window_started_at=owner_identity_window_started_at,
+                pair_window_started_at=owner_pair_window_started_at,
                 client_window_started_at=owner_client_window_started_at,
+            )
+            # Password verification reserved the normal owner identity/pair/client
+            # budgets before this challenge was issued. A successful challenge is
+            # the completion of that same login, so release those reservations too.
+            # Persisted per-dimension window markers make each reset decrement only
+            # its own successful reservation without erasing unrelated failures.
+            self.reset_login_attempt_in_transaction(
+                conn,
+                str(challenge[1]),
+                str(challenge[2]),
+                identity_window_started_at=float(challenge[3]),
+                pair_window_started_at=float(challenge[4]),
+                client_window_started_at=float(challenge[5]),
             )
             return "created", user_id
 
