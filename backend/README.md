@@ -74,9 +74,14 @@ backend/
 ## Tests
 
 ```bash
-pip install pytest httpx fastapi[standard]
-pytest test_backend.py -v
+python3.11 -m venv .venv
+.venv/bin/python -m ensurepip --upgrade
+.venv/bin/python -m pip install -r requirements-dev.txt
+../scripts/test_backend.sh
 ```
+
+The wrapper removes inherited `PYTHONPATH` entries before invoking the project
+interpreter and treats every Python warning category as a test failure.
 
 ## iOS Integration
 

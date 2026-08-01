@@ -35,12 +35,13 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-cov httpx requests
+          python -m pip install -r requirements-dev.txt
       - name: Compile Python
         run: python -m compileall -q .
       - name: Contract and simulation gates
@@ -49,7 +50,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -f /tmp/practenture-ci.db
-          pytest -q \
+          python -m pytest -q \
             tests/contracts \
             tests/unit \
             test_simulation_formula_parity.py \
@@ -82,17 +83,18 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
       - run: |
-          pip install -r requirements.txt
-          pip install pytest httpx requests
+          python -m pip install -r requirements-dev.txt
       - name: Regression suite (includes 20-student E2E)
         env:
           PYTHONPATH: ${{ github.workspace }}/backend
         run: |
           set -euo pipefail
           rm -f /tmp/practenture-ci.db
-          pytest -q \
+          python -m pytest -q \
             test_backend.py \
             test_phase5.py \
             test_player_decision_contract.py \
@@ -123,10 +125,11 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
       - run: |
-          pip install -r requirements.txt
-          pip install pytest httpx requests
+          python -m pip install -r requirements-dev.txt
       - name: Admin API, authentication, and browser contracts
         env:
           PYTHONPATH: ${{ github.workspace }}/backend
@@ -135,7 +138,7 @@ jobs:
           rm -f /tmp/practenture-ci.db
           node --check static/admin_v2/admin-v2.js
           node --check static/admin_v2/admin-workspaces.js
-          pytest -q tests/admin_v2 ../Tests/test_release_contracts.py --junitxml=pytest-admin-v2.xml
+          python -m pytest -q tests/admin_v2 ../Tests/test_release_contracts.py --junitxml=pytest-admin-v2.xml
       - name: Scan the repository for secrets
         run: >-
           docker run --rm
@@ -200,7 +203,11 @@ jobs:
             -scheme Practenture \
             -destination '${{ steps.simulator.outputs.destination }}' \
             -derivedDataPath "$RUNNER_TEMP/PractentureDerivedData" \
-            CODE_SIGNING_ALLOWED=NO | tee "$RUNNER_TEMP/ios-build.log"
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$RUNNER_TEMP/ios-build.log"
+          if grep -nE '(^|[[:space:]])warning:' "$RUNNER_TEMP/ios-build.log"; then
+            echo "Xcode build emitted warnings; zero-warning QA gate failed." >&2
+            exit 1
+          fi
       - name: Test without rebuilding
         run: |
           set -euo pipefail
@@ -210,7 +217,11 @@ jobs:
             -destination '${{ steps.simulator.outputs.destination }}' \
             -derivedDataPath "$RUNNER_TEMP/PractentureDerivedData" \
             CODE_SIGNING_ALLOWED=NO \
-            -resultBundlePath "$RUNNER_TEMP/PractentureTests.xcresult" | tee "$RUNNER_TEMP/ios-test.log"
+            -resultBundlePath "$RUNNER_TEMP/PractentureTests.xcresult" 2>&1 | tee "$RUNNER_TEMP/ios-test.log"
+          if grep -nE '(^|[[:space:]])warning:' "$RUNNER_TEMP/ios-test.log"; then
+            echo "Xcode tests emitted warnings; zero-warning QA gate failed." >&2
+            exit 1
+          fi
       - name: Upload iOS evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -224,9 +235,41 @@ jobs:
             ${{ runner.temp }}/simulator-runtime.log
             ${{ runner.temp }}/PractentureTests.xcresult
 
+  android-build-and-test:
+    name: Android build and tests
+    needs: backend-contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+          cache-dependency-path: |
+            android/*.gradle.kts
+            android/gradle.properties
+            android/gradle/wrapper/gradle-wrapper.properties
+            android/app/*.gradle.kts
+      - name: Run warning-free Android tests and build
+        working-directory: android
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon --warning-mode=fail clean testDebugUnitTest assembleDebug 2>&1 | tee "$RUNNER_TEMP/android-build.log"
+          if grep -nEi '(^|[[:space:]])warning:|(^|[[:space:]])w:|deprecated|deprecation warning|unable to strip' "$RUNNER_TEMP/android-build.log"; then
+            echo "Android build emitted warnings; zero-warning QA gate failed." >&2
+            exit 1
+          fi
+      - name: Upload Android evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-build-evidence
+          path: ${{ runner.temp }}/android-build.log
+
   docker-build:
     name: Reproducible backend image and Compose rehearsal
-    needs: [backend-regression, admin-v2-security, ios-build-and-test]
+    needs: [backend-regression, admin-v2-security, ios-build-and-test, android-build-and-test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

@@ -2,11 +2,10 @@ package com.practenture.android
 
 import android.app.Activity
 import android.content.Context
-import android.content.Intent
+import android.content.ContextWrapper
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -15,46 +14,19 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.credentials.ClearCredentialStateRequest
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialException
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
 import com.practenture.android.data.PractentureRepository
 import com.practenture.android.network.PlayerDecision
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
-import com.google.android.gms.common.api.ApiException
 import kotlinx.coroutines.*
 
 class MainActivity : ComponentActivity() {
-    private val googleSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-        try {
-            val account = task.getResult(ApiException::class.java)
-            if (account != null) {
-                val idToken = account.idToken
-                if (idToken != null) {
-                    val prefs = getSharedPreferences("practenture", MODE_PRIVATE)
-                    prefs.edit().putString("googleIdToken", idToken).apply()
-                    // Trigger login with ID token via repo
-                    val repo = PractentureRepository.create()
-                    CoroutineScope(Dispatchers.Main).launch {
-                        try {
-                            val loginResponse = repo.loginWithGoogle(idToken)
-                            prefs.edit()
-                                .putString("token", loginResponse.accessToken)
-                                .putString("role", loginResponse.role)
-                                .putString("userId", loginResponse.userId)
-                                .apply()
-                        } catch (e: Exception) {
-                            // Handle error
-                        }
-                    }
-                } else {
-                    // No ID token
-                }
-            }
-        } catch (e: ApiException) {
-            // Handle error
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val prefs = getSharedPreferences("practenture", MODE_PRIVATE)
@@ -69,13 +41,30 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun practentureApp(prefs: android.content.SharedPreferences) {
-    val token by remember { mutableStateOf(prefs.getString("token", "") ?: "") }
-    val role by remember { mutableStateOf(prefs.getString("role", "") ?: "") }
-    val userId by remember { mutableStateOf(prefs.getString("userId", "") ?: "") }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    val credentialManager = remember(context) { CredentialManager.create(context) }
+    var token by remember { mutableStateOf(prefs.getString("token", "") ?: "") }
+    var role by remember { mutableStateOf(prefs.getString("role", "") ?: "") }
+    var userId by remember { mutableStateOf(prefs.getString("userId", "") ?: "") }
     if (token.isBlank()) LoginScreen { auth ->
         prefs.edit().putString("token", auth.accessToken).putString("role", auth.role).putString("userId", auth.userId).apply()
+        token = auth.accessToken
+        role = auth.role
+        userId = auth.userId
     } else SessionScreen(token, role, userId, prefs) {
         prefs.edit().clear().apply()
+        token = ""
+        role = ""
+        userId = ""
+        scope.launch {
+            try {
+                credentialManager.clearCredentialState(ClearCredentialStateRequest())
+            } catch (_: Exception) {
+                // Local session state is authoritative for logout; provider cleanup
+                // is best-effort so an unavailable provider cannot trap the user.
+            }
+        }
     }
 }
 
@@ -88,14 +77,9 @@ private fun LoginScreen(onLogin: (com.practenture.android.network.LoginResponse)
     var message by remember { mutableStateOf("Sign in with your Practenture account") }
     var busy by remember { mutableStateOf(false) }
     
-    // Get context for Google Sign-In
     val context = androidx.compose.ui.platform.LocalContext.current
-    
-    val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-        .requestIdToken("512483510028-kh7c36j95j6k55h224l5j5l5j5l5j5l5.apps.googleusercontent.com")
-        .requestEmail()
-        .build()
-    val googleSignInClient = GoogleSignIn.getClient(context, gso)
+    val credentialManager = remember(context) { CredentialManager.create(context) }
+    val googleServerClientId = com.practenture.android.BuildConfig.GOOGLE_SERVER_CLIENT_ID
     
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Practenture", style = MaterialTheme.typography.headlineLarge)
@@ -132,15 +116,57 @@ private fun LoginScreen(onLogin: (com.practenture.android.network.LoginResponse)
             Text("Check backend") 
         }
         
-        Button(enabled = !busy, onClick = {
-            val intent = googleSignInClient.signInIntent
-            (context as? Activity)?.startActivityForResult(intent, 1001)
+        Button(enabled = !busy && googleServerClientId.isNotBlank(), onClick = {
+            val activity = context.findActivity()
+            if (activity == null) {
+                message = "Google sign-in is unavailable"
+                return@Button
+            }
+            busy = true
+            scope.launch {
+                message = try {
+                    val option = GetSignInWithGoogleOption.Builder(googleServerClientId).build()
+                    val request = GetCredentialRequest.Builder()
+                        .addCredentialOption(option)
+                        .build()
+                    val response = credentialManager.getCredential(activity, request)
+                    val credential = response.credential
+                    if (
+                        credential !is CustomCredential ||
+                        credential.type != GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                    ) {
+                        throw IllegalStateException("Unexpected credential type")
+                    }
+                    val googleCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                    onLogin(repo.loginWithGoogle(googleCredential.idToken))
+                    "Signed in with Google"
+                } catch (_: GoogleIdTokenParsingException) {
+                    "Google sign-in returned an invalid credential"
+                } catch (_: GetCredentialException) {
+                    "Google sign-in was cancelled or unavailable"
+                } catch (_: Exception) {
+                    "Google sign-in failed"
+                }
+                busy = false
+            }
         }, modifier = Modifier.fillMaxWidth()) {
             Text(if (busy) "Signing in…" else "Sign in with Google")
+        }
+        if (googleServerClientId.isBlank()) {
+            Text(
+                "Google sign-in requires PRACTENTURE_GOOGLE_SERVER_CLIENT_ID.",
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
         
         Text(message)
     }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 @Composable

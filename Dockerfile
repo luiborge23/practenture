@@ -6,6 +6,12 @@ FROM python:3.11-slim@sha256:db3ff2e1800a8581e2c48a27c3995339d47bdf046da21c7627a
 
 WORKDIR /app
 
+# Dependency installation runs in an ephemeral builder stage and targets the
+# isolated /install prefix. Acknowledge that intentional root context and keep
+# release-build logs free of pip's unrelated version-check notice.
+ENV PIP_ROOT_USER_ACTION=ignore \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
