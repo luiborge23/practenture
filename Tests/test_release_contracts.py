@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tarfile
@@ -15,6 +16,9 @@ COMPOSE = ROOT / "docker-compose.yml"
 DEPLOY = ROOT / "ec2-deploy.sh"
 MIGRATION_ENV = ROOT / "backend" / "migrations" / "env.py"
 BUILDER = ROOT / "scripts" / "build_release_artifact.py"
+TLS_RENEWAL_INSTALLER = ROOT / "scripts" / "install_tls_renewal.sh"
+TLS_RENEWAL_RESTORER = ROOT / "scripts" / "restore_tls_renewal.sh"
+RELEASE_VERIFIER = ROOT / "scripts" / "verify_release_manifest.py"
 CI_WORKFLOW = ROOT / ".github" / "workflows" / "ci-cd.yml"
 BACKEND_DOCKERIGNORE = ROOT / "backend" / ".dockerignore"
 LEGACY_RELEASE_VALIDATION = ROOT / "backend" / "scripts" / "release_validation.sh"
@@ -93,15 +97,51 @@ def test_deploy_consumes_verified_artifact_and_restores_release_on_rollback() ->
     assert '"\\$RELEASE_TMP/RELEASE-MANIFEST.json"' in deploy
     assert "practenture-releases/.staging-$RELEASE_SHA" in deploy
     assert 'mv "\\$RELEASE_TMP" "\\$RELEASE_PATH"' in deploy
+    assert 'if [ -e "\\$RELEASE_PATH" ]; then' in deploy
+    assert ".release-artifact-sha256" in deploy
+    assert 'scripts/verify_release_manifest.py" \\' in deploy
+    assert "--manifest-sha256" in deploy
+    assert "ACTIVATION_RECOVERED" in deploy
+    assert "ACTIVATION_ROLLED_BACK_FOR_RETRY" in deploy
+    assert "Existing activation lacks complete rollback evidence" in deploy
+    assert 'if [ ! -f "\\$RELEASE_PATH/.activation-started" ]; then' in deploy
+    assert "Candidate completion failed; restoring retained release before retry" in deploy
+    assert "An existing candidate activation is indeterminate" in deploy
     assert '--build-arg "PRACTENTURE_RELEASE_SHA=$SOURCE_REVISION"' in deploy
     assert '"practenture-backend:rollback-$DEPLOY_ID" > .rollback-image' in deploy
     assert "docker-compose -p practenture stop nginx practenture-backend" in deploy
     assert "predeploy-$DEPLOY_ID.db" in deploy
+    assert "FIRST_ACTIVATION_RESET_FOR_RETRY" in deploy
+    assert 'if [ -z "$PREVIOUS_IMAGE" ]; then' in deploy
+    assert "A first activation has no retained image" in deploy
     assert "Candidate was healthy but release promotion failed; rolling back." in deploy
     assert "if ! ssh -o StrictHostKeyChecking=no" in deploy
     assert "REMOTE_DEPLOY_FAILED=1" in deploy
     assert "touch .activation-started" in deploy
+    assert "touch .activation-complete" in deploy
+    assert 'touch "$CANDIDATE_RELEASE/.promotion-complete"' in deploy
+    promotion = deploy.index('touch "$CANDIDATE_RELEASE/.promotion-complete"')
+    backup_cleanup = deploy.index(
+        'docker exec practenture-backend rm -f "/data/predeploy-$DEPLOY_ID.db"',
+        promotion,
+    )
+    marker_cleanup = deploy.index(
+        'rm -f "$CANDIDATE_RELEASE/.activation-started"',
+        promotion,
+    )
+    assert promotion < marker_cleanup < backup_cleanup
+    assert 'WARNING: deferred predeploy backup cleanup failed for $DEPLOY_ID' in deploy
+    activation_health = deploy.index("BACKEND_HEALTHY=0")
+    assert activation_health < deploy.index(
+        "docker-compose -p practenture up -d --no-build nginx",
+        activation_health,
+    )
+    assert "Candidate activation did not produce its completion marker" in deploy
+    assert "org.opencontainers.image.revision" in deploy
     assert "Candidate failed a deployment gate; restoring retained application" in deploy
+    assert "Promotion committed; recovered from an interrupted post-commit cleanup." in deploy
+    assert 'test ! -f "$CANDIDATE_RELEASE/.activation-started"' in deploy
+    assert 'if [ -f .activation-started ] && sudo test -d "$TLS_ROLLBACK_DIR"' in deploy
     assert "assert os.path.isfile(p)" in deploy
     assert 'ln -s "$PREVIOUS_RELEASE" "$LINK_TMP"' in deploy
     assert 'mv -Tf "$LINK_TMP" "$HOME/practenture-current"' in deploy
@@ -118,6 +158,90 @@ def test_deploy_consumes_verified_artifact_and_restores_release_on_rollback() ->
     assert '--source-revision "$SOURCE_REVISION"' in deploy
     assert 'EXPLICIT_JWT_SECRET="${PRACTENTURE_JWT_SECRET:-}"' in deploy
     assert 'JWT_SECRET="${EXPLICIT_JWT_SECRET:-${PRACTENTURE_JWT_SECRET:-}}"' in deploy
+    assert 'TLS_ROLLBACK_DIR="/var/lib/practenture-deploy/tls-rollback-$DEPLOY_ID"' in deploy
+    assert 'sudo ./scripts/restore_tls_renewal.sh "$TLS_ROLLBACK_DIR"' in deploy
+    assert 'sudo test -f "$TLS_ROLLBACK_DIR/install-complete"' in deploy
+
+
+def test_remote_deployment_heredocs_have_valid_bash_syntax() -> None:
+    deploy = DEPLOY.read_text()
+    blocks = re.findall(
+        r"<<'?((?:REMOTE|USER)_?[A-Z_]*)'?\n(.*?)\n\1",
+        deploy,
+        flags=re.DOTALL,
+    )
+    assert {name for name, _body in blocks} >= {
+        "REMOTE_STAGE",
+        "REMOTE_RECOVER",
+        "REMOTE_DEPLOY",
+        "REMOTE_PROMOTE",
+        "REMOTE_ROLLBACK",
+    }
+    for name, body in blocks:
+        if name == "REMOTE_STAGE":
+            # This heredoc is intentionally expanded by the local shell; the
+            # backslashes preserve remote dollar signs until that expansion.
+            body = body.replace("\\$", "$")
+        parsed = subprocess.run(
+            ["bash", "-n"], input=body, capture_output=True, text=True
+        )
+        assert parsed.returncode == 0, f"{name}: {parsed.stderr}"
+
+
+def test_tls_renewal_installer_is_fail_closed_and_reloads_nginx() -> None:
+    script = TLS_RENEWAL_INSTALLER.read_text()
+    restore_script = TLS_RENEWAL_RESTORER.read_text()
+    nginx = NGINX.read_text()
+    compose = COMPOSE.read_text()
+    assert TLS_RENEWAL_INSTALLER.stat().st_mode & 0o111
+    assert TLS_RENEWAL_RESTORER.stat().st_mode & 0o111
+    assert "set -euo pipefail" in script
+    assert "no Let's Encrypt renewal configurations were found" in script
+    assert "practenture-certbot-renew.service" in script
+    assert "practenture-certbot-renew.timer" in script
+    assert "OnCalendar=*-*-* 03,15:00:00" in script
+    assert "RandomizedDelaySec=3600" in script
+    assert "Persistent=true" in script
+    assert "WEBROOT_PATH=\"/var/www/certbot\"" in script
+    assert "renew --webroot --webroot-path $WEBROOT_PATH --quiet" in script
+    assert '"$DOCKER_BIN" exec practenture-nginx nginx -t' in script
+    assert '"$DOCKER_BIN" exec practenture-nginx nginx -s reload' in script
+    assert 'systemctl is-active --quiet "$TIMER_NAME"' in script
+    assert "--dry-run" in script
+    assert "--run-deploy-hooks" in script
+    assert "--no-random-sleep-on-renew" in script
+    assert "TLS_RENEWAL_DRY_RUN_PASSED" in script
+    assert 'systemctl enable "$TIMER_NAME"' in script
+    assert 'systemctl start "$TIMER_NAME"' in script
+    assert '"$SYSTEMD_ANALYZE" verify' in script
+    assert 'systemctl is-enabled --quiet "$TIMER_NAME"' in script
+    assert 'systemctl is-active --quiet "$TIMER_NAME"' in script
+    assert "TLS_RENEWAL_TIMER_READY" in script
+    assert "TLS_RENEWAL_PREVIOUS_CONFIGURATION_RESTORED" in script
+    assert 'timer_was_active=1' in script
+    assert 'touch "$snapshot_staging/timer-was-active"' in script
+    assert 'snapshot_created=1' in script
+    assert 'mv "$snapshot_staging" "$ROLLBACK_DIR"' in script
+    assert 'touch "$ROLLBACK_DIR/install-complete"' in script
+    assert 'if [ "$rc" -ne 0 ] && [ "$snapshot_created" -eq 1 ]' in script
+    assert 'TLS_RENEWAL_RESTORE_INCOMPLETE; durable rollback snapshot retained' in script
+    assert '[ "$restore_on_error" -eq 0 ] || [ "$restore_failed" -eq 0 ]' in script
+    assert script.index('systemctl disable --now "$TIMER_NAME"') < script.index('if [ "$restore_failed" -eq 0 ]; then')
+    assert 'if [ "$timer_existed" -eq 0 ] && [ -f "$SYSTEMD_DIR/$TIMER_NAME" ]' not in script
+    assert 'if [ -f "$SYSTEMD_DIR/$TIMER_NAME" ]; then' in restore_script
+    assert 'systemctl disable --now "$TIMER_NAME" >/dev/null 2>&1' in restore_script
+    assert 'systemctl disable --now "$TIMER_NAME" >/dev/null 2>&1 || true' not in restore_script
+    assert 'install -m 644 "$SNAPSHOT_DIR/previous-service"' in restore_script
+    assert 'install -m 644 "$SNAPSHOT_DIR/previous-timer"' in restore_script
+    assert 'if [ -f "$SNAPSHOT_DIR/timer-existed" ]; then' in restore_script
+    assert 'install -m 755 "$SNAPSHOT_DIR/previous-hook"' in restore_script
+    assert "TLS_RENEWAL_DEPLOYMENT_ROLLBACK_RESTORED" in restore_script
+    assert script.index('"$CERTBOT_BIN" renew \\') < script.index(
+        'install -m 644 "$work_dir/$SERVICE_NAME"'
+    )
+    assert nginx.count("location ^~ /.well-known/acme-challenge/") == 2
+    assert nginx.count("root /var/www/certbot;") == 2
+    assert "- /var/www/certbot:/var/www/certbot:ro" in compose
 
 
 def test_release_artifact_is_reproducible_and_excludes_state(tmp_path: Path) -> None:
@@ -136,12 +260,79 @@ def test_release_artifact_is_reproducible_and_excludes_state(tmp_path: Path) -> 
         assert "RELEASE-MANIFEST.json" in names
         assert not any(name.endswith((".db", ".db-wal", ".db-shm", ".pyc")) for name in names)
         assert not any(name == ".env" or name.endswith("/.env") or "__pycache__" in name for name in names)
+        assert not any(name == ".gradle" or name.startswith(".gradle/") for name in names)
         extracted = archive.extractfile("RELEASE-MANIFEST.json")
         assert extracted is not None
         manifest = json.load(cast(IO[bytes], extracted))
         assert manifest["formatVersion"] == 1
         assert manifest["sourceRevision"] is None
         assert manifest["files"]
+
+
+def test_extracted_release_verifier_rejects_tampering_and_unexpected_files(
+    tmp_path: Path,
+) -> None:
+    revision = "a" * 40
+    artifact = tmp_path / "release.tar.gz"
+    release = tmp_path / "release"
+    subprocess.run(
+        [
+            sys.executable,
+            str(BUILDER),
+            "--root",
+            str(ROOT),
+            "--output",
+            str(artifact),
+            "--source-revision",
+            revision,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    release.mkdir()
+    with tarfile.open(artifact, "r:gz") as archive:
+        archive.extractall(release, filter="data")
+
+    manifest_path = release / "RELEASE-MANIFEST.json"
+    manifest_sha256 = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    command = [
+        sys.executable,
+        str(RELEASE_VERIFIER),
+        str(release),
+        "--source-revision",
+        revision,
+        "--manifest-sha256",
+        manifest_sha256,
+    ]
+    verified = subprocess.run(command, check=True, capture_output=True, text=True)
+    assert verified.stdout.strip() == "RELEASE_MANIFEST_VERIFIED"
+
+    unexpected = release / "backend" / "unexpected.py"
+    unexpected.write_text("raise RuntimeError\n", encoding="utf-8")
+    assert subprocess.run(command, capture_output=True, text=True).returncode != 0
+    unexpected.unlink()
+
+    runtime_link = release / ".activation-complete"
+    runtime_link.symlink_to(release / "Dockerfile")
+    assert subprocess.run(command, capture_output=True, text=True).returncode != 0
+    runtime_link.unlink()
+
+    dockerfile = release / "Dockerfile"
+    dockerfile.write_text(dockerfile.read_text() + "\n# tampered\n", encoding="utf-8")
+    assert subprocess.run(command, capture_output=True, text=True).returncode != 0
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    dockerfile_entry = next(
+        entry for entry in manifest["files"] if entry["path"] == "Dockerfile"
+    )
+    dockerfile_entry["size"] = dockerfile.stat().st_size
+    dockerfile_entry["sha256"] = hashlib.sha256(dockerfile.read_bytes()).hexdigest()
+    manifest_path.write_text(
+        json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    assert subprocess.run(command, capture_output=True, text=True).returncode != 0
 
 
 def test_ci_is_hermetic_and_covers_admin_and_the_production_image() -> None:

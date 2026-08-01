@@ -295,6 +295,28 @@ def ensure_professor() -> None:
 _bearer_scheme = HTTPBearer(auto_error=False)
 
 
+def verify_current_token(token: str, *, allow_password_change: bool = False) -> Dict[str, Any]:
+    """Verify JWT and enforce the persisted account lifecycle boundary."""
+    payload = _verify_token(token)
+    if not payload:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+    user = db_module.db.get_user(payload["sub"])
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    _require_not_suspended(user)
+    if user.get("must_change_password") and not allow_password_change:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Password change required")
+    # Persisted authorization state is authoritative. A still-valid JWT must
+    # not retain privileges after an administrator changes the account role or
+    # organization membership.
+    current = dict(payload)
+    current["role"] = user["role"]
+    current["name"] = user.get("name", "")
+    org = db_module.db.get_primary_org(user["username"])
+    current["tenantId"] = org["id"] if org else ""
+    return current
+
+
 def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
 ) -> Dict[str, Any]:
@@ -305,15 +327,24 @@ def get_current_user(
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    token = credentials.credentials
-    payload = _verify_token(token)
-    if not payload:
+    try:
+        return verify_current_token(credentials.credentials)
+    except HTTPException as error:
+        # Bearer verification intentionally does not reveal lifecycle state.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
-        )
-    return payload
+        ) from error
+
+
+def get_current_user_for_password_change(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
+) -> Dict[str, Any]:
+    """Authenticate a user for the single forced-password-rotation route."""
+    if credentials is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    return verify_current_token(credentials.credentials, allow_password_change=True)
 
 
 def verify_professor(user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
@@ -620,22 +651,24 @@ def refresh_access_token(refresh_token_str: str) -> dict:
     Raises HTTPException on failure.
     """
     token_hash = _hash_token(refresh_token_str)
-    record = db_module.db.verify_refresh_token(token_hash)
-
-    if not record:
+    raw_refresh = secrets.token_urlsafe(48)
+    new_token_hash = _hash_token(raw_refresh)
+    now = datetime.now(timezone.utc)
+    rotation = db_module.db.rotate_refresh_token(
+        old_token_hash=token_hash,
+        new_token_hash=new_token_hash,
+        issued_at=now.timestamp(),
+        expires_at=(now + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)).timestamp(),
+    )
+    if not rotation:
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+    if rotation["status"] == "suspended":
+        raise HTTPException(status_code=403, detail="Account is suspended")
+    if rotation["status"] == "password_change_required":
+        raise HTTPException(status_code=403, detail="Password change required")
 
-    user_id = record["user_id"]
-
-    # Resolve lifecycle state before any destructive rotation. A suspended
-    # refresh attempt must not consume the presented token or mint replacements.
-    user = db_module.db.get_user(user_id)
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    _require_not_suspended(user)
-
-    # Revoke the old refresh token (rotation)
-    db_module.db.revoke_refresh_token(token_hash)
+    user = rotation["user"]
+    user_id = user["username"]
 
     role = user["role"]
     org = db_module.db.get_primary_org(user_id)
@@ -647,14 +680,11 @@ def refresh_access_token(refresh_token_str: str) -> dict:
         "role": role,
         "name": user.get("name", ""),
         "tenantId": tenant_id,
-        "exp": (datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_SOTA_MINUTES)).timestamp(),
-    })
-
-    # Create new refresh token (rotated from old)
-    new_refresh = _generate_refresh_token(user_id, rotated_from=token_hash)
+        "exp": (now + timedelta(minutes=ACCESS_TOKEN_SOTA_MINUTES)).timestamp(),
+    }, issued_at=now)
 
     return {
         "access_token": access_token,
-        "refresh_token": new_refresh,
+        "refresh_token": raw_refresh,
         "token_type": "bearer",
     }

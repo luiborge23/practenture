@@ -178,3 +178,88 @@ def test_suspended_refresh_is_denied_before_rotation_and_mints_nothing():
     assert response.json() == {"detail": "Account is suspended"}
     assert presented["revoked"] == 0
     assert after_count == before_count
+
+
+def test_bearer_authorization_uses_current_persisted_role():
+    username = _create_user("professor")
+    with TestClient(app) as client:
+        login = _password_login(client, username)
+        assert login.status_code == 200, login.text
+        access_token = login.json()["accessToken"]
+
+        with db._get_conn() as conn:
+            conn.execute(
+                "UPDATE users SET role='student' WHERE username=?", (username,)
+            )
+            conn.commit()
+
+        current = auth.verify_current_token(access_token)
+
+    assert current["sub"] == username
+    assert current["role"] == "student"
+
+
+def test_refresh_rotation_consumes_old_token_and_keeps_replacement_usable():
+    username = _create_user("professor")
+    with TestClient(app) as client:
+        login = _password_login(client, username)
+        assert login.status_code == 200, login.text
+        old_refresh = login.json()["refreshToken"]
+
+        rotated = client.post(
+            "/api/auth/refresh", json={"refreshToken": old_refresh}
+        )
+        assert rotated.status_code == 200, rotated.text
+        replacement = rotated.json()["refreshToken"]
+
+        reused = client.post(
+            "/api/auth/refresh", json={"refreshToken": old_refresh}
+        )
+        assert reused.status_code == 401
+
+        next_rotation = client.post(
+            "/api/auth/refresh", json={"refreshToken": replacement}
+        )
+        assert next_rotation.status_code == 200, next_rotation.text
+
+
+def test_refresh_access_token_is_anchored_before_concurrent_password_revocation(
+    monkeypatch,
+):
+    username = _create_user("professor")
+    with TestClient(app) as client:
+        login = _password_login(client, username)
+        assert login.status_code == 200, login.text
+        old_refresh = login.json()["refreshToken"]
+        original_create = auth._create_access_token
+        hook_called = False
+
+        def revoke_before_signing(payload, *, issued_at=None):
+            nonlocal hook_called
+            hook_called = True
+            user = db.get_user(username)
+            assert user is not None
+            assert db.update_user_password(
+                username, user["password_hash"], mark_changed=True
+            )
+            db.revoke_all_user_refresh_tokens(username)
+            return original_create(payload, issued_at=issued_at)
+
+        monkeypatch.setattr(auth, "_create_access_token", revoke_before_signing)
+        rotated = client.post(
+            "/api/auth/refresh", json={"refreshToken": old_refresh}
+        )
+        assert rotated.status_code == 200, rotated.text
+        assert hook_called
+
+        access_check = client.post(
+            "/api/auth/verify",
+            headers={"Authorization": f"Bearer {rotated.json()['accessToken']}"},
+        )
+        replacement_check = client.post(
+            "/api/auth/refresh",
+            json={"refreshToken": rotated.json()["refreshToken"]},
+        )
+
+    assert access_check.status_code == 401
+    assert replacement_check.status_code == 401

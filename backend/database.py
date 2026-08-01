@@ -666,13 +666,37 @@ class Database:
             try:
                 conn.execute("BEGIN IMMEDIATE")
                 row = conn.execute(
-                    """SELECT teams_json, state, current_round, max_human_teams
+                    """SELECT teams_json, state, current_round, max_human_teams,
+                              class_id, organization_id
                        FROM sessions WHERE code=?""",
                     (code,),
                 ).fetchone()
                 if not row:
                     conn.rollback()
                     return {"status": "not_found"}
+                if row["class_id"]:
+                    enrollment = conn.execute(
+                        """SELECT 1 FROM class_enrollments
+                           WHERE class_id=? AND student_user_id=?""",
+                        (row["class_id"], student_id),
+                    ).fetchone()
+                    if not enrollment:
+                        conn.rollback()
+                        return {"status": "not_enrolled"}
+                elif row["organization_id"]:
+                    membership = conn.execute(
+                        """SELECT 1 FROM memberships
+                           WHERE org_id=? AND user_id=? AND role='student'""",
+                        (row["organization_id"], student_id),
+                    ).fetchone()
+                    if not membership:
+                        conn.rollback()
+                        return {"status": "not_enrolled"}
+                else:
+                    # Legacy sessions without durable tenant scope are not safe
+                    # to join through the authenticated multi-tenant endpoint.
+                    conn.rollback()
+                    return {"status": "not_enrolled"}
                 if row["state"] != "creating":
                     conn.rollback()
                     return {"status": "invalid_state", "state": row["state"]}
@@ -1507,6 +1531,67 @@ class Database:
             (token_hash, datetime.now(timezone.utc).timestamp()),
         ).fetchone()
         return dict(row) if row else None
+
+    def rotate_refresh_token(
+        self,
+        *,
+        old_token_hash: str,
+        new_token_hash: str,
+        issued_at: float,
+        expires_at: float,
+    ) -> Optional[Dict[str, Any]]:
+        """Consume and replace a refresh token in one database transaction."""
+        conn = self.connect(check_same_thread=False)
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                """SELECT rt.*, u.username, u.role, u.name, u.status,
+                          u.must_change_password
+                     FROM refresh_tokens rt
+                     JOIN users u ON u.username=rt.user_id
+                    WHERE rt.token_hash=? AND rt.revoked=0 AND rt.expires_at>?""",
+                (old_token_hash, datetime.now(timezone.utc).timestamp()),
+            ).fetchone()
+            if not row:
+                conn.rollback()
+                return None
+
+            user = dict(row)
+            account_status = user.get("status")
+            if (
+                isinstance(account_status, str)
+                and account_status.strip().casefold() == "suspended"
+            ):
+                conn.rollback()
+                return {"status": "suspended", "user": user}
+            if user.get("must_change_password"):
+                conn.execute(
+                    "UPDATE refresh_tokens SET revoked=1 WHERE token_hash=?",
+                    (old_token_hash,),
+                )
+                conn.commit()
+                return {"status": "password_change_required", "user": user}
+
+            updated = conn.execute(
+                "UPDATE refresh_tokens SET revoked=1 WHERE token_hash=? AND revoked=0",
+                (old_token_hash,),
+            )
+            if updated.rowcount != 1:
+                conn.rollback()
+                return None
+            conn.execute(
+                """INSERT INTO refresh_tokens
+                       (token_hash, user_id, issued_at, expires_at, revoked, rotated_from)
+                   VALUES (?, ?, ?, ?, 0, ?)""",
+                (new_token_hash, user["user_id"], issued_at, expires_at, old_token_hash),
+            )
+            conn.commit()
+            return {"status": "rotated", "user": user}
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def revoke_refresh_token(self, token_hash: str) -> None:
         with self._lock:

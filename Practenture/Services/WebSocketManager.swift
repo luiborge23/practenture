@@ -27,15 +27,17 @@ protocol WebSocketManagerDelegate: AnyObject {
 
 // MARK: - WebSocket Manager
 
+@MainActor
 final class WebSocketManager: NSObject, ObservableObject {
     
     static let shared = WebSocketManager()
     
     // Session-specific connection state
-    private var wsURL: URL?
+    private var connectionRequest: URLRequest?
     private var webSocketTask: URLSessionWebSocketTask?
     private var session: URLSession!
     private var isConnected: Bool = false
+    private var shouldReconnect: Bool = false
     
     // Reconnection config
     private var reconnectTimer: Timer?
@@ -64,19 +66,27 @@ final class WebSocketManager: NSObject, ObservableObject {
     
     // MARK: - Connection Lifecycle
     
-    func connect(toSession sessionCode: String, baseURL: String) {
+    func connect(toSession sessionCode: String, baseURL: String, accessToken: String) {
         disconnect(reason: "Replacing connection")
-        
-        let urlString = "\(baseURL.replacingOccurrences(of: "http", with: "ws"))/ws/\(sessionCode)"
-        guard let url = URL(string: urlString) else {
-            reportEvent(.error("Invalid WebSocket URL: \(urlString)"))
+
+        guard !accessToken.isEmpty,
+              var components = URLComponents(string: baseURL) else {
+            reportEvent(.error("A valid authenticated WebSocket configuration is required"))
             return
         }
-        
-        self.wsURL = url
-        
-        webSocketTask = session.webSocketTask(with: url)
-        startReceiving()
+        components.scheme = components.scheme == "https" ? "wss" : "ws"
+        components.path = "/ws/\(sessionCode.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? sessionCode)"
+        components.query = nil
+        guard let url = components.url else {
+            reportEvent(.error("Invalid WebSocket URL"))
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        connectionRequest = request
+        shouldReconnect = true
+        startSocket(with: request)
     }
     
     func disconnect(reason: String? = nil) {
@@ -90,6 +100,8 @@ final class WebSocketManager: NSObject, ObservableObject {
         webSocketTask = nil
         
         isConnected = false
+        shouldReconnect = false
+        connectionRequest = nil
         currentReconnectAttempt = 0
         
         reportEvent(.disconnected(reason: reason))
@@ -98,9 +110,11 @@ final class WebSocketManager: NSObject, ObservableObject {
     func sendMessage(_ message: String) {
         guard message.data(using: .utf8) != nil else { return }
         
-        webSocketTask?.send(.string(message)) { error in
-            if let error = error {
-                self.reportEvent(.error("Send failed: \(UserFriendlyError.message(for: error))"))
+        Task {
+            do {
+                try await webSocketTask?.send(.string(message))
+            } catch {
+                reportEvent(.error("Send failed: \(UserFriendlyError.message(for: error))"))
             }
         }
     }
@@ -108,7 +122,7 @@ final class WebSocketManager: NSObject, ObservableObject {
     // MARK: - Reconnection
     
     private func startReconnect() {
-        guard !isConnected else { return }
+        guard shouldReconnect, !isConnected else { return }
         
         currentReconnectAttempt += 1
         
@@ -119,20 +133,28 @@ final class WebSocketManager: NSObject, ObservableObject {
         
         reconnectTimer?.invalidate()
         reconnectTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
-            guard let self else { return }
-            
-            if currentReconnectAttempt >= maxReconnectAttempts {
-                reportEvent(.error("Max reconnection attempts (\(maxReconnectAttempts)) reached"))
-                currentReconnectAttempt = 0
-                return
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+
+                if self.currentReconnectAttempt >= self.maxReconnectAttempts {
+                    self.reportEvent(.error("Max reconnection attempts (\(self.maxReconnectAttempts)) reached"))
+                    self.currentReconnectAttempt = 0
+                    return
+                }
+
+                guard var request = self.connectionRequest,
+                      let accessToken = AuthManager.shared.accessToken,
+                      !accessToken.isEmpty else {
+                    self.reportEvent(.error("Authentication expired; WebSocket reconnect stopped"))
+                    self.shouldReconnect = false
+                    return
+                }
+                request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+                self.connectionRequest = request
+                self.startSocket(with: request)
+
+                self.reportEvent(.disconnected(reason: "Reconnecting (attempt \(self.currentReconnectAttempt)/\(self.maxReconnectAttempts))"))
             }
-            
-            guard let wsURL = self.wsURL else { return }
-            
-            webSocketTask = session.webSocketTask(with: wsURL)
-            startReceiving()
-            
-            reportEvent(.disconnected(reason: "Reconnecting (attempt \(currentReconnectAttempt)/\(maxReconnectAttempts))"))
         }
     }
     
@@ -141,13 +163,11 @@ final class WebSocketManager: NSObject, ObservableObject {
     private func startHeartbeat() {
         heartbeatTimer?.invalidate()
         heartbeatTimer = Timer.scheduledTimer(withTimeInterval: heartbeatInterval, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            
-            if isConnected {
-                webSocketTask?.sendPing { error in
-                    if let error = error {
-                        Logger.webSocket.error("Ping failed: \(UserFriendlyError.message(for: error))")
-                    }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+
+                if self.isConnected {
+                    self.sendMessage(#"{"type":"ping"}"#)
                 }
             }
         }
@@ -155,14 +175,18 @@ final class WebSocketManager: NSObject, ObservableObject {
     
     // MARK: - Message Handling
     
-    private func startReceiving() {
-        webSocketTask?.resume()
-        
-        webSocketTask?.receive { [weak self] result in
-            guard let self else { return }
-            
-            switch result {
-            case .success(let message):
+    private func startSocket(with request: URLRequest) {
+        let task = session.webSocketTask(with: request)
+        webSocketTask = task
+        task.resume()
+        receiveNextMessage(from: task)
+    }
+
+    private func receiveNextMessage(from task: URLSessionWebSocketTask) {
+        Task {
+            do {
+                let message = try await task.receive()
+                guard task === webSocketTask else { return }
                 if !isConnected {
                     isConnected = true
                     currentReconnectAttempt = 0
@@ -180,15 +204,10 @@ final class WebSocketManager: NSObject, ObservableObject {
                 @unknown default:
                     break
                 }
-                
-                // Continue receiving recursively
-                let task = webSocketTask
-                Task.detached {
-                    await MainActor.run {
-                        task?.receive { _ in }
-                    }
-                }
-            case .failure:
+
+                receiveNextMessage(from: task)
+            } catch {
+                guard task === webSocketTask else { return }
                 if isConnected {
                     isConnected = false
                     heartbeatTimer?.invalidate()
@@ -196,8 +215,6 @@ final class WebSocketManager: NSObject, ObservableObject {
                     reportEvent(.disconnected(reason: "Connection closed"))
                 }
                 startReconnect()
-            @unknown default:
-                break
             }
         }
     }
@@ -205,22 +222,20 @@ final class WebSocketManager: NSObject, ObservableObject {
     // MARK: - Event Reporting
     
     private func reportEvent(_ event: WebSocketEvent) {
-        Task { @MainActor in
-            self.latestEvent = event
+        latestEvent = event
             
-            switch event {
-            case .connected:
-                Logger.webSocket.info("WebSocket connected")
-            case .disconnected(let reason):
-                Logger.webSocket.info("WebSocket disconnected: \(reason ?? "unknown")")
-            default:
-                break
-            }
-            if case .error(let msg) = event {
-                Logger.webSocket.error("\(msg)")
-            }
-            
-            delegate?.didReceive(event: event, from: self)
+        switch event {
+        case .connected:
+            Logger.webSocket.info("WebSocket connected")
+        case .disconnected(let reason):
+            Logger.webSocket.info("WebSocket disconnected: \(reason ?? "unknown")")
+        default:
+            break
         }
+        if case .error(let msg) = event {
+            Logger.webSocket.error("\(msg)")
+        }
+
+        delegate?.didReceive(event: event, from: self)
     }
 }

@@ -121,6 +121,10 @@ struct ProfessorActivationRequest: Encodable {
 // MARK: - SOTA Phase 2: MFA Models
 
 /// MFA setup response from /api/auth/mfa/setup
+struct MFASetupRequest: Encodable {
+    let password: String
+}
+
 struct MFASetupResponse: Codable {
     let secret: String
     let qrCodeUrl: String

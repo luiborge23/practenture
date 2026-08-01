@@ -12,6 +12,7 @@ struct SessionMonitorView: View {
 
     @State private var viewModel: SessionMonitorViewModel?
     @State private var showEndSessionAlert = false
+    @State private var endSessionError: String?
     @State private var isBackendConnected = false
     @State private var pollTimer: Task<Void, Never>? = nil
 
@@ -67,6 +68,15 @@ struct SessionMonitorView: View {
         } message: {
             Text("This will finalize all results and prevent further rounds. This action cannot be undone.")
         }
+        .alert("Unable to End Session", isPresented: Binding(
+            get: { endSessionError != nil },
+            set: { if !$0 { endSessionError = nil } }
+        )) {
+            Button("Retry") { endSessionWithBackend() }
+            Button("Cancel", role: .cancel) { endSessionError = nil }
+        } message: {
+            Text(endSessionError ?? "Please try again.")
+        }
     }
 
     // MARK: - Backend Polling
@@ -89,8 +99,13 @@ struct SessionMonitorView: View {
 
     private func endSessionWithBackend() {
         if let vm = viewModel {
-            Task { await vm.endSessionWithBackend() }
-            appState.clearActiveSession()
+            Task {
+                if await vm.endSessionWithBackend() {
+                    appState.clearActiveSession()
+                } else {
+                    endSessionError = vm.roundProcessingError ?? "Please try again."
+                }
+            }
         } else {
             appState.clearActiveSession()
         }

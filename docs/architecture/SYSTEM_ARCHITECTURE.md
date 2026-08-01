@@ -184,13 +184,16 @@ All administrative actions emit structured audit events with:
 - Used for final validation before production deployment
 
 ### Production Deployment
-1. Qualify the exact source SHA through all five required CI jobs with zero Check annotations.
+1. Qualify the exact source SHA through all six required CI jobs with zero Check annotations.
 2. Build and compare deterministic release artifacts.
 3. Promote only with `./ec2-deploy.sh deploy`.
 4. Verify the predeployment backup checksum and isolated restore drill.
 5. Apply Alembic migrations through the deployment transaction.
 6. Atomically promote the release symlink and immutable image.
 7. Verify internal containers, public HTTPS/TLS, source/image revision, database integrity, and rollback evidence.
+8. Install and verify the persistent `practenture-certbot-renew.timer`; successful renewals validate and reload the running Nginx container through Certbot's deploy hook.
+
+The TLS renewal timer runs twice daily with randomized delay and persistent catch-up after downtime. Qualification requires an actual `certbot renew --dry-run --run-deploy-hooks`, not only an enabled timer. The served certificate and public HTTPS health must be checked after the hook. `scripts/check_tls_expiry.py` is silent while the certificate is valid beyond its threshold and emits an actionable alert at 30 days or on validation failure; an external scheduler is responsible for running and delivering that watchdog.
 
 ### Rollback Plan
 - Use the rollback operation provided by `ec2-deploy.sh`; do not replace containers manually.

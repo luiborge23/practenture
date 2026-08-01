@@ -8,6 +8,7 @@ let pendingAction = null;
 let createIdempotencyKey = crypto.randomUUID();
 let protectedMfaAction = "";
 let currentRecoveryCodes = [];
+let monitoringCode = "";
 
 function cookie(name) {
   const prefix = `${encodeURIComponent(name)}=`;
@@ -269,6 +270,7 @@ function renderSessions() {
     cell(row, item.currentRoundSubmissions);
     cell(row, item.totalSubmissions);
     const actions = document.createElement("div"); actions.className = "row-actions";
+    actions.append(actionButton("Monitor", () => showMonitor(item), "button-secondary"));
     if (item.state === "creating") actions.append(actionButton("Start", () => runSessionAction(item, "start"), "button-primary"));
     if (item.state === "active") actions.append(actionButton("Process round", () => runSessionAction(item, "process-round"), "button-primary"));
     if (["creating", "active"].includes(item.state)) actions.append(actionButton("End", () => runSessionAction(item, "end")));
@@ -279,6 +281,86 @@ function renderSessions() {
     cell(row, actions);
     body.append(row);
   }
+}
+
+function renderMonitor(payload) {
+  $("monitor-title").textContent = `Session ${payload.code}`;
+  $("monitor-summary").textContent = `${payload.state} · round ${payload.currentRound}`;
+  const teamRows = $("monitor-team-rows");
+  teamRows.replaceChildren();
+  for (const team of payload.teams) {
+    const row = document.createElement("tr");
+    cell(row, team.teamName);
+    cell(row, team.isAI ? "AI" : "Student");
+    const current = payload.currentRound === 0
+      ? "Not started"
+      : team.currentRoundSubmitted
+        ? "Submitted"
+        : team.isAI ? "Generated when processed" : "Missing";
+    cell(row, current);
+    cell(row, team.submittedRounds.length ? team.submittedRounds.join(", ") : "None");
+    teamRows.append(row);
+  }
+  if (!payload.teams.length) {
+    const row = document.createElement("tr");
+    const empty = cell(row, "No teams have joined this session.");
+    empty.colSpan = 4;
+    teamRows.append(row);
+  }
+
+  const rounds = $("monitor-rounds");
+  rounds.replaceChildren();
+  for (const round of payload.rounds) {
+    const section = document.createElement("section"); section.className = "monitor-round";
+    const title = document.createElement("h4"); title.textContent = `Round ${round.round}`;
+    const audit = document.createElement("p"); audit.className = "field-help";
+    audit.textContent = `Decision audit: ${round.submittedTeams.length ? round.submittedTeams.join(", ") : "no submitted teams"}`;
+    section.append(title, audit);
+    const maxScore = Math.max(1, ...round.results.map((result) => Math.max(0, result.totalScore)));
+    for (const result of round.results) {
+      const bar = document.createElement("div"); bar.className = "result-bar";
+      const label = document.createElement("span"); label.textContent = result.teamName;
+      const track = document.createElement("span"); track.className = "result-bar-track";
+      const fill = document.createElement("span"); fill.className = "result-bar-fill";
+      fill.style.width = `${Math.max(0, result.totalScore) / maxScore * 100}%`;
+      track.append(fill);
+      const value = document.createElement("span"); value.className = "result-value";
+      value.textContent = `${result.totalScore.toFixed(1)} pts · ${result.profit.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 })}`;
+      bar.append(label, track, value);
+      section.append(bar);
+    }
+    if (!round.results.length) {
+      const empty = document.createElement("p"); empty.className = "monitor-empty";
+      empty.textContent = "Results are not available until this round is processed.";
+      section.append(empty);
+    }
+    rounds.append(section);
+  }
+  if (!payload.rounds.length) {
+    const empty = document.createElement("p"); empty.className = "monitor-empty";
+    empty.textContent = "No decision or result history is available yet.";
+    rounds.append(empty);
+  }
+}
+
+async function loadMonitor() {
+  if (!monitoringCode) return;
+  setMessage("monitor-alert");
+  try {
+    renderMonitor(await request(`${API}/progress/${encodeURIComponent(monitoringCode)}/monitor`));
+  } catch (error) {
+    setMessage("monitor-alert", error.message);
+  }
+}
+
+async function showMonitor(item) {
+  monitoringCode = item.code;
+  $("monitor-title").textContent = `Session ${item.code}`;
+  $("monitor-summary").textContent = "Loading authoritative session state…";
+  $("monitor-team-rows").replaceChildren();
+  $("monitor-rounds").replaceChildren();
+  $("monitor-dialog").showModal();
+  await loadMonitor();
 }
 
 async function loadProgress() {
@@ -412,6 +494,9 @@ $("logout").addEventListener("click", async () => {
   showAuth(); selectTab("login");
 });
 $("refresh").addEventListener("click", loadProgress);
+$("monitor-refresh").addEventListener("click", loadMonitor);
+$("monitor-close").addEventListener("click", () => $("monitor-dialog").close());
+$("monitor-dialog").addEventListener("close", () => { monitoringCode = ""; });
 $("nav-sessions").addEventListener("click", showSessions);
 $("nav-create").addEventListener("click", showCreate);
 $("nav-security").addEventListener("click", showSecurity);

@@ -199,6 +199,11 @@ def test_portal_class_scope_lifecycle_announcement_and_foreign_denial():
         assert foreign_client.delete(
             f"/api/professor-portal/sessions/{code}", headers=foreign_csrf
         ).status_code == 403
+        denied_monitor = foreign_client.get(
+            f"/api/professor-portal/progress/{code}/monitor"
+        )
+        assert denied_monitor.status_code == 403
+        assert denied_monitor.json() == {"detail": "Not your session"}
 
         started = owner_client.post(
             f"/api/professor-portal/sessions/{code}/start", headers=owner_csrf
@@ -223,6 +228,18 @@ def test_portal_class_scope_lifecycle_announcement_and_foreign_denial():
         round_two = db.get_session(code)
         assert round_two is not None
         assert round_two.currentRound == 2
+
+        monitor = owner_client.get(f"/api/professor-portal/progress/{code}/monitor")
+        assert monitor.status_code == 200, monitor.text
+        monitor_payload = monitor.json()
+        assert monitor_payload["code"] == code
+        assert monitor_payload["state"] == "active"
+        assert monitor_payload["currentRound"] == 2
+        assert len(monitor_payload["teams"]) == 1
+        assert monitor_payload["teams"][0]["isAI"] is True
+        assert monitor_payload["teams"][0]["currentRoundSubmitted"] is False
+        assert monitor_payload["rounds"][0]["round"] == 1
+        assert len(monitor_payload["rounds"][0]["results"]) == 1
 
         ended = owner_client.post(
             f"/api/professor-portal/sessions/{code}/end", headers=owner_csrf
@@ -316,9 +333,9 @@ def test_portal_reloads_persisted_role_and_account_status():
             )
             connection.commit()
         suspended = client.get("/api/professor-portal/session")
-        # The shared verifier revokes suspended accounts before the portal's
-        # persisted-role check; either way the stale cookie is unusable.
+        # The earlier persisted-role rejection invalidates the stale browser
+        # session; suspension must continue to deny that invalidated cookie.
         assert suspended.status_code == 401
-        assert suspended.json() == {"detail": "Session expired"}
+        assert suspended.json() == {"detail": "Invalid or expired token"}
     finally:
         client.close()

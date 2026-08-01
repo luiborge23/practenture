@@ -965,11 +965,16 @@
       "method": "POST",
       "operationId": "setup_mfa_api_auth_mfa_setup_post",
       "path": "/api/auth/mfa/setup",
-      "requestBodyRequired": false,
-      "requestSchema": null,
+      "requestBodyRequired": true,
+      "requestSchema": {
+        "$ref": "#/components/schemas/MFASetupRequest"
+      },
       "responses": {
         "200": {
           "$ref": "#/components/schemas/MFASetupResponse"
+        },
+        "422": {
+          "$ref": "#/components/schemas/HTTPValidationError"
         }
       },
       "security": [

@@ -1,12 +1,18 @@
 """Backend-authoritative gameplay API contracts."""
+import csv
+import asyncio
 from datetime import datetime, timedelta, timezone
+import io
+from typing import cast
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocket, WebSocketDisconnect
 from auth import _create_token
 from database import db
 from main import app
 from models import PlayerDecision, RoundResult, SessionConfiguration, SessionState, TeamConfig
 from security import hash_password
+from ws_manager import ConnectionManager
 
 client=TestClient(app)
 
@@ -20,15 +26,26 @@ def seed(name,role): db.create_user(name,hash_password("Contract123!"),role,name
 def clean():
     for store in (db.sessions,db.decisions,db.announcements,db.results,db.team_states): store.clear()
     with db._get_conn() as c:
-        for table in ("sessions","users"):
+        for table in ("class_enrollments", "classes", "memberships", "organizations", "sessions", "users"):
             c.execute(f"DELETE FROM {table}")
         c.commit()
-    for name,role in (("owner-x","owner"),("prof-a","professor"),("prof-b","professor"),("student-a","student"),("student-b","student")):
+    for name,role in (("owner-x","owner"),("prof-a","professor"),("prof-b","professor"),("student-a","student"),("student-b","student"),("student-outsider","student")):
         seed(name,role)
+    organization = db.get_or_create_organization("Contract Organization")
+    db.add_membership("prof-a", organization["id"], "professor")
+    db.add_membership("student-a", organization["id"], "student")
+    db.add_membership("student-b", organization["id"], "student")
 
 def session(teams=None,total=2):
     teams=teams or [TeamConfig(teamName="Zulu",studentId="student-a"),TeamConfig(teamName="Alpha",studentId="student-b"),TeamConfig(teamName="AI-Balanced",isAI=True,aiStrategy="balanced")]
-    code=db.create_session(SessionConfiguration(totalRounds=total),teams,"prof-a",30,professor_user_id="prof-a")
+    code=db.create_session(
+        SessionConfiguration(totalRounds=total),
+        teams,
+        "prof-a",
+        30,
+        professor_user_id="prof-a",
+        organization_id=db.get_single_organization_id("prof-a"),
+    )
     db.update_session(code,{"state":SessionState.ACTIVE,"currentRound":1})
     return code
 
@@ -38,12 +55,102 @@ def payload(team="Zulu",round_num=1,decision=None):
 def submit(code,**kw):
     return client.post(f"/api/sessions/{code}/submit_decision",json=payload(**kw),headers=H("student-a","student"))
 
+
+def test_broadcast_isolates_unexpected_socket_transport_failure():
+    code=session()
+    token=H("student-a","student")["Authorization"].removeprefix("Bearer ")
+
+    class BrokenSocket:
+        async def send_text(self, _message):
+            raise OSError("socket closed during send")
+
+    broken=cast(WebSocket,BrokenSocket())
+    connection_manager=ConnectionManager()
+    connection_manager.active_connections[code]={broken}
+    connection_manager.connection_map[broken]=code
+    connection_manager.connection_tokens[broken]=token
+
+    asyncio.run(connection_manager.broadcast(code,{"type":"announcement"}))
+
+    assert connection_manager.get_connection_count(code)==0
+    assert broken not in connection_manager.connection_map
+
 def test_all_gameplay_routes_require_authentication():
     code=session()
     assert client.post(f"/api/sessions/{code}/submit_decision",json=payload()).status_code==401
     assert client.get(f"/api/sessions/{code}/decisions/1").status_code==401
     assert client.post(f"/api/sessions/{code}/process_round").status_code==401
     assert client.get(f"/api/sessions/{code}/leaderboard").status_code==401
+
+
+def test_session_reads_announcements_and_websocket_require_participation():
+    code=session()
+    outsider=H("student-outsider","student")
+    foreign_professor=H("prof-b","professor")
+    for path in (
+        f"/api/sessions/{code}",
+        f"/api/sessions/{code}/status",
+        f"/api/sessions/{code}/announcements",
+    ):
+        assert client.get(path,headers=outsider).status_code==403
+        assert client.get(path,headers=foreign_professor).status_code==403
+
+    with pytest.raises(WebSocketDisconnect) as outsider_close:
+        with client.websocket_connect(f"/ws/{code}",headers=outsider):
+            pass
+    assert outsider_close.value.code==4003
+
+    token=H("student-a","student")["Authorization"].removeprefix("Bearer ")
+    with pytest.raises(WebSocketDisconnect) as query_token_close:
+        with client.websocket_connect(f"/ws/{code}?token={token}"):
+            pass
+    assert query_token_close.value.code==4001
+
+    with client.websocket_connect(f"/ws/{code}",headers=H("student-a","student")) as websocket:
+        connected=websocket.receive_json()
+        assert connected["type"]=="connected"
+        assert connected["code"]==code
+        websocket.send_json({"type":"request_status"})
+        status=websocket.receive_json()
+        assert status["type"]=="status"
+        assert status["currentRound"]==1
+
+
+def test_announcement_is_broadcast_only_to_authorized_session_connections():
+    code=session()
+    with client.websocket_connect(f"/ws/{code}",headers=H("student-a","student")) as websocket:
+        assert websocket.receive_json()["type"]=="connected"
+        created=client.post(
+            f"/api/sessions/{code}/announcements",
+            json={"message":"Round one closes soon","authorName":"Professor A"},
+            headers=H("prof-a","professor"),
+        )
+        assert created.status_code==200,created.text
+        event=websocket.receive_json()
+        assert event["type"]=="announcement"
+        assert event["message"]=="Round one closes soon"
+        assert event["authorId"]=="prof-a"
+
+
+def test_broadcast_disconnects_a_participant_suspended_after_connect():
+    code=session()
+    with client.websocket_connect(f"/ws/{code}",headers=H("student-a","student")) as websocket:
+        assert websocket.receive_json()["type"]=="connected"
+        with db._get_conn() as connection:
+            connection.execute(
+                "UPDATE users SET status='suspended' WHERE username=?",
+                ("student-a",),
+            )
+            connection.commit()
+        created=client.post(
+            f"/api/sessions/{code}/announcements",
+            json={"message":"Authorized users only","authorName":"Professor A"},
+            headers=H("prof-a","professor"),
+        )
+        assert created.status_code==200,created.text
+        with pytest.raises(WebSocketDisconnect) as revoked_close:
+            websocket.receive_json()
+        assert revoked_close.value.code==4001
 
 
 def test_session_join_requires_matching_authenticated_student_identity():
@@ -246,3 +353,82 @@ def test_teams_and_results_return_typed_empty_collections_and_404():
     for suffix in ("teams","results"):
         missing=client.get(f"/api/sessions/NO-SUCH/{suffix}",headers=H("owner-x","owner"))
         assert missing.status_code==404 and missing.json()=={"detail":"Session not found"}
+
+
+def test_twenty_student_eight_round_cohort_is_backend_authoritative_end_to_end():
+    students=[f"cohort-student-{index:02d}" for index in range(1,21)]
+    teams=[]
+    for index,student in enumerate(students,1):
+        seed(student,"student")
+        teams.append(TeamConfig(teamName=f"Team-{index:02d}",studentId=student))
+    code=session(teams=teams,total=8)
+    professor_headers=H("prof-a","professor")
+    accepted_submissions=0
+
+    for round_number in range(1,9):
+        before=client.get(f"/api/sessions/{code}/status",headers=professor_headers)
+        assert before.status_code==200
+        assert before.json()["currentRound"]==round_number
+        assert before.json()["teamsSubmitted"]==0
+
+        for index,(student,team) in enumerate(zip(students,teams,strict=True),1):
+            decision=PlayerDecision(
+                wholesalePrice=70.0+index+round_number,
+                internetPrice=82.0+index+round_number,
+                amazonPrice=77.0+index+round_number,
+                productionQuantity=160+(index*3)+(round_number*5),
+                advertisingBudget=5000.0+(index*125)+(round_number*50),
+                stylingBudget=2000.0+(index*50),
+                tqmInvestment=1200.0+(round_number*100),
+            ).model_dump(mode="json")
+            submitted=client.post(
+                f"/api/sessions/{code}/submit_decision",
+                json=payload(team=team.teamName,round_num=round_number,decision=decision),
+                headers=H(student,"student"),
+            )
+            assert submitted.status_code==200,submitted.text
+            accepted_submissions+=1
+
+        ready=client.get(f"/api/sessions/{code}/status",headers=professor_headers)
+        assert ready.status_code==200
+        assert ready.json()["teamsSubmitted"]==20
+        assert ready.json()["humanTeams"]==20
+
+        processed=client.post(
+            f"/api/sessions/{code}/process_round",headers=professor_headers
+        )
+        assert processed.status_code==200,processed.text
+        assert processed.json()["round"]==round_number
+        assert len(processed.json()["results"])==20
+        persisted=db.get_session(code)
+        assert persisted is not None
+        if round_number<8:
+            assert persisted.currentRound==round_number+1
+            assert persisted.state==SessionState.ACTIVE
+        else:
+            assert persisted.currentRound==8
+            assert persisted.state==SessionState.FINISHED
+
+    assert accepted_submissions==160
+    all_results=db.get_all_results(code)
+    assert sorted(all_results)==list(range(1,9))
+    assert all(len(all_results[round_number])==20 for round_number in range(1,9))
+
+    leaderboard=client.get(
+        f"/api/sessions/{code}/leaderboard",headers=professor_headers
+    )
+    assert leaderboard.status_code==200
+    entries=leaderboard.json()["leaderboard"]
+    assert len(entries)==20
+    assert [entry["rank"] for entry in entries]==list(range(1,21))
+    assert [entry["totalScore"] for entry in entries]==sorted(
+        (entry["totalScore"] for entry in entries),reverse=True
+    )
+
+    for suffix in ("grades","leaderboard"):
+        exported=client.get(
+            f"/api/sessions/{code}/export/{suffix}",headers=professor_headers
+        )
+        assert exported.status_code==200,exported.text
+        rows=list(csv.reader(io.StringIO(exported.text)))
+        assert len(rows)==(161 if suffix=="grades" else 21)

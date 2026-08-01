@@ -134,15 +134,14 @@ def test_student_dashboard_is_limited_to_enrolled_classes():
     assert [s["code"] for s in response.json()["sessions"]] == [code_a]
 
 
-def test_dashboard_requires_valid_auth_and_unknown_role_sees_empty_list():
+def test_dashboard_requires_a_current_valid_user():
     assert client.get("/api/dashboard/sessions").status_code == 401
     invalid = client.get(
         "/api/dashboard/sessions", headers={"Authorization": "Bearer invalid.token"}
     )
     unknown = client.get("/api/dashboard/sessions", headers=_headers("service-x", "service"))
     assert invalid.status_code == 401
-    assert unknown.status_code == 200
-    assert unknown.json() == {"sessions": []}
+    assert unknown.status_code == 401
 
 
 def test_grade_export_exact_csv_contract_and_formatting():

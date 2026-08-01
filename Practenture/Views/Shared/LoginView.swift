@@ -1231,6 +1231,7 @@ struct LoginView: View {
                 return
             }
             // Success — role is now "professor", offer MFA setup
+            pendingPassword = password
             step = .mfaSetup
         } catch {
             errorMessage = UserFriendlyError.message(for: error)
@@ -1327,7 +1328,11 @@ struct LoginView: View {
     private func startMFASetup() async {
         isLoading = true; errorMessage = nil; defer { isLoading = false }
         do {
-            let setup = try await AuthManager.shared.setupMFA()
+            guard !pendingPassword.isEmpty else {
+                errorMessage = "Please sign in again before setting up MFA."
+                return
+            }
+            let setup = try await AuthManager.shared.setupMFA(password: pendingPassword)
             mfaSetupData = setup
             showingMFASetup = true
         } catch {

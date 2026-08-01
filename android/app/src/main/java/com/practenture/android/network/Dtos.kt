@@ -12,6 +12,10 @@ data class LoginResponse(
     val role: String, val userId: String, val mfaRequired: Boolean = false,
     val mustChangePassword: Boolean = false, val professorCodeRequired: Boolean = false
 )
+data class RefreshTokenRequest(val refreshToken: String)
+data class RefreshTokenResponse(val accessToken: String, val refreshToken: String)
+data class ChangePasswordRequest(val old_password: String, val new_password: String)
+data class ChangePasswordResponse(val status: String)
 data class SocialMediaBudget(val tiktok: Double = 0.0, val instagram: Double = 0.0, val youtube: Double = 0.0)
 data class PlayerDecision(
     val wholesalePrice: Double = 80.0, val internetPrice: Double = 90.0, val amazonPrice: Double = 85.0,
@@ -31,9 +35,42 @@ data class SubmitDecisionRequest(val round: Int, val teamId: String, val decisio
 data class SubmitDecisionResponse(val status: String = "accepted", val round: Int, val teamId: String)
 data class JoinRequest(val teamName: String, val studentId: String)
 data class JoinResponse(val teamId: String, val teamName: String, val round: Int, val state: String)
+data class SessionConfigurationRequest(
+    val name: String,
+    val totalRounds: Int,
+    val numberOfAICompetitors: Int,
+)
+data class CreateSessionRequest(
+    val config: SessionConfigurationRequest,
+    val teams: List<Any> = emptyList(),
+    val maxHumanTeams: Int,
+    val scenarioId: String = "athletic-footwear-classic",
+    val scenarioVersion: String = "1.0.0",
+)
+data class CreateSessionResponse(val sessionId: String, val code: String)
+data class StartSessionResponse(val status: String, val sessionId: String, val code: String)
+data class EndSessionResponse(val status: String)
+data class DashboardSession(
+    val code: String,
+    val name: String,
+    val state: String,
+    val currentRound: Int,
+    val totalRounds: Int,
+)
+data class DashboardSessionsResponse(val sessions: List<DashboardSession>)
+data class CreateAnnouncementRequest(val message: String, val authorName: String)
+data class CreateAnnouncementResponse(val status: String, val announcementId: String)
+data class Announcement(
+    val id: String,
+    val sessionId: String,
+    val message: String,
+    val authorId: String,
+    val authorName: String,
+    val timestamp: String,
+)
 data class SessionStatus(
     val sessionId: String, val code: String, val state: String, val currentRound: Int,
-    val totalRounds: Int, val teamsSubmitted: Int, val totalTeams: Int
+    val totalRounds: Int, val teamsSubmitted: Int, val totalTeams: Int, val humanTeams: Int
 )
 data class RoundResult(
     val teamId: String, val round: Int, val revenue: Double = 0.0, val costs: Double = 0.0,

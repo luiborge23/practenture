@@ -182,6 +182,33 @@ final class NetworkService {
         self.decoder.keyDecodingStrategy = .convertFromSnakeCase
     }
 
+    /// Login credentials must not inherit an unrelated active session or invoke
+    /// refresh/logout handling when the password is rejected.
+    func postUnauthenticated<T: Decodable, B: Encodable>(_ endpoint: String, body: B) async throws -> T {
+        guard let url = URL(string: baseURL + endpoint) else {
+            throw NetworkError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(body)
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.noData
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw NetworkError.serverError(
+                httpResponse.statusCode,
+                String(data: data, encoding: .utf8) ?? "Unknown server error"
+            )
+        }
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            throw NetworkError.decodingError
+        }
+    }
+
     // MARK: - HTTP Methods
 
     func get<T: Decodable>(_ endpoint: String) async throws -> T {
@@ -558,7 +585,13 @@ final class NetworkService {
     func processRound(code: String) async throws -> [RoundResultBackend] {
         // POST to process the round — backend returns {round, results}
         // and internally advances currentRound. We must NOT call advance separately.
-        let response: ProcessRoundResponseBackend = try await post("/api/sessions/\(code)/process_round", body: EmptyBody())
+        // Do not route this irreversible mutation through the generic retry loop:
+        // a transport timeout can occur after the server commits the round.
+        let response: ProcessRoundResponseBackend = try await performRequest(
+            method: "POST",
+            endpoint: "/api/sessions/\(code)/process_round",
+            body: EmptyBody()
+        )
         return response.results
     }
 

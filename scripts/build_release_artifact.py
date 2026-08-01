@@ -14,6 +14,7 @@ import tarfile
 
 EXCLUDED_DIRS = {
     ".git",
+    ".gradle",
     ".hermes",
     ".mypy_cache",
     ".pytest_cache",

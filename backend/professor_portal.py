@@ -120,6 +120,34 @@ class ProgressResponse(BaseModel):
     sessions: list[ProgressItem]
 
 
+class TeamMonitorItem(BaseModel):
+    teamName: str
+    isAI: bool
+    currentRoundSubmitted: bool
+    submittedRounds: list[int]
+
+
+class ResultMonitorItem(BaseModel):
+    teamName: str
+    profit: float
+    cumulativeProfit: float
+    totalScore: float
+
+
+class RoundMonitorItem(BaseModel):
+    round: int
+    submittedTeams: list[str]
+    results: list[ResultMonitorItem]
+
+
+class SessionMonitorResponse(BaseModel):
+    code: str
+    state: str
+    currentRound: int
+    teams: list[TeamMonitorItem]
+    rounds: list[RoundMonitorItem]
+
+
 def _set_cookie(response: Response, token: str) -> None:
     from admin_v2.service import cookie_secure
 
@@ -169,9 +197,13 @@ def require_professor_session(
 ) -> dict[str, Any]:
     if not practenture_professor_session:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    payload = _verify_token(practenture_professor_session)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Session expired")
+    try:
+        from auth import verify_current_token
+        payload = verify_current_token(practenture_professor_session)
+    except HTTPException as error:
+        if error.detail == "Account is suspended":
+            raise HTTPException(status_code=401, detail="Session expired") from error
+        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
     if payload.get("role") != "professor":
         raise HTTPException(status_code=403, detail="Professor access required")
     subject = payload.get("sub")
@@ -455,6 +487,70 @@ def professor_progress(
             )
         )
     return ProgressResponse(sessions=items)
+
+
+@api_router.get("/progress/{code}/monitor", response_model=SessionMonitorResponse)
+def professor_session_monitor(
+    code: str,
+    user: dict[str, Any] = Depends(require_professor_session),
+) -> SessionMonitorResponse:
+    session = db.get_session(code)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if db.get_session_professor_user_id(code) != user["sub"]:
+        raise HTTPException(status_code=403, detail="Not your session")
+
+    decisions_by_round = {
+        round_number: db.get_decisions(code, round_number)
+        for round_number in range(1, session.config.totalRounds + 1)
+    }
+    results_by_round = db.get_all_results(code)
+    teams = [
+        TeamMonitorItem(
+            teamName=team.teamName,
+            isAI=team.isAI,
+            currentRoundSubmitted=(
+                session.currentRound > 0
+                and team.teamName in decisions_by_round[session.currentRound]
+            ),
+            submittedRounds=[
+                round_number
+                for round_number, decisions in decisions_by_round.items()
+                if team.teamName in decisions
+            ],
+        )
+        for team in sorted(session.teams, key=lambda value: value.teamName.casefold())
+    ]
+    rounds = [
+        RoundMonitorItem(
+            round=round_number,
+            submittedTeams=sorted(
+                decisions_by_round[round_number],
+                key=str.casefold,
+            ),
+            results=[
+                ResultMonitorItem(
+                    teamName=result.teamId,
+                    profit=result.profit,
+                    cumulativeProfit=result.cumulativeProfit,
+                    totalScore=result.totalScore,
+                )
+                for result in sorted(
+                    results_by_round.get(round_number, []),
+                    key=lambda value: (-value.totalScore, value.teamId.casefold()),
+                )
+            ],
+        )
+        for round_number in range(1, session.config.totalRounds + 1)
+        if decisions_by_round[round_number] or results_by_round.get(round_number)
+    ]
+    return SessionMonitorResponse(
+        code=code,
+        state=session.state.value,
+        currentRound=session.currentRound,
+        teams=teams,
+        rounds=rounds,
+    )
 
 
 @api_router.get("/scenarios")

@@ -3,6 +3,7 @@ package com.practenture.android
 import com.practenture.android.data.PractentureRepository
 import com.practenture.android.network.ApiFactory
 import com.practenture.android.network.PlayerDecision
+import com.practenture.android.security.InMemoryTokenStore
 import com.google.gson.JsonParser
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.MockResponse
@@ -54,6 +55,104 @@ class BackendAuthoritativeContractTest {
         assertEquals("password", body["provider"].asString)
         assertEquals("student7", body["username"].asString)
         assertEquals("secret", body["password"].asString)
+    }
+
+    @Test
+    fun passwordLoginCarriesMfaAndDoesNotInventSessionForChallenge() = runTest {
+        enqueueJson(
+            """{
+                "accessToken":"","tokenType":"bearer","role":"professor",
+                "userId":"professor-1","mfaRequired":true,"mustChangePassword":false
+            }""".trimIndent()
+        )
+
+        val challenge = repository.login("professor-1", "secret", "ABC1-DEF2")
+
+        assertTrue(challenge.mfaRequired)
+        assertTrue(challenge.accessToken.isEmpty())
+        val body = JsonParser.parseString(server.takeRequest().body.readUtf8()).asJsonObject
+        assertEquals("ABC1-DEF2", body["mfa_code"].asString)
+    }
+
+    @Test
+    fun googleLoginCarriesOptionalProfessorInvitationCode() = runTest {
+        enqueueJson(
+            """{
+                "accessToken":"google-access","role":"professor","userId":"professor-2"
+            }""".trimIndent()
+        )
+
+        repository.loginWithGoogle("google-id-token", "PROF-ABCD-EFGH")
+
+        val body = JsonParser.parseString(server.takeRequest().body.readUtf8()).asJsonObject
+        assertEquals("google", body["provider"].asString)
+        assertEquals("google-id-token", body["id_token"].asString)
+        assertEquals("PROF-ABCD-EFGH", body["professor_code"].asString)
+    }
+
+    @Test
+    fun forcedPasswordChangeUsesBearerAndExactBackendContract() = runTest {
+        val authenticatedRepository = PractentureRepository(
+            ApiFactory.create(server.url("/").toString(), "temporary-access-token")
+        )
+        enqueueJson("""{"status":"changed"}""")
+
+        val response = authenticatedRepository.changePassword("OldPass1!", "NewPass2!")
+
+        assertEquals("changed", response.status)
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/professor/change-password", request.path)
+        assertEquals("Bearer temporary-access-token", request.getHeader("Authorization"))
+        val body = JsonParser.parseString(request.body.readUtf8()).asJsonObject
+        assertEquals("OldPass1!", body["old_password"].asString)
+        assertEquals("NewPass2!", body["new_password"].asString)
+    }
+
+    @Test
+    fun professorLifecycleUsesOwnedBackendEndpointsAndIdempotentCreation() = runTest {
+        val authenticatedRepository = PractentureRepository(
+            ApiFactory.create(server.url("/").toString(), "professor-access-token")
+        )
+        enqueueJson("""{"sessionId":"session-1","code":"BIZ-ABCD"}""")
+        enqueueJson("""{"status":"started","sessionId":"session-1","code":"BIZ-ABCD"}""")
+        enqueueJson("""{"status":"sent","announcementId":"announcement-1"}""")
+        enqueueJson(
+            """[{
+                "id":"announcement-1","sessionId":"session-1","message":"Round one",
+                "authorId":"professor-1","authorName":"Professor","timestamp":"2026-08-01T00:00:00Z"
+            }]""".trimIndent()
+        )
+        enqueueJson("""{"status":"ended"}""")
+
+        val created = authenticatedRepository.createSession(
+            "Strategy Lab", 8, 3, 20, "android-create-key-1"
+        )
+        authenticatedRepository.startSession(created.code)
+        authenticatedRepository.announce(created.code, "Round one", "Professor")
+        val announcements = authenticatedRepository.announcements(created.code)
+        authenticatedRepository.endSession(created.code)
+
+        assertEquals("Round one", announcements.single().message)
+        val create = server.takeRequest()
+        assertEquals("POST", create.method)
+        assertEquals("/api/sessions", create.path)
+        assertEquals("android-create-key-1", create.getHeader("Idempotency-Key"))
+        assertEquals("Bearer professor-access-token", create.getHeader("Authorization"))
+        val createBody = JsonParser.parseString(create.body.readUtf8()).asJsonObject
+        assertEquals("Strategy Lab", createBody["config"].asJsonObject["name"].asString)
+        assertEquals(8, createBody["config"].asJsonObject["totalRounds"].asInt)
+        assertEquals(3, createBody["config"].asJsonObject["numberOfAICompetitors"].asInt)
+        assertEquals(20, createBody["maxHumanTeams"].asInt)
+        assertEquals("athletic-footwear-classic", createBody["scenarioId"].asString)
+        assertEquals("1.0.0", createBody["scenarioVersion"].asString)
+
+        assertEquals("/api/sessions/BIZ-ABCD/start", server.takeRequest().path)
+        val announce = server.takeRequest()
+        assertEquals("/api/sessions/BIZ-ABCD/announcements", announce.path)
+        assertEquals("Round one", JsonParser.parseString(announce.body.readUtf8()).asJsonObject["message"].asString)
+        assertEquals("/api/sessions/BIZ-ABCD/announcements", server.takeRequest().path)
+        assertEquals("/api/sessions/BIZ-ABCD/end", server.takeRequest().path)
     }
 
     @Test
@@ -174,6 +273,69 @@ class BackendAuthoritativeContractTest {
         assertEquals("/api/sessions/BIZ-AUTH/status", request.path)
         assertEquals("Bearer jwt-status-token", request.getHeader("Authorization"))
         assertEquals("application/json", request.getHeader("Accept"))
+    }
+
+    @Test
+    fun expiredAccessTokenRefreshesRotatesAndRetriesExactlyOnce() = runTest {
+        val tokens = InMemoryTokenStore("expired-access", "refresh-one")
+        val authenticatedRepository = PractentureRepository(
+            ApiFactory.createAuthenticated(server.url("/").toString(), tokens)
+        )
+        server.enqueue(MockResponse().setResponseCode(401))
+        enqueueJson("""{"accessToken":"fresh-access","refreshToken":"refresh-two"}""")
+        enqueueJson(
+            """{
+                "sessionId":"session-1","code":"BIZ-REFRESH","state":"active","currentRound":2,
+                "totalRounds":8,"teamsSubmitted":3,"totalTeams":4,"humanTeams":4
+            }""".trimIndent()
+        )
+
+        val status = authenticatedRepository.status("biz-refresh")
+
+        assertEquals(2, status.currentRound)
+        assertEquals("fresh-access", tokens.accessToken)
+        assertEquals("refresh-two", tokens.refreshToken)
+        val failed = server.takeRequest()
+        assertEquals("Bearer expired-access", failed.getHeader("Authorization"))
+        val refresh = server.takeRequest()
+        assertEquals("/api/auth/refresh", refresh.path)
+        assertEquals(
+            "refresh-one",
+            JsonParser.parseString(refresh.body.readUtf8()).asJsonObject["refreshToken"].asString,
+        )
+        val retried = server.takeRequest()
+        assertEquals("Bearer fresh-access", retried.getHeader("Authorization"))
+        assertEquals(3, server.requestCount)
+    }
+
+    @Test
+    fun transientRefreshFailurePreservesRefreshSessionForRetry() = runTest {
+        var expectedRequests = 0
+        for (refreshStatus in listOf(408, 429, 503)) {
+            val tokens = InMemoryTokenStore("expired-access", "still-valid-refresh")
+            val authenticatedRepository = PractentureRepository(
+                ApiFactory.createAuthenticated(server.url("/").toString(), tokens)
+            )
+            server.enqueue(MockResponse().setResponseCode(401))
+            server.enqueue(MockResponse().setResponseCode(refreshStatus))
+            expectedRequests += 2
+            if (refreshStatus == 408) {
+                // OkHttp retries one 408 response before returning it to the authenticator.
+                server.enqueue(MockResponse().setResponseCode(408))
+                expectedRequests += 1
+            }
+
+            try {
+                authenticatedRepository.status("biz-refresh")
+                fail("Expected the original unauthorized response")
+            } catch (error: HttpException) {
+                assertEquals(401, error.code())
+            }
+
+            assertEquals("still-valid-refresh", tokens.refreshToken)
+            assertEquals("expired-access", tokens.accessToken)
+            assertEquals(expectedRequests, server.requestCount)
+        }
     }
 
     @Test

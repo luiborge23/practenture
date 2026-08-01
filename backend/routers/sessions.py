@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from auth import get_current_user, verify_professor
 from database import db
 from scenario_packs import SCENARIO_PACKS
+from session_access import require_session_reader
 
 from models import (
     CreateSessionRequest,
@@ -173,10 +174,7 @@ def _session_for_authenticated_reader(session: Session, user: dict) -> Session:
     """Scope Professor reads and redact other students' identifiers."""
     role = user.get("role")
     subject = user.get("sub")
-    if role == "professor" and db.get_session_professor_user_id(session.code) != subject:
-        raise HTTPException(status_code=403, detail="Not your session")
-    if role not in {"owner", "professor", "student"}:
-        raise HTTPException(status_code=403, detail="Session access denied")
+    require_session_reader(session, user)
     visible = session.model_copy(deep=True)
     if role == "student":
         for team in visible.teams:
@@ -232,6 +230,8 @@ async def join_session(
     )
     if outcome["status"] == "not_found":
         raise HTTPException(status_code=404, detail="Session not found")
+    if outcome["status"] == "not_enrolled":
+        raise HTTPException(status_code=403, detail="Student is not enrolled for this session")
     if outcome["status"] == "invalid_state":
         raise HTTPException(
             status_code=400,
@@ -257,10 +257,7 @@ async def get_session_status(code: str, user=Depends(get_current_user)):
     session = db.get_session(code)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    if user.get("role") == "professor" and db.get_session_professor_user_id(code) != user.get("sub"):
-        raise HTTPException(status_code=403, detail="Not your session")
-    if user.get("role") not in {"owner", "professor", "student"}:
-        raise HTTPException(status_code=403, detail="Session access denied")
+    require_session_reader(session, user)
 
     current_round = session.currentRound
     submitted = db.count_submitted_decisions(code, current_round) if current_round > 0 else 0
@@ -326,6 +323,9 @@ async def end_session(code: str, user=Depends(verify_professor)):
     for round_num in sorted(all_results.keys()):
         final.extend(all_results[round_num])
 
+    if session.state == SessionState.FINISHED:
+        return EndSessionResponse(status="already_ended", finalResults=final if final else None)
+
     transitioned = db.transition_session_owned(
         code=code,
         professor_user_id=None if user.get("role") == "owner" else user["sub"],
@@ -333,7 +333,27 @@ async def end_session(code: str, user=Depends(verify_professor)):
         new_state=SessionState.FINISHED.value,
     )
     if not transitioned:
+        # A concurrent identical request may have completed the transition
+        # after our initial read. Preserve the endpoint's idempotent contract.
+        current = db.get_session(code)
+        if current and current.state == SessionState.FINISHED:
+            return EndSessionResponse(
+                status="already_ended", finalResults=final if final else None
+            )
         raise HTTPException(status_code=409, detail="Session state changed; refresh and retry")
+    try:
+        await manager.broadcast(
+            code,
+            {
+                "type": "session_ended",
+                "sessionId": session.id,
+                "code": session.code,
+                "state": "finished",
+                "currentRound": session.currentRound,
+            },
+        )
+    except Exception:
+        pass
     return EndSessionResponse(status="ended", finalResults=final if final else None)
 
 

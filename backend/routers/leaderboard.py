@@ -32,13 +32,14 @@ async def get_leaderboard(code: str, user=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Access denied")
 
     all_results = db.get_all_results(code)
+    is_student = user.get("role") == "student"
     if not all_results:
         # No rounds played yet — return empty or initial state
         entries = []
         for team in session.teams:
             entries.append(LeaderboardEntry(
                 teamName=team.teamName,
-                studentName=team.studentId,
+                studentName=team.studentId if not is_student or team.studentId == user.get("sub") else None,
                 rank=len(entries) + 1,
             ))
         # Sort by name and assign ranks in the final displayed order.
@@ -81,7 +82,7 @@ async def get_leaderboard(code: str, user=Depends(get_current_user)):
         score = team_scores.get(team.teamName, {})
         entries.append(LeaderboardEntry(
             teamName=team.teamName,
-            studentName=team.studentId,
+            studentName=team.studentId if not is_student or team.studentId == user.get("sub") else None,
             totalScore=score.get("totalScore", 0.0),
             eps=score.get("EPS", 0.0),
             roe=score.get("ROE", 0.0),

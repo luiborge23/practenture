@@ -302,7 +302,12 @@ async def get_teams(code: str, user=Depends(get_current_user)):
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     _verify_session_participant(code, session, user)
-    return TeamsResponse(sessionId=session.id, teams=session.teams)
+    visible = session.model_copy(deep=True)
+    if user.get("role") == "student":
+        for team in visible.teams:
+            if team.studentId != user.get("sub"):
+                team.studentId = None
+    return TeamsResponse(sessionId=session.id, teams=visible.teams)
 
 
 # ── Round results endpoint ─────────────────────────────────────────────────

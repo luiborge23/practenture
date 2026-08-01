@@ -12,6 +12,8 @@ from models import (
     CreateAnnouncementRequest,
     ErrorResponse,
 )
+from session_access import require_session_reader
+from ws_manager import manager
 
 router = APIRouter(prefix="/api/sessions", tags=["announcements"])
 
@@ -50,6 +52,18 @@ async def create_announcement(code: str, req: CreateAnnouncementRequest, user=De
         authorName=req.authorName,
     )
     db.add_announcement(code, announcement)
+    await manager.broadcast(
+        code,
+        {
+            "type": "announcement",
+            "id": announcement.id,
+            "sessionId": announcement.sessionId,
+            "message": announcement.message,
+            "authorId": announcement.authorId,
+            "authorName": announcement.authorName,
+            "timestamp": announcement.timestamp.isoformat(),
+        },
+    )
     return CreateAnnouncementResponse(announcementId=announcement.id)
 
 
@@ -59,6 +73,7 @@ async def get_announcements(code: str, user=Depends(get_current_user)):
     session = db.get_session(code)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    require_session_reader(session, user)
 
     announcements = db.get_announcements(code)
     return [

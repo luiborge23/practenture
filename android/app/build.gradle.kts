@@ -1,6 +1,7 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
@@ -12,14 +13,28 @@ val googleServerClientId = providers
     .replace("\\", "\\\\")
     .replace("\"", "\\\"")
 
+fun releaseSigningValue(name: String): String? = providers
+    .gradleProperty(name)
+    .orElse(providers.environmentVariable(name))
+    .orNull
+
+val releaseSigningValues = mapOf(
+    "PRACTENTURE_ANDROID_RELEASE_STORE_FILE" to releaseSigningValue("PRACTENTURE_ANDROID_RELEASE_STORE_FILE"),
+    "PRACTENTURE_ANDROID_RELEASE_STORE_PASSWORD" to releaseSigningValue("PRACTENTURE_ANDROID_RELEASE_STORE_PASSWORD"),
+    "PRACTENTURE_ANDROID_RELEASE_KEY_ALIAS" to releaseSigningValue("PRACTENTURE_ANDROID_RELEASE_KEY_ALIAS"),
+    "PRACTENTURE_ANDROID_RELEASE_KEY_PASSWORD" to releaseSigningValue("PRACTENTURE_ANDROID_RELEASE_KEY_PASSWORD"),
+)
+val missingReleaseSigningValues = releaseSigningValues.filterValues { it.isNullOrBlank() }.keys
+
 android {
     namespace = "com.practenture.android"
-    compileSdk = 35
+    compileSdk = 36
+    compileSdkMinor = 1
 
     defaultConfig {
         applicationId = "com.practenture.android"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -32,12 +47,44 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-        allWarningsAsErrors = true
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+            allWarningsAsErrors.set(true)
+        }
     }
     packaging {
         jniLibs.keepDebugSymbols += "**/libandroidx.graphics.path.so"
+    }
+    signingConfigs {
+        create("release") {
+            if (missingReleaseSigningValues.isEmpty()) {
+                storeFile = file(releaseSigningValues.getValue("PRACTENTURE_ANDROID_RELEASE_STORE_FILE")!!)
+                storePassword = releaseSigningValues.getValue("PRACTENTURE_ANDROID_RELEASE_STORE_PASSWORD")
+                keyAlias = releaseSigningValues.getValue("PRACTENTURE_ANDROID_RELEASE_KEY_ALIAS")
+                keyPassword = releaseSigningValues.getValue("PRACTENTURE_ANDROID_RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
+        }
+    }
+}
+
+val verifyReleaseSigning by tasks.registering {
+    doLast {
+        check(missingReleaseSigningValues.isEmpty()) {
+            "Release signing is required. Configure the missing secure Gradle property or environment variable names: " +
+                missingReleaseSigningValues.sorted().joinToString(", ")
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name in setOf("assembleRelease", "bundleRelease", "signReleaseBundle")) {
+        dependsOn(verifyReleaseSigning)
     }
 }
 

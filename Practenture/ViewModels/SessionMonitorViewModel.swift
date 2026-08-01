@@ -280,14 +280,16 @@ final class SessionMonitorViewModel {
         isProcessingRound = false
     }
 
-    func endSessionWithBackend() async {
+    func endSessionWithBackend() async -> Bool {
         let sessionCode = session.sessionCode
         do {
             try await NetworkService.shared.endSession(code: sessionCode)
         } catch {
-            // Silently ignore — session ends locally regardless
+            roundProcessingError = UserFriendlyError.message(for: error)
+            return false
         }
         session.state = .completed
+        return true
     }
 
     // MARK: - Cleanup

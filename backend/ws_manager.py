@@ -22,18 +22,23 @@ class ConnectionManager:
         self.active_connections: Dict[str, Set[WebSocket]] = {}
         # WebSocket → session_code (for cleanup)
         self.connection_map: Dict[WebSocket, str] = {}
+        # Keep the credential boundary with each socket so broadcasts can
+        # reject expired, revoked, suspended, or no-longer-enrolled clients.
+        self.connection_tokens: Dict[WebSocket, str] = {}
 
-    async def connect(self, websocket: WebSocket, session_code: str) -> None:
+    async def connect(self, websocket: WebSocket, session_code: str, token: str) -> None:
         """Accept a WebSocket connection for a specific session."""
         await websocket.accept()
         if session_code not in self.active_connections:
             self.active_connections[session_code] = set()
         self.active_connections[session_code].add(websocket)
         self.connection_map[websocket] = session_code
+        self.connection_tokens[websocket] = token
 
     def disconnect(self, websocket: WebSocket) -> None:
         """Remove a WebSocket connection."""
         session_code = self.connection_map.pop(websocket, None)
+        self.connection_tokens.pop(websocket, None)
         if session_code and session_code in self.active_connections:
             self.active_connections[session_code].discard(websocket)
             if not self.active_connections[session_code]:
@@ -45,10 +50,29 @@ class ConnectionManager:
             return
         serialized = json.dumps(message, default=str)
         disconnected = set()
-        for connection in self.active_connections[session_code]:
+        for connection in tuple(self.active_connections[session_code]):
             try:
+                # Lazy imports avoid coupling router import order to the
+                # module-level manager singleton.
+                from auth import verify_current_token
+                from database import db
+                from session_access import can_read_session
+
+                token = self.connection_tokens.get(connection, "")
+                try:
+                    payload = verify_current_token(token)
+                except Exception:
+                    payload = None
+                session = db.get_session(session_code)
+                if payload is None or session is None or not can_read_session(session, payload):
+                    await connection.close(code=4001, reason="Authentication expired")
+                    disconnected.add(connection)
+                    continue
                 await connection.send_text(serialized)
-            except (WebSocketDisconnect, RuntimeError):
+            # Broadcasting is best-effort after the authoritative mutation has
+            # committed. Any per-socket transport/auth failure must be isolated
+            # so one racing disconnect cannot turn that REST mutation into a 500.
+            except Exception:
                 disconnected.add(connection)
         # Clean up disconnected clients
         for conn in disconnected:

@@ -28,11 +28,17 @@ def run_together(first, second):
 
 def test_concurrent_joins_cannot_exceed_capacity(tmp_path, monkeypatch):
     db_a, db_b = databases(tmp_path, monkeypatch)
+    for username, role in (("professor-a", "professor"), ("student-a", "student"), ("student-b", "student")):
+        assert db_a.create_user(username, "test-hash", role, username)
+    organization = db_a.get_or_create_organization("Concurrency University", "professor-a")
+    for username, role in (("professor-a", "professor"), ("student-a", "student"), ("student-b", "student")):
+        assert db_a.add_membership(username, organization["id"], role)
     code = db_a.create_session(
         SessionConfiguration(totalRounds=2),
         [],
         created_by="professor",
         professor_user_id="professor-a",
+        organization_id=organization["id"],
         max_human_teams=1,
     )
 

@@ -164,10 +164,18 @@ async def kickoff_session(user=Depends(verify_professor)):
     # Default config — iOS can override via POST /api/sessions
     config = SessionConfiguration()
     
+    organization_id = db.get_single_organization_id(user["sub"])
+    if organization_id is None:
+        raise HTTPException(
+            status_code=403,
+            detail="A professor must belong to exactly one organization to use kickoff",
+        )
     code = db.create_session(
         config=config,
         teams=[],
         created_by=user["sub"],
+        professor_user_id=user["sub"],
+        organization_id=organization_id,
     )
     
     return KickoffResponse(
@@ -257,6 +265,10 @@ class MFASetupResponse(BaseModel):
     backup_codes: list[str]
 
 
+class MFASetupRequest(BaseModel):
+    password: str
+
+
 class MFAVerifyRequest(BaseModel):
     code: str
 
@@ -280,12 +292,16 @@ class MFAStatusMutationResponse(BaseModel):
 
 
 @router.post("/mfa/setup", response_model=MFASetupResponse)
-async def setup_mfa(user=Depends(get_current_user)):
-    """Generate a new TOTP secret for the current user (not yet enabled)."""
+async def setup_mfa(req: MFASetupRequest, user=Depends(get_current_user)):
+    """Begin MFA enrollment after current-password reauthentication."""
     from mfa import generate_totp_secret, get_totp_uri
     from database import db
+    from security import verify_password
 
     user_id = user["sub"]
+    user_row = db.get_user(user_id)
+    if not user_row or not verify_password(req.password, str(user_row.get("password_hash") or "")):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
     if db.is_mfa_enabled(user_id):
         raise HTTPException(status_code=409, detail="MFA is already enabled")
     secret = generate_totp_secret()

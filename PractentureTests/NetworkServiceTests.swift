@@ -312,4 +312,40 @@ final class NetworkServiceTests: XCTestCase {
         )
         XCTAssertEqual(result.code, "BIZ-TEST01")
     }
+
+    func testBackendStateAppliesAuthoritativeRealtimeLifecycleEvents() {
+        let state = BackendState.shared
+        state.disconnect()
+
+        state.didReceive(
+            event: .message(#"{"type":"session_started","currentRound":1,"teamCount":20}"#),
+            from: WebSocketManager.shared
+        )
+        XCTAssertEqual(state.currentRound, 1)
+        XCTAssertEqual(state.teamCount, 20)
+        if case .active = state.sessionState {} else {
+            XCTFail("Session start must activate backend state")
+        }
+
+        state.didReceive(
+            event: .message(#"{"type":"round_complete","round":1,"nextRound":2,"state":"active"}"#),
+            from: WebSocketManager.shared
+        )
+        XCTAssertEqual(state.currentRound, 2)
+
+        state.didReceive(
+            event: .message(#"{"type":"announcement","message":"Round two is open"}"#),
+            from: WebSocketManager.shared
+        )
+        XCTAssertEqual(state.latestAnnouncement, "Round two is open")
+
+        state.didReceive(
+            event: .message(#"{"type":"session_ended","state":"finished","currentRound":2}"#),
+            from: WebSocketManager.shared
+        )
+        if case .completed = state.sessionState {} else {
+            XCTFail("Session end must complete backend state")
+        }
+        state.disconnect()
+    }
 }

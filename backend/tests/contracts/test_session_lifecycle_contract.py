@@ -22,12 +22,14 @@ def clean():
         for table in ("class_enrollments","classes","memberships","organizations","sessions","users"):
             c.execute(f"DELETE FROM {table}")
         c.commit()
-    for name,role in (("owner-x","owner"),("prof-a","professor"),("prof-b","professor"),("student-a","student")):
+    for name,role in (("owner-x","owner"),("prof-a","professor"),("prof-b","professor"),("student-a","student"),("student-b","student")):
         db.create_user(name,hash_password("Contract123!"),role,name)
     db.get_or_create_organization("org-a", "Organization A")
     db.get_or_create_organization("org-b", "Organization B")
     db.add_membership("prof-a", "org-a", "professor")
     db.add_membership("prof-b", "org-b", "professor")
+    db.add_membership("student-a", "org-a", "student")
+    db.add_membership("student-b", "org-a", "student")
 
 def create(prof="prof-a",max_humans=2,ai=1,class_id=None):
     body={"config":{"totalRounds":2,"numberOfAICompetitors":ai},"teams":[],"created_by":"ignored","maxHumanTeams":max_humans}
@@ -143,6 +145,8 @@ def test_start_end_and_delete_exact_contracts():
     }
     ended=client.post(f"/api/sessions/{start_code}/end",headers=H("prof-a","professor"))
     assert ended.status_code==200 and ended.json()=={"status":"ended","finalResults":None}
+    ended_again=client.post(f"/api/sessions/{start_code}/end",headers=H("prof-a","professor"))
+    assert ended_again.status_code==200 and ended_again.json()=={"status":"already_ended","finalResults":None}
     delete_code=create(ai=0)
     deleted=client.delete(f"/api/sessions/{delete_code}",headers=H("prof-a","professor"))
     assert deleted.status_code==204 and deleted.content==b""
@@ -158,6 +162,12 @@ def test_announcements_auth_tenant_identity_and_exact_list_contract():
     assert created.status_code==200 and set(created.json())=={"status","announcementId"}
     assert created.json()["status"]=="sent"
     assert client.get(f"/api/sessions/{code}/announcements").status_code==401
+    joined=client.put(
+        f"/api/sessions/{code}/join",
+        json={"teamName":"Alpha","studentId":"student-a"},
+        headers=H("student-a","student"),
+    )
+    assert joined.status_code==200
     listing=client.get(f"/api/sessions/{code}/announcements",headers=H("student-a","student"))
     assert listing.status_code==200 and len(listing.json())==1
     item=listing.json()[0]

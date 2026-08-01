@@ -206,6 +206,20 @@
   </section>
 </main>
 
+<dialog id="monitor-dialog" class="monitor-dialog" aria-labelledby="monitor-title">
+  <section class="dialog-card">
+    <div class="section-heading">
+      <div><p class="eyebrow">LIVE SESSION</p><h2 id="monitor-title">Session monitor</h2><p id="monitor-summary"></p></div>
+      <div class="button-row"><button id="monitor-refresh" type="button" class="button button-secondary">Refresh</button><button id="monitor-close" type="button" class="button button-primary">Close</button></div>
+    </div>
+    <div id="monitor-alert" class="alert alert-error" role="alert" hidden></div>
+    <h3>Team submission audit</h3>
+    <div class="table-wrap monitor-table"><table><thead><tr><th>Team</th><th>Type</th><th>Current round</th><th>Submitted rounds</th></tr></thead><tbody id="monitor-team-rows"></tbody></table></div>
+    <h3 class="monitor-results-title">Round results</h3>
+    <div id="monitor-rounds" class="monitor-rounds"></div>
+  </section>
+</dialog>
+
 <dialog id="action-dialog" aria-labelledby="dialog-title">
   <form method="dialog" class="dialog-card">
     <h2 id="dialog-title">Confirm action</h2>

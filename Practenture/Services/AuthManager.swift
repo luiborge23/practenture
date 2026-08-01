@@ -186,7 +186,12 @@ final class AuthManager {
 
     /// Whether the user has "remember me" enabled. Defaults to true if no value stored.
     var rememberMe: Bool {
-        get { UserDefaults.standard.bool(forKey: "practenture_remember_me") }
+        get {
+            let key = "practenture_remember_me"
+            return UserDefaults.standard.object(forKey: key) == nil
+                ? true
+                : UserDefaults.standard.bool(forKey: key)
+        }
         set { UserDefaults.standard.set(newValue, forKey: "practenture_remember_me") }
     }
 
@@ -249,20 +254,16 @@ final class AuthManager {
 
     @MainActor
     func loginProfessor(username: String, password: String, mfaCode: String? = nil) async throws -> AuthLoginResponse {
-        // A stale student/professor token must never be attached to a fresh
-        // password login or trigger refresh handling on the login endpoint.
-        stopTokenRefreshScheduler()
-        clearPersistedTokens()
-        clearAuthState()
-        let response: AuthLoginResponse = try await network.post("/api/auth/login", body: AuthLoginRequest(provider: "password", username: username, password: password, idToken: nil, mfaCode: mfaCode))
+        let response: AuthLoginResponse = try await network.postUnauthenticated("/api/auth/login", body: AuthLoginRequest(provider: "password", username: username, password: password, idToken: nil, mfaCode: mfaCode))
         if response.mfaRequired == true {
             return response
         }
         guard response.role == "professor" else {
-            clearPersistedTokens()
-            clearAuthState()
             throw AuthError.professorRequired
         }
+        stopTokenRefreshScheduler()
+        clearPersistedTokens()
+        clearAuthState()
         persistTokens(access: response.accessToken, refresh: response.refreshToken)
         isAuthenticated = true
         currentUser = AuthUser(
@@ -280,14 +281,13 @@ final class AuthManager {
 
     @MainActor
     func loginStudent(username: String, password: String, mfaCode: String? = nil) async throws -> AuthLoginResponse {
-        // Clear any stale tokens before login to avoid "session expired" errors
-        stopTokenRefreshScheduler()
-        clearPersistedTokens()
-        clearAuthState()
-        let response: AuthLoginResponse = try await network.post("/api/auth/login", body: AuthLoginRequest(provider: "password", username: username, password: password, idToken: nil, mfaCode: mfaCode))
+        let response: AuthLoginResponse = try await network.postUnauthenticated("/api/auth/login", body: AuthLoginRequest(provider: "password", username: username, password: password, idToken: nil, mfaCode: mfaCode))
         if response.mfaRequired == true {
             return response
         }
+        stopTokenRefreshScheduler()
+        clearPersistedTokens()
+        clearAuthState()
         persistTokens(access: response.accessToken, refresh: response.refreshToken)
         isAuthenticated = true
         // Extract name from JWT payload (now includes "name" field) — fall back to username if missing
@@ -437,8 +437,8 @@ final class AuthManager {
     // MARK: - SOTA Phase 2: MFA/TOTP
 
     @MainActor
-    func setupMFA() async throws -> MFASetupResponse {
-        return try await network.post("/api/auth/mfa/setup")
+    func setupMFA(password: String) async throws -> MFASetupResponse {
+        return try await network.post("/api/auth/mfa/setup", body: MFASetupRequest(password: password))
     }
 
     @MainActor
@@ -507,6 +507,7 @@ final class AuthManager {
     @MainActor
     func logout() {
         stopTokenRefreshScheduler()
+        BackendState.shared.disconnect()
         clearPersistedTokens()
         clearAuthState()
         onAuthChange?()

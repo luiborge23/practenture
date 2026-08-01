@@ -6,7 +6,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from auth import get_current_user, verify_professor
+from auth import get_current_user, get_current_user_for_password_change, verify_professor
 from database import db
 from models import (
     ProfessorCodeCreateRequest,
@@ -188,7 +188,7 @@ async def redeem_professor_code(req: RedeemCodeRequest, user=Depends(get_current
 # ── Password change ────────────────────────────────────────────────────────
 
 @router.post("/change-password", response_model=ChangePasswordResponse)
-async def change_password(req: ChangePasswordRequest, user=Depends(get_current_user)):
+async def change_password(req: ChangePasswordRequest, user=Depends(get_current_user_for_password_change)):
     """Change password for the current user (professor or student).
 
     Used for first-login password change when must_change_password=1.
@@ -217,6 +217,8 @@ async def change_password(req: ChangePasswordRequest, user=Depends(get_current_u
             "UPDATE users SET must_change_password=0 WHERE username=?",
             (user["sub"],),
         )
+
+    db.revoke_all_user_refresh_tokens(user["sub"])
 
     log_event(actor=user["sub"], action="password_changed")
 

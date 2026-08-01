@@ -58,6 +58,7 @@ def isolated_contract_state():
     _seed_user("prof-a", "professor", "Professor A", "a@example.test")
     _seed_user("prof-b", "professor", "Professor B", "b@example.test")
     _seed_user("student-a", "student", "Student A", "student@example.test")
+    _seed_user("student-b", "student", "Student B", "student-b@example.test")
     db.get_or_create_organization("org-a", "Organization A")
     db.get_or_create_organization("org-b", "Organization B")
     db.add_membership("prof-a", "org-a", "professor")
@@ -226,7 +227,7 @@ def test_student_redeems_code_once_and_receives_camel_case_token_contract():
 
     reused = client.post(
         "/api/professor/redeem", json={"code": made["code"]},
-        headers=_headers("prof-b", "student"),
+        headers=_headers("student-b", "student"),
     )
     assert reused.status_code == 404
     assert reused.json() == {"detail": "Invalid, already used, or expired code"}

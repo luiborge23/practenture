@@ -352,25 +352,169 @@ PY
 set -euo pipefail
 cd ~/practenture-artifacts
 sha256sum -c practenture-release.tar.gz.sha256
+UPLOADED_MANIFEST_SHA256=\$(tar -xOf practenture-release.tar.gz RELEASE-MANIFEST.json | sha256sum | awk '{print \$1}')
 RELEASE_PATH="\$HOME/practenture-releases/$RELEASE_SHA"
 RELEASE_TMP="\$HOME/practenture-releases/.staging-$RELEASE_SHA-\$\$"
-test ! -e "\$RELEASE_PATH"
-test ! -e "\$RELEASE_TMP"
-trap 'rm -rf "\$RELEASE_TMP"' EXIT
-mkdir "\$RELEASE_TMP"
-tar -xzf practenture-release.tar.gz -C "\$RELEASE_TMP"
-MANIFEST_SOURCE_REVISION=\$(python3 -c "import json,sys; print(json.load(open(sys.argv[1], encoding='utf-8'))['sourceRevision'])" "\$RELEASE_TMP/RELEASE-MANIFEST.json")
-test "\$MANIFEST_SOURCE_REVISION" = "$SOURCE_REVISION"
-printf '%s\n' "\$MANIFEST_SOURCE_REVISION" > "\$RELEASE_TMP/.source-revision"
-install -m 600 .env "\$RELEASE_TMP/.env"
-mv "\$RELEASE_TMP" "\$RELEASE_PATH"
-trap - EXIT
-readlink "\$HOME/practenture-current" > previous-release 2>/dev/null || true
+if [ -e "\$RELEASE_PATH" ]; then
+    test -d "\$RELEASE_PATH"
+    test "\$(cat "\$RELEASE_PATH/.release-artifact-sha256")" = "$RELEASE_SHA"
+    MANIFEST_SOURCE_REVISION=\$(python3 -c "import json,sys; print(json.load(open(sys.argv[1], encoding='utf-8'))['sourceRevision'])" "\$RELEASE_PATH/RELEASE-MANIFEST.json")
+    test "\$MANIFEST_SOURCE_REVISION" = "$SOURCE_REVISION"
+    test "\$(cat "\$RELEASE_PATH/.source-revision")" = "$SOURCE_REVISION"
+else
+    test ! -e "\$RELEASE_TMP"
+    trap 'rm -rf "\$RELEASE_TMP"' EXIT
+    mkdir "\$RELEASE_TMP"
+    tar -xzf practenture-release.tar.gz -C "\$RELEASE_TMP"
+    MANIFEST_SOURCE_REVISION=\$(python3 -c "import json,sys; print(json.load(open(sys.argv[1], encoding='utf-8'))['sourceRevision'])" "\$RELEASE_TMP/RELEASE-MANIFEST.json")
+    test "\$MANIFEST_SOURCE_REVISION" = "$SOURCE_REVISION"
+    printf '%s\n' "\$MANIFEST_SOURCE_REVISION" > "\$RELEASE_TMP/.source-revision"
+    printf '%s\n' "$RELEASE_SHA" > "\$RELEASE_TMP/.release-artifact-sha256"
+    mv "\$RELEASE_TMP" "\$RELEASE_PATH"
+    trap - EXIT
+fi
+install -m 600 .env "\$RELEASE_PATH/.env"
+python3 "\$RELEASE_PATH/scripts/verify_release_manifest.py" \
+    "\$RELEASE_PATH" --source-revision "$SOURCE_REVISION" \
+    --manifest-sha256 "\$UPLOADED_MANIFEST_SHA256"
+if [ ! -f "\$RELEASE_PATH/.activation-started" ]; then
+    readlink "\$HOME/practenture-current" > previous-release 2>/dev/null || true
+else
+    test -f previous-release
+fi
 printf '%s\n' "\$RELEASE_PATH" > candidate-release
 REMOTE_STAGE
     rm -rf "$RELEASE_DIR"
 
     ok "Immutable release staged and checksum verified"
+
+    # A local SSH/process interruption can happen after candidate activation but
+    # before release-pointer promotion. Reconcile that exact split state before
+    # taking another backup or replacing the service again.
+    local recovery_status
+    if ! recovery_status=$(ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP <<'REMOTE_RECOVER'
+set -euo pipefail
+CANDIDATE_RELEASE=$(cat "$HOME/practenture-artifacts/candidate-release")
+if [ ! -f "$CANDIDATE_RELEASE/.activation-started" ]; then
+    echo "FRESH_ACTIVATION_REQUIRED"
+    exit 0
+fi
+cd "$CANDIDATE_RELEASE"
+EXPECTED_REVISION=$(cat .source-revision)
+RUNNING_REVISION=$(docker inspect practenture-backend --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' 2>/dev/null || true)
+RUNNING_HEALTH=$(docker inspect practenture-backend --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' 2>/dev/null || true)
+if [ "$RUNNING_REVISION" = "$EXPECTED_REVISION" ] && [ "$RUNNING_HEALTH" = "healthy" ]; then
+    CANDIDATE_COMPLETION_READY=0
+    DEPLOY_ID=$(cat .deploy-id)
+    TLS_ROLLBACK_DIR="/var/lib/practenture-deploy/tls-rollback-$DEPLOY_ID"
+    if docker-compose -p practenture up -d --no-build nginx; then
+        if sudo test -f "$TLS_ROLLBACK_DIR/install-complete"; then
+            CANDIDATE_COMPLETION_READY=1
+        else
+            if sudo test -d "$TLS_ROLLBACK_DIR"; then
+                sudo ./scripts/restore_tls_renewal.sh "$TLS_ROLLBACK_DIR"
+            fi
+            if sudo env PRACTENTURE_TLS_ROLLBACK_DIR="$TLS_ROLLBACK_DIR" ./scripts/install_tls_renewal.sh; then
+                CANDIDATE_COMPLETION_READY=1
+            fi
+        fi
+    fi
+    RECOVERY_HEALTHY=0
+    if [ "$CANDIDATE_COMPLETION_READY" -eq 1 ]; then
+        for _ in $(seq 1 30); do
+            if curl --fail --silent --show-error --resolve practenture.com:443:127.0.0.1 https://practenture.com/api/health >/dev/null; then
+                RECOVERY_HEALTHY=1
+                break
+            fi
+            sleep 2
+        done
+    fi
+    if [ "$RECOVERY_HEALTHY" -eq 1 ]; then
+        DEPLOY_ID=$(cat .deploy-id)
+        LINK_TMP="$HOME/.practenture-current.$DEPLOY_ID.$$"
+        if ln -s "$CANDIDATE_RELEASE" "$LINK_TMP" \
+            && mv -Tf "$LINK_TMP" "$HOME/practenture-current" \
+            && printf '%s\n' "$CANDIDATE_RELEASE" > "$HOME/practenture-artifacts/current-release" \
+            && touch .activation-complete .promotion-complete \
+            && rm -f .activation-started; then
+            docker exec practenture-backend rm -f "/data/predeploy-$DEPLOY_ID.db" \
+                || echo "WARNING: deferred predeploy backup cleanup failed for $DEPLOY_ID" >&2
+            sudo rm -rf "$TLS_ROLLBACK_DIR" || true
+            echo "ACTIVATION_RECOVERED"
+            exit 0
+        fi
+        rm -f "$LINK_TMP"
+    fi
+    echo "Candidate completion failed; restoring retained release before retry" >&2
+fi
+
+# Activation started only after the previous image and database were retained.
+# If the candidate is not running and healthy, restore that known-good pair and
+# clear the transition markers so this same immutable artifact can retry safely.
+DEPLOY_ID=$(cat .deploy-id 2>/dev/null || true)
+TLS_ROLLBACK_DIR="/var/lib/practenture-deploy/tls-rollback-$DEPLOY_ID"
+PREVIOUS_IMAGE=$(cat .rollback-image 2>/dev/null || true)
+PREVIOUS_RELEASE=$(cat "$HOME/practenture-artifacts/previous-release" 2>/dev/null || true)
+if [ -z "$DEPLOY_ID" ]; then
+    echo "Existing activation lacks complete rollback evidence" >&2
+    exit 42
+fi
+if [ -z "$PREVIOUS_IMAGE" ] && [ -z "$PREVIOUS_RELEASE" ]; then
+    echo "Resetting interrupted first activation before retry" >&2
+    docker-compose -p practenture stop nginx practenture-backend 2>/dev/null || true
+    docker rm -f practenture-backend 2>/dev/null || true
+    docker-compose -p practenture run --rm --no-deps practenture-backend \
+        python -c "import os,sqlite3; p='/data/predeploy-$DEPLOY_ID.db'; assert os.path.isfile(p); a=sqlite3.connect(p); b=sqlite3.connect('/data/practenture.db'); a.backup(b); b.close(); a.close()" </dev/null
+    if sudo test -d "$TLS_ROLLBACK_DIR"; then
+        sudo ./scripts/restore_tls_renewal.sh "$TLS_ROLLBACK_DIR"
+    fi
+    rm -f .activation-started .activation-complete .promotion-complete
+    echo "FIRST_ACTIVATION_RESET_FOR_RETRY"
+    exit 0
+fi
+if [ -z "$PREVIOUS_IMAGE" ] || [ ! -d "$PREVIOUS_RELEASE" ]; then
+    echo "Existing activation lacks complete rollback evidence" >&2
+    exit 42
+fi
+docker-compose -p practenture stop nginx practenture-backend 2>/dev/null || true
+docker rm -f practenture-backend 2>/dev/null || true
+docker tag "$PREVIOUS_IMAGE" practenture-backend:stable
+docker-compose -p practenture run --rm --no-deps practenture-backend \
+    python -c "import os,sqlite3; p='/data/predeploy-$DEPLOY_ID.db'; assert os.path.isfile(p); a=sqlite3.connect(p); b=sqlite3.connect('/data/practenture.db'); a.backup(b); b.close(); a.close()" </dev/null
+if sudo test -d "$TLS_ROLLBACK_DIR"; then
+    sudo ./scripts/restore_tls_renewal.sh "$TLS_ROLLBACK_DIR"
+fi
+LINK_TMP="$HOME/.practenture-current.recovery.$DEPLOY_ID.$$"
+ln -s "$PREVIOUS_RELEASE" "$LINK_TMP"
+mv -Tf "$LINK_TMP" "$HOME/practenture-current"
+cd "$PREVIOUS_RELEASE"
+docker-compose -p practenture up -d --no-build --force-recreate practenture-backend
+ROLLBACK_HEALTHY=0
+for _ in $(seq 1 30); do
+    if [ "$(docker inspect practenture-backend --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}')" = "healthy" ]; then
+        ROLLBACK_HEALTHY=1
+        break
+    fi
+    sleep 2
+done
+test "$ROLLBACK_HEALTHY" -eq 1
+docker-compose -p practenture up -d --no-build nginx
+curl --fail --silent --show-error --resolve practenture.com:443:127.0.0.1 https://practenture.com/api/health >/dev/null
+rm -f "$CANDIDATE_RELEASE/.activation-started" \
+    "$CANDIDATE_RELEASE/.activation-complete" \
+    "$CANDIDATE_RELEASE/.promotion-complete"
+echo "ACTIVATION_ROLLED_BACK_FOR_RETRY"
+REMOTE_RECOVER
+    ); then
+        error "An existing candidate activation is indeterminate; automatic retry stopped before further mutation."
+    fi
+    printf '%s\n' "$recovery_status"
+    case "$recovery_status" in
+        *ACTIVATION_RECOVERED*)
+            ok "=== Deployment Already Active; Promotion Reconciled ==="
+            return 0
+            ;;
+    esac
 
     # Create a transactionally consistent SQLite backup and retain the current image.
     # Backups live outside the rsync --delete target and are preserved across deployments.
@@ -420,6 +564,15 @@ docker build \
     "$BUILD_CONTEXT"
 rm -rf "$BUILD_CONTEXT"
 trap - EXIT
+if [ -z "$PREVIOUS_IMAGE" ]; then
+    # A first activation has no retained image, but its database must still be
+    # reversible if migration, health, proxy, or TLS qualification fails.
+    docker-compose -p practenture run --rm --no-deps practenture-backend \
+        python -c "import sqlite3; a=sqlite3.connect('/data/practenture.db'); b=sqlite3.connect('/data/predeploy-$DEPLOY_ID.db'); a.backup(b); b.close(); a.close()" </dev/null
+fi
+TLS_ROLLBACK_DIR="/var/lib/practenture-deploy/tls-rollback-$DEPLOY_ID"
+sudo rm -rf "$TLS_ROLLBACK_DIR"
+rm -f .activation-complete .promotion-complete
 touch .activation-started
 docker-compose -p practenture stop practenture-backend
 if ! docker-compose -p practenture run --rm --no-deps \
@@ -431,6 +584,8 @@ if ! docker-compose -p practenture run --rm --no-deps \
     if [ -n "$PREVIOUS_IMAGE" ]; then
         docker tag "$PREVIOUS_IMAGE" practenture-backend:stable
         docker start practenture-backend
+    else
+        rm -f .activation-started .activation-complete .promotion-complete
     fi
     exit 1
 fi
@@ -438,12 +593,34 @@ fi
 # is repointed to a new image. Force the backend replacement so the candidate
 # image is actually activated, then reconcile the proxy separately.
 docker-compose -p practenture up -d --no-build --force-recreate practenture-backend
+BACKEND_HEALTHY=0
+for _ in $(seq 1 30); do
+    if [ "$(docker inspect practenture-backend --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}')" = "healthy" ]; then
+        BACKEND_HEALTHY=1
+        break
+    fi
+    sleep 2
+done
+test "$BACKEND_HEALTHY" -eq 1
+test "$(docker inspect practenture-backend --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$SOURCE_REVISION"
 docker-compose -p practenture up -d --no-build nginx
+test "$(docker inspect practenture-nginx --format '{{.State.Status}}')" = "running"
+sudo env PRACTENTURE_TLS_ROLLBACK_DIR="$TLS_ROLLBACK_DIR" \
+    ./scripts/install_tls_renewal.sh
+touch .activation-complete
 echo "DEPLOY_DONE"
 REMOTE_DEPLOY
     then
         REMOTE_DEPLOY_FAILED=1
         warn "Candidate preparation or activation failed; rolling back."
+    fi
+
+    if [ "$REMOTE_DEPLOY_FAILED" -eq 0 ]; then
+        if ! ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP \
+            'CANDIDATE_RELEASE=$(cat "$HOME/practenture-artifacts/candidate-release") && test -f "$CANDIDATE_RELEASE/.activation-complete"'; then
+            REMOTE_DEPLOY_FAILED=1
+            warn "Candidate activation did not produce its completion marker; rolling back."
+        fi
     fi
 
     if [ "$REMOTE_DEPLOY_FAILED" -eq 0 ]; then
@@ -459,7 +636,12 @@ DEPLOY_ID=$(cat "$CANDIDATE_RELEASE/.deploy-id")
 LINK_TMP="$HOME/.practenture-current.$DEPLOY_ID.$$"
 ln -s "$CANDIDATE_RELEASE" "$LINK_TMP"
 mv -Tf "$LINK_TMP" "$HOME/practenture-current"
-docker exec practenture-backend rm -f "/data/predeploy-$DEPLOY_ID.db"
+printf '%s\n' "$CANDIDATE_RELEASE" > "$HOME/practenture-artifacts/current-release"
+touch "$CANDIDATE_RELEASE/.promotion-complete"
+rm -f "$CANDIDATE_RELEASE/.activation-started"
+docker exec practenture-backend rm -f "/data/predeploy-$DEPLOY_ID.db" \
+    || echo "WARNING: deferred predeploy backup cleanup failed for $DEPLOY_ID" >&2
+sudo rm -rf "/var/lib/practenture-deploy/tls-rollback-$DEPLOY_ID" || true
 REMOTE_PROMOTE
                 then
                     warn "Candidate was healthy but release promotion failed; rolling back."
@@ -475,6 +657,26 @@ REMOTE_PROMOTE
         done
     fi
 
+    if ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP \
+        bash -s -- "$SOURCE_REVISION" <<'REMOTE_POST_COMMIT'
+set -euo pipefail
+EXPECTED_REVISION=$1
+CANDIDATE_RELEASE=$(cat "$HOME/practenture-artifacts/candidate-release")
+DEPLOY_ID=$(cat "$CANDIDATE_RELEASE/.deploy-id")
+test ! -f "$CANDIDATE_RELEASE/.activation-started"
+test -f "$CANDIDATE_RELEASE/.promotion-complete"
+test "$(readlink -f "$HOME/practenture-current")" = "$CANDIDATE_RELEASE"
+test "$(docker inspect practenture-backend --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$EXPECTED_REVISION"
+curl --fail --silent --show-error --resolve practenture.com:443:127.0.0.1 \
+    https://practenture.com/api/health >/dev/null
+docker exec practenture-backend rm -f "/data/predeploy-$DEPLOY_ID.db" || true
+sudo rm -rf "/var/lib/practenture-deploy/tls-rollback-$DEPLOY_ID" || true
+REMOTE_POST_COMMIT
+    then
+        ok "Promotion committed; recovered from an interrupted post-commit cleanup."
+        return 0
+    fi
+
     warn "Candidate failed a deployment gate; restoring retained application and database state..."
     ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP <<'REMOTE_ROLLBACK'
 set -euo pipefail
@@ -482,6 +684,7 @@ CANDIDATE_RELEASE=$(cat "$HOME/practenture-artifacts/candidate-release")
 PREVIOUS_RELEASE=$(cat "$HOME/practenture-artifacts/previous-release" 2>/dev/null || true)
 cd "$CANDIDATE_RELEASE"
 DEPLOY_ID=$(cat .deploy-id 2>/dev/null || true)
+TLS_ROLLBACK_DIR="/var/lib/practenture-deploy/tls-rollback-$DEPLOY_ID"
 PREVIOUS_IMAGE=$(cat .rollback-image 2>/dev/null || true)
 if [ -n "$PREVIOUS_IMAGE" ] && [ -f .activation-started ]; then
     docker-compose -p practenture stop nginx practenture-backend 2>/dev/null || true
@@ -492,22 +695,54 @@ if [ -n "$PREVIOUS_IMAGE" ] && [ -f .activation-started ]; then
             python -c "import os,sqlite3; p='/data/predeploy-$DEPLOY_ID.db'; assert os.path.isfile(p); a=sqlite3.connect(p); b=sqlite3.connect('/data/practenture.db'); a.backup(b); b.close(); a.close()" </dev/null
     fi
 fi
-if [ -n "$PREVIOUS_RELEASE" ] && [ -d "$PREVIOUS_RELEASE" ]; then
+if [ -z "$PREVIOUS_IMAGE" ] && [ -f .activation-started ] && [ -n "$DEPLOY_ID" ]; then
+    docker-compose -p practenture stop nginx practenture-backend 2>/dev/null || true
+    docker rm -f practenture-backend 2>/dev/null || true
+    docker-compose -p practenture run --rm --no-deps practenture-backend \
+        python -c "import os,sqlite3; p='/data/predeploy-$DEPLOY_ID.db'; assert os.path.isfile(p); a=sqlite3.connect(p); b=sqlite3.connect('/data/practenture.db'); a.backup(b); b.close(); a.close()" </dev/null
+fi
+if [ -f .activation-started ] && sudo test -d "$TLS_ROLLBACK_DIR"; then
+    sudo ./scripts/restore_tls_renewal.sh "$TLS_ROLLBACK_DIR"
+fi
+if [ -z "$PREVIOUS_IMAGE" ] && [ -f .activation-started ] && [ -n "$DEPLOY_ID" ]; then
+    rm -f .activation-started .activation-complete .promotion-complete
+fi
+if [ -f .activation-started ] && [ -n "$PREVIOUS_RELEASE" ] && [ -d "$PREVIOUS_RELEASE" ]; then
     cd "$PREVIOUS_RELEASE"
     LINK_TMP="$HOME/.practenture-current.rollback.$DEPLOY_ID.$$"
     ln -s "$PREVIOUS_RELEASE" "$LINK_TMP"
     mv -Tf "$LINK_TMP" "$HOME/practenture-current"
 fi
 if [ -n "$PREVIOUS_IMAGE" ] && [ -f "$CANDIDATE_RELEASE/.activation-started" ]; then
-    docker-compose -p practenture up -d --no-build --force-recreate practenture-backend nginx
+    docker-compose -p practenture up -d --no-build --force-recreate practenture-backend
+    ROLLBACK_BACKEND_HEALTHY=0
+    for _ in $(seq 1 30); do
+        if [ "$(docker inspect practenture-backend --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}')" = "healthy" ]; then
+            ROLLBACK_BACKEND_HEALTHY=1
+            break
+        fi
+        sleep 2
+    done
+    test "$ROLLBACK_BACKEND_HEALTHY" -eq 1
+    docker-compose -p practenture up -d --no-build nginx
+    rm -f "$CANDIDATE_RELEASE/.activation-started" \
+        "$CANDIDATE_RELEASE/.activation-complete" \
+        "$CANDIDATE_RELEASE/.promotion-complete"
 fi
 REMOTE_ROLLBACK
-    if ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP \
-        "curl --fail --silent --show-error --resolve practenture.com:443:127.0.0.1 https://practenture.com/api/health" >/dev/null; then
-        warn "Previous application image restored. Database backup retained in ~/practenture-backups."
-    else
+    local rollback_healthy=0
+    for _ in $(seq 1 30); do
+        if ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP \
+            "curl --fail --silent --show-error --resolve practenture.com:443:127.0.0.1 https://practenture.com/api/health" >/dev/null; then
+            rollback_healthy=1
+            break
+        fi
+        sleep 2
+    done
+    if [ "$rollback_healthy" -ne 1 ]; then
         error "Deployment and automatic application rollback both failed. Inspect remote Docker logs immediately."
     fi
+    warn "Previous application image restored. Database backup retained in ~/practenture-backups."
     return 1
 }
 

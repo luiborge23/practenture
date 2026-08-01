@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Practenture" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:navigationBarColor">#FAF8FF</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>
