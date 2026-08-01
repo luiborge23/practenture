@@ -270,5 +270,5 @@ jobs:
           done
           [ "$(docker inspect practenture-backend --format '{{.State.Health.Status}}')" = healthy ]
           curl -fsS http://127.0.0.1:8000/api/health >/dev/null
-          docker exec practenture-backend python -c "import sqlite3; a=sqlite3.connect('/data/practenture.db'); b=sqlite3.connect('/data/ci-backup.sqlite'); a.backup(b); assert b.execute('pragma integrity_check').fetchone()[0]=='ok'; assert b.execute('select version_num from alembic_version').fetchone()[0]=='006'; b.close(); a.close()"
+          docker exec practenture-backend python -c "import sqlite3,subprocess; heads=[line.split()[0] for line in subprocess.check_output(['alembic','heads'],text=True).splitlines() if line.strip()]; assert len(heads)==1; a=sqlite3.connect('/data/practenture.db'); b=sqlite3.connect('/data/ci-backup.sqlite'); a.backup(b); assert b.execute('pragma integrity_check').fetchone()[0]=='ok'; assert b.execute('select version_num from alembic_version').fetchone()[0]==heads[0]; b.close(); a.close()"
           docker exec practenture-backend python -c "import sqlite3; c=sqlite3.connect('/data/ci-backup.sqlite'); assert c.execute('pragma integrity_check').fetchone()[0]=='ok'; c.close()"
