@@ -30,12 +30,23 @@ def auth_headers(token):
 
 
 def register_student_token(student_id):
-    """Issue a student token whose subject is the fixture student ID."""
+    """Provision a tenant-bound student and issue its access token."""
+    if db.get_user(student_id) is None:
+        assert db.create_user(
+            student_id,
+            "test-only-no-login",
+            "student",
+            name=f"Test {student_id}",
+            student_id=student_id,
+        )
+    organization = db.get_primary_org("professor")
+    assert organization is not None
+    assert db.add_membership(student_id, organization["id"], "student")
     return _create_token({
         "sub": student_id,
         "role": "student",
         "name": f"Test {student_id}",
-        "tenantId": "",
+        "tenantId": organization["id"],
         "exp": time.time() + 3600,
     })
 

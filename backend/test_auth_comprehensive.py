@@ -555,6 +555,7 @@ class TestMFAFlow:
         token = resp.json()['accessToken']
 
         mresp = client.post('/api/auth/mfa/setup',
+                           json={'password': 'practenture2026'},
                            headers={'Authorization': f'Bearer {token}'})
         assert mresp.status_code == 200
         data = mresp.json()
@@ -569,6 +570,7 @@ class TestMFAFlow:
 
         # Setup MFA first
         client.post('/api/auth/mfa/setup',
+                    json={'password': 'practenture2026'},
                     headers={'Authorization': f'Bearer {token}'})
 
         # Verify with wrong code
@@ -582,6 +584,7 @@ class TestMFAFlow:
         token = resp.json()['accessToken']
 
         sresp = client.post('/api/auth/mfa/setup',
+                           json={'password': 'practenture2026'},
                            headers={'Authorization': f'Bearer {token}'})
 
         status_resp = client.get('/api/auth/mfa/status',
@@ -606,6 +609,7 @@ class TestMFAFlow:
 
         # Setup MFA
         client.post('/api/auth/mfa/setup',
+                    json={'password': 'TestPass123!'},
                     headers={'Authorization': f'Bearer {token}'})
 
         # Check status - MFA may not be enabled yet (needs verify)
@@ -629,6 +633,7 @@ class TestMFAFlow:
         # Setup and confirm MFA before proving that both factors are required
         # for disabling it. A recovery code is suitable for this one-time proof.
         setup = client.post('/api/auth/mfa/setup',
+                            json={'password': 'practenture2026'},
                             headers={'Authorization': f'Bearer {token}'})
         secret = setup.json()['secret']
         current_code = mfa._hotp(secret, int(time.time()) // 30)
@@ -940,6 +945,7 @@ class TestResponseFormat:
         resp = login('password', username='professor', password='practenture2026')
         token = resp.json()['accessToken']
         mresp = client.post('/api/auth/mfa/setup',
+                           json={'password': 'practenture2026'},
                            headers={'Authorization': f'Bearer {token}'})
         data = mresp.json()
         assert 'secret' in data
