@@ -20,6 +20,11 @@ if [ "$(dirname -- "$SNAPSHOT_DIR")" != "/var/lib/practenture-deploy" ] \
     echo "TLS rollback snapshot is outside the protected deployment state directory" >&2
     exit 2
 fi
+if [ ! -d "$SNAPSHOT_DIR/previous-renewal-configs" ] \
+    || ! compgen -G "$SNAPSHOT_DIR/previous-renewal-configs/*.conf" >/dev/null; then
+    echo "TLS rollback snapshot is missing renewal configurations" >&2
+    exit 1
+fi
 
 if [ -f "$SYSTEMD_DIR/$TIMER_NAME" ]; then
     systemctl disable --now "$TIMER_NAME" >/dev/null 2>&1
@@ -39,6 +44,9 @@ if [ -f "$SNAPSHOT_DIR/hook-existed" ]; then
 else
     rm -f "$HOOK_PATH"
 fi
+for renewal_config in "$SNAPSHOT_DIR"/previous-renewal-configs/*.conf; do
+    install -m 600 "$renewal_config" "/etc/letsencrypt/renewal/$(basename -- "$renewal_config")"
+done
 systemctl daemon-reload
 if [ -f "$SNAPSHOT_DIR/timer-existed" ]; then
     if [ -f "$SNAPSHOT_DIR/timer-was-enabled" ]; then

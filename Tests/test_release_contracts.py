@@ -203,7 +203,14 @@ def test_tls_renewal_installer_is_fail_closed_and_reloads_nginx() -> None:
     assert "RandomizedDelaySec=3600" in script
     assert "Persistent=true" in script
     assert "WEBROOT_PATH=\"/var/www/certbot\"" in script
-    assert "renew --webroot --webroot-path $WEBROOT_PATH --quiet" in script
+    assert "ExecStart=$CERTBOT_BIN renew --quiet" in script
+    assert '"$CERTBOT_BIN" reconfigure \\' in script
+    assert '--cert-name "$cert_name"' in script
+    assert "^authenticator = webroot$" in script
+    assert 'cp -a "$work_dir/previous-renewal-configs" "$snapshot_staging/previous-renewal-configs"' in script
+    assert script.index("trap cleanup EXIT") < script.index(
+        'install -d -m 700 "$work_dir/previous-renewal-configs"'
+    )
     assert '"$DOCKER_BIN" exec practenture-nginx nginx -t' in script
     assert '"$DOCKER_BIN" exec practenture-nginx nginx -s reload' in script
     assert 'systemctl is-active --quiet "$TIMER_NAME"' in script
@@ -235,6 +242,12 @@ def test_tls_renewal_installer_is_fail_closed_and_reloads_nginx() -> None:
     assert 'install -m 644 "$SNAPSHOT_DIR/previous-timer"' in restore_script
     assert 'if [ -f "$SNAPSHOT_DIR/timer-existed" ]; then' in restore_script
     assert 'install -m 755 "$SNAPSHOT_DIR/previous-hook"' in restore_script
+    assert 'if [ ! -d "$SNAPSHOT_DIR/previous-renewal-configs" ]' in restore_script
+    assert 'compgen -G "$SNAPSHOT_DIR/previous-renewal-configs/*.conf"' in restore_script
+    assert 'install -m 600 "$renewal_config"' in restore_script
+    assert restore_script.index("previous-renewal-configs/*.conf") < restore_script.index(
+        'systemctl disable --now "$TIMER_NAME"'
+    )
     assert "TLS_RENEWAL_DEPLOYMENT_ROLLBACK_RESTORED" in restore_script
     assert script.index('"$CERTBOT_BIN" renew \\') < script.index(
         'install -m 644 "$work_dir/$SERVICE_NAME"'

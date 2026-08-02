@@ -53,41 +53,6 @@ timer_was_active=0
 restore_on_error=0
 snapshot_created=0
 snapshot_staging=""
-if [ -f "$SYSTEMD_DIR/$SERVICE_NAME" ]; then
-    service_existed=1
-    cp -a "$SYSTEMD_DIR/$SERVICE_NAME" "$work_dir/previous-service"
-fi
-if [ -f "$SYSTEMD_DIR/$TIMER_NAME" ]; then
-    timer_existed=1
-    cp -a "$SYSTEMD_DIR/$TIMER_NAME" "$work_dir/previous-timer"
-fi
-if [ -f "$HOOK_PATH" ]; then
-    hook_existed=1
-    cp -a "$HOOK_PATH" "$work_dir/previous-hook"
-fi
-if systemctl is-enabled --quiet "$TIMER_NAME" 2>/dev/null; then
-    timer_was_enabled=1
-fi
-if systemctl is-active --quiet "$TIMER_NAME" 2>/dev/null; then
-    timer_was_active=1
-fi
-
-if [ -n "$ROLLBACK_DIR" ]; then
-    snapshot_staging="${ROLLBACK_DIR}.tmp.$$"
-    rm -rf "$snapshot_staging"
-    install -d -m 700 "$snapshot_staging"
-    [ "$service_existed" -eq 1 ] && cp -a "$work_dir/previous-service" "$snapshot_staging/previous-service"
-    [ "$timer_existed" -eq 1 ] && cp -a "$work_dir/previous-timer" "$snapshot_staging/previous-timer"
-    [ "$hook_existed" -eq 1 ] && cp -a "$work_dir/previous-hook" "$snapshot_staging/previous-hook"
-    [ "$service_existed" -eq 1 ] && touch "$snapshot_staging/service-existed"
-    [ "$timer_existed" -eq 1 ] && touch "$snapshot_staging/timer-existed"
-    [ "$hook_existed" -eq 1 ] && touch "$snapshot_staging/hook-existed"
-    [ "$timer_was_enabled" -eq 1 ] && touch "$snapshot_staging/timer-was-enabled"
-    [ "$timer_was_active" -eq 1 ] && touch "$snapshot_staging/timer-was-active"
-    mv "$snapshot_staging" "$ROLLBACK_DIR"
-    snapshot_staging=""
-    snapshot_created=1
-fi
 
 cleanup() {
     rc=$?
@@ -113,6 +78,10 @@ cleanup() {
             else
                 rm -f "$HOOK_PATH" || restore_failed=1
             fi
+            for renewal_config in "$work_dir"/previous-renewal-configs/*.conf; do
+                install -m 600 "$renewal_config" "/etc/letsencrypt/renewal/$(basename -- "$renewal_config")" \
+                    || restore_failed=1
+            done
             systemctl daemon-reload || restore_failed=1
             if [ "$timer_existed" -eq 1 ]; then
                 if [ "$timer_was_enabled" -eq 1 ]; then
@@ -142,6 +111,47 @@ cleanup() {
 }
 trap cleanup EXIT
 
+install -d -m 700 "$work_dir/previous-renewal-configs"
+for renewal_config in "${renewal_configs[@]}"; do
+    cp -a "$renewal_config" "$work_dir/previous-renewal-configs/"
+done
+if [ -f "$SYSTEMD_DIR/$SERVICE_NAME" ]; then
+    service_existed=1
+    cp -a "$SYSTEMD_DIR/$SERVICE_NAME" "$work_dir/previous-service"
+fi
+if [ -f "$SYSTEMD_DIR/$TIMER_NAME" ]; then
+    timer_existed=1
+    cp -a "$SYSTEMD_DIR/$TIMER_NAME" "$work_dir/previous-timer"
+fi
+if [ -f "$HOOK_PATH" ]; then
+    hook_existed=1
+    cp -a "$HOOK_PATH" "$work_dir/previous-hook"
+fi
+if systemctl is-enabled --quiet "$TIMER_NAME" 2>/dev/null; then
+    timer_was_enabled=1
+fi
+if systemctl is-active --quiet "$TIMER_NAME" 2>/dev/null; then
+    timer_was_active=1
+fi
+
+if [ -n "$ROLLBACK_DIR" ]; then
+    snapshot_staging="${ROLLBACK_DIR}.tmp.$$"
+    rm -rf "$snapshot_staging"
+    install -d -m 700 "$snapshot_staging"
+    [ "$service_existed" -eq 1 ] && cp -a "$work_dir/previous-service" "$snapshot_staging/previous-service"
+    [ "$timer_existed" -eq 1 ] && cp -a "$work_dir/previous-timer" "$snapshot_staging/previous-timer"
+    [ "$hook_existed" -eq 1 ] && cp -a "$work_dir/previous-hook" "$snapshot_staging/previous-hook"
+    cp -a "$work_dir/previous-renewal-configs" "$snapshot_staging/previous-renewal-configs"
+    [ "$service_existed" -eq 1 ] && touch "$snapshot_staging/service-existed"
+    [ "$timer_existed" -eq 1 ] && touch "$snapshot_staging/timer-existed"
+    [ "$hook_existed" -eq 1 ] && touch "$snapshot_staging/hook-existed"
+    [ "$timer_was_enabled" -eq 1 ] && touch "$snapshot_staging/timer-was-enabled"
+    [ "$timer_was_active" -eq 1 ] && touch "$snapshot_staging/timer-was-active"
+    mv "$snapshot_staging" "$ROLLBACK_DIR"
+    snapshot_staging=""
+    snapshot_created=1
+fi
+
 cat > "$work_dir/practenture-nginx-reload" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
@@ -158,7 +168,7 @@ After=network-online.target docker.service
 
 [Service]
 Type=oneshot
-ExecStart=$CERTBOT_BIN renew --webroot --webroot-path $WEBROOT_PATH --quiet
+ExecStart=$CERTBOT_BIN renew --quiet
 EOF
 
 cat > "$work_dir/$TIMER_NAME" <<EOF
@@ -184,6 +194,17 @@ fi
 restore_on_error=1
 install -d -m 755 "$(dirname "$HOOK_PATH")" "$WEBROOT_PATH"
 install -m 755 "$work_dir/practenture-nginx-reload" "$HOOK_PATH"
+for renewal_config in "${renewal_configs[@]}"; do
+    cert_name=$(basename -- "$renewal_config" .conf)
+    "$CERTBOT_BIN" reconfigure \
+        --cert-name "$cert_name" \
+        --webroot \
+        --webroot-path "$WEBROOT_PATH" \
+        --run-deploy-hooks \
+        --no-random-sleep-on-renew
+    grep -Eq '^authenticator = webroot$' "$renewal_config"
+    grep -Fq "$WEBROOT_PATH" "$renewal_config"
+done
 "$CERTBOT_BIN" renew \
     --dry-run \
     --run-deploy-hooks \
