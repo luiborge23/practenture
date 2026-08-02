@@ -13,6 +13,9 @@ final class PractentureUITests: XCTestCase {
     }
 
     private func launch(_ scenario: String) {
+        if app.state != .notRunning {
+            app.terminate()
+        }
         app.launchArguments = ["-UITesting"]
         app.launchEnvironment = ["PRACTENTURE_UI_SCENARIO": scenario]
         app.launch()
@@ -21,6 +24,9 @@ final class PractentureUITests: XCTestCase {
     }
 
     private func launchAuthentication(role: String) {
+        if app.state != .notRunning {
+            app.terminate()
+        }
         app.launchArguments = ["-UITesting"]
         app.launchEnvironment = [
             "PRACTENTURE_UI_AUTH_ROLE": role,
@@ -94,11 +100,20 @@ final class PractentureUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["sync.status"].label, "Offline")
         XCTAssertEqual(app.staticTexts["sync.pending"].label, "Pending actions: 0")
         app.buttons["sync.queue"].tap()
-        XCTAssertEqual(app.staticTexts["sync.pending"].label, "Pending actions: 1")
+        let pending = app.staticTexts["sync.pending"]
+        expectation(
+            for: NSPredicate(format: "label == %@", "Pending actions: 1"),
+            evaluatedWith: pending
+        )
+        waitForExpectations(timeout: 5)
 
         app.buttons["sync.reconnect"].tap()
         XCTAssertTrue(app.staticTexts["Online"].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.staticTexts["sync.pending"].label, "Pending actions: 0")
+        expectation(
+            for: NSPredicate(format: "label == %@", "Pending actions: 0"),
+            evaluatedWith: pending
+        )
+        waitForExpectations(timeout: 5)
     }
 
     func testTimeoutErrorIsVisibleAndRetryRecovers() {
