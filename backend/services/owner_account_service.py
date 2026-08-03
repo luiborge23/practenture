@@ -25,7 +25,8 @@ class OwnerAccountService:
                 """
                     SELECT username as id, username, role, status, name, email,
                            last_login_at, created_by
-                    FROM users WHERE username = ?
+                    FROM users
+                    WHERE username = ? AND COALESCE(status, 'active') <> 'deleted'
                 """,
                 (user_id,)
             ).fetchone()
@@ -42,7 +43,8 @@ class OwnerAccountService:
                 """
                     SELECT username as id, username, role, status, name, email,
                            last_login_at, created_by
-                    FROM users WHERE username = ?
+                    FROM users
+                    WHERE username = ? AND COALESCE(status, 'active') <> 'deleted'
                 """,
                 (username,)
             ).fetchone()
@@ -67,7 +69,7 @@ class OwnerAccountService:
             FROM users
         """
         
-        conditions = []
+        conditions = ["COALESCE(status, 'active') <> 'deleted'"]
         params = []
         
         if role:
@@ -102,7 +104,8 @@ class OwnerAccountService:
         with self.db._get_conn() as conn:
             # Check if user exists
             row = conn.execute(
-                "SELECT username as id, username, role, status FROM users WHERE username = ?",
+                """SELECT username as id, username, role, status FROM users
+                   WHERE username = ? AND COALESCE(status, 'active') <> 'deleted'""",
                 (user_id,)
             ).fetchone()
             
@@ -127,7 +130,7 @@ class OwnerAccountService:
                         disabled_at = ?,
                         disabled_by = ?,
                         disable_reason = ?
-                    WHERE username = ?
+                    WHERE username = ? AND COALESCE(status, 'active') <> 'deleted'
                 """,
                 (
                     datetime.now(timezone.utc).isoformat(),
@@ -155,7 +158,8 @@ class OwnerAccountService:
         with self.db._get_conn() as conn:
             # Check if user exists
             row = conn.execute(
-                "SELECT username as id, username, role, status FROM users WHERE username = ?",
+                """SELECT username as id, username, role, status FROM users
+                   WHERE username = ? AND COALESCE(status, 'active') <> 'deleted'""",
                 (user_id,)
             ).fetchone()
             
@@ -180,7 +184,7 @@ class OwnerAccountService:
                         disabled_at = NULL,
                         disabled_by = NULL,
                         disable_reason = NULL
-                    WHERE username = ?
+                    WHERE username = ? AND COALESCE(status, 'active') <> 'deleted'
                 """,
                 (user_id,)
             )
@@ -202,7 +206,8 @@ class OwnerAccountService:
         with self.db._get_conn() as conn:
             # Check if user exists
             row = conn.execute(
-                "SELECT username as id, username, role FROM users WHERE username = ?",
+                """SELECT username as id, username, role FROM users
+                   WHERE username = ? AND COALESCE(status, 'active') <> 'deleted'""",
                 (user_id,)
             ).fetchone()
             
@@ -232,7 +237,7 @@ class OwnerAccountService:
                 """
                     UPDATE users SET
                         last_login_at = ?
-                    WHERE username = ?
+                    WHERE username = ? AND COALESCE(status, 'active') <> 'deleted'
                 """,
                 (datetime.now(timezone.utc).isoformat(), user_id)
             )

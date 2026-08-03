@@ -77,6 +77,36 @@ struct AuthUser: Codable, Identifiable {
     var id: String { userId }
 }
 
+struct AccountDeletionRequirements: Decodable {
+    let provider: String
+    let reauthentication: String
+    let mfaRequired: Bool
+    let confirmationPhrase: String
+    let challengeId: String?
+    let challenge: String?
+    let challengeExpiresAt: Double?
+    let operationToken: String
+}
+
+struct DeleteAccountRequest: Encodable {
+    let confirmation: String
+    let password: String?
+    let mfaCode: String?
+    let providerToken: String?
+    let providerNonce: String?
+    let providerAuthorizationCode: String?
+    let challengeId: String?
+    let operationToken: String
+}
+
+struct AccountDeletionStatusRequest: Encodable {
+    let operationToken: String
+}
+
+struct AccountDeletionStatusResponse: Decodable {
+    let status: String
+}
+
 /// Request body for register endpoint.
 /// Backend RegisterRequest only accepts: student_id, name, password
 struct AuthRegisterRequest: Encodable {

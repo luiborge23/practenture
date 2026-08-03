@@ -220,18 +220,31 @@ cmd_deploy() {
 
     # Stable .env — only generate if missing; never rotate on re-deploy
     # Loads existing .env if present so JWT_SECRET + PROFESSOR_PASSWORD persist
-    local JWT_SECRET PROF_PASSWORD OWNER_USER OWNER_PASS OWNER_USERNAME credential normalized
+    local JWT_SECRET PROF_PASSWORD OWNER_USER OWNER_PASS OWNER_USERNAME PROVIDER_JOB_KEY credential normalized
+    local APPLE_AUDIENCE APPLE_TEAM_ID APPLE_KEY_ID APPLE_PRIVATE_KEY HAD_ENV
     local EXPLICIT_JWT_SECRET EXPLICIT_PROF_PASSWORD EXPLICIT_OWNER_PASSWORD EXPLICIT_OWNER_USERNAME
+    local EXPLICIT_PROVIDER_JOB_KEY EXPLICIT_APPLE_AUDIENCE EXPLICIT_APPLE_TEAM_ID EXPLICIT_APPLE_KEY_ID EXPLICIT_APPLE_PRIVATE_KEY
     local EMAIL_PROVIDER SES_REGION SES_SENDER PUBLIC_ORIGIN
     EXPLICIT_JWT_SECRET="${PRACTENTURE_JWT_SECRET:-}"
     EXPLICIT_PROF_PASSWORD="${PRACTENTURE_PROFESSOR_PASSWORD:-}"
     EXPLICIT_OWNER_PASSWORD="${PRACTENTURE_OWNER_PASSWORD:-}"
     EXPLICIT_OWNER_USERNAME="${PRACTENTURE_OWNER_USERNAME:-}"
+    EXPLICIT_PROVIDER_JOB_KEY="${PRACTENTURE_PROVIDER_JOB_ENCRYPTION_KEY:-}"
+    EXPLICIT_APPLE_AUDIENCE="${PRACTENTURE_APPLE_AUDIENCE:-}"
+    EXPLICIT_APPLE_TEAM_ID="${PRACTENTURE_APPLE_TEAM_ID:-}"
+    EXPLICIT_APPLE_KEY_ID="${PRACTENTURE_APPLE_KEY_ID:-}"
+    EXPLICIT_APPLE_PRIVATE_KEY="${PRACTENTURE_APPLE_PRIVATE_KEY:-}"
     JWT_SECRET="$EXPLICIT_JWT_SECRET"
     PROF_PASSWORD="$EXPLICIT_PROF_PASSWORD"
     OWNER_PASS="$EXPLICIT_OWNER_PASSWORD"
     OWNER_USERNAME="${EXPLICIT_OWNER_USERNAME:-owner}"
     OWNER_USER="$OWNER_USERNAME"
+    PROVIDER_JOB_KEY="$EXPLICIT_PROVIDER_JOB_KEY"
+    APPLE_AUDIENCE="$EXPLICIT_APPLE_AUDIENCE"
+    APPLE_TEAM_ID="$EXPLICIT_APPLE_TEAM_ID"
+    APPLE_KEY_ID="$EXPLICIT_APPLE_KEY_ID"
+    APPLE_PRIVATE_KEY="$EXPLICIT_APPLE_PRIVATE_KEY"
+    HAD_ENV=0
     # Capture explicit release-time values before sourcing the preserved .env,
     # whose older deployments may contain blank email settings.
     EMAIL_PROVIDER="${PRACTENTURE_EMAIL_PROVIDER:-}"
@@ -240,21 +253,34 @@ cmd_deploy() {
     PUBLIC_ORIGIN="${PRACTENTURE_PUBLIC_ORIGIN:-https://practenture.com}"
 
     if [ -f "$SCRIPT_DIR/.env" ]; then
+        HAD_ENV=1
         # Source existing env (ignore errors)
         set -a; . "$SCRIPT_DIR/.env" 2>/dev/null || true; set +a
         JWT_SECRET="${EXPLICIT_JWT_SECRET:-${PRACTENTURE_JWT_SECRET:-}}"
         PROF_PASSWORD="${EXPLICIT_PROF_PASSWORD:-${PRACTENTURE_PROFESSOR_PASSWORD:-}}"
         OWNER_USER="${EXPLICIT_OWNER_USERNAME:-${PRACTENTURE_OWNER_USERNAME:-owner}}"
         OWNER_PASS="${EXPLICIT_OWNER_PASSWORD:-${PRACTENTURE_OWNER_PASSWORD:-}}"
+        PROVIDER_JOB_KEY="${EXPLICIT_PROVIDER_JOB_KEY:-${PRACTENTURE_PROVIDER_JOB_ENCRYPTION_KEY:-}}"
+        APPLE_AUDIENCE="${EXPLICIT_APPLE_AUDIENCE:-${PRACTENTURE_APPLE_AUDIENCE:-}}"
+        APPLE_TEAM_ID="${EXPLICIT_APPLE_TEAM_ID:-${PRACTENTURE_APPLE_TEAM_ID:-}}"
+        APPLE_KEY_ID="${EXPLICIT_APPLE_KEY_ID:-${PRACTENTURE_APPLE_KEY_ID:-}}"
+        APPLE_PRIVATE_KEY="${EXPLICIT_APPLE_PRIVATE_KEY:-${PRACTENTURE_APPLE_PRIVATE_KEY:-}}"
         EMAIL_PROVIDER="${EMAIL_PROVIDER:-${PRACTENTURE_EMAIL_PROVIDER:-}}"
         SES_REGION="${SES_REGION:-${PRACTENTURE_SES_REGION:-us-east-1}}"
         SES_SENDER="${SES_SENDER:-${PRACTENTURE_SES_SENDER:-}}"
     fi
 
+    # Migration from releases that predate durable provider-revocation jobs:
+    # add one independent stable key to the already-preserved environment.
+    if [ -z "${PROVIDER_JOB_KEY:-}" ] && [ "$HAD_ENV" = "1" ]; then
+        PROVIDER_JOB_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+        info "Generated dedicated provider-job encryption key for existing deployment"
+    fi
+
     # Never rotate authentication state merely because a deployment host is
     # missing its untracked environment file. Bootstrap generation is reserved
     # for an explicitly acknowledged first deployment.
-    if { [ -z "${JWT_SECRET:-}" ] || [ -z "${OWNER_PASS:-}" ] || [ -z "${PROF_PASSWORD:-}" ]; } \
+    if { [ -z "${JWT_SECRET:-}" ] || [ -z "${OWNER_PASS:-}" ] || [ -z "${PROF_PASSWORD:-}" ] || [ -z "${PROVIDER_JOB_KEY:-}" ]; } \
         && [ "${PRACTENTURE_ALLOW_BOOTSTRAP_SECRETS:-0}" != "1" ]; then
         error "Deployment credentials are incomplete. Supply the ignored .env or explicit environment values; set PRACTENTURE_ALLOW_BOOTSTRAP_SECRETS=1 only for first provisioning."
     fi
@@ -264,6 +290,13 @@ cmd_deploy() {
         info "Generated new JWT secret"
     else
         ok "Reusing existing JWT secret (stable)"
+    fi
+
+    if [ -z "${PROVIDER_JOB_KEY:-}" ]; then
+        PROVIDER_JOB_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+        info "Generated dedicated provider-job encryption key"
+    else
+        ok "Reusing existing provider-job encryption key (stable)"
     fi
 
     if [ -z "${PROF_PASSWORD:-}" ]; then
@@ -281,10 +314,10 @@ cmd_deploy() {
     fi
 
     # Reject recognizable example/test credentials without ever printing them.
-    if [ "${#JWT_SECRET}" -lt 32 ] || [ "${#OWNER_PASS}" -lt 16 ] || [ "${#PROF_PASSWORD}" -lt 16 ]; then
+    if [ "${#JWT_SECRET}" -lt 32 ] || [ "${#PROVIDER_JOB_KEY}" -lt 32 ] || [ "${#OWNER_PASS}" -lt 16 ] || [ "${#PROF_PASSWORD}" -lt 16 ]; then
         error "Deployment credentials do not meet minimum length requirements."
     fi
-    for credential in "$JWT_SECRET" "$OWNER_PASS" "$PROF_PASSWORD"; do
+    for credential in "$JWT_SECRET" "$PROVIDER_JOB_KEY" "$OWNER_PASS" "$PROF_PASSWORD"; do
         normalized=$(printf '%s' "$credential" | tr '[:upper:]' '[:lower:]')
         case "$normalized" in
             *test*|*example*|*change-me*|*changeme*|*practenture2026*|*ci-only*)
@@ -293,7 +326,13 @@ cmd_deploy() {
         esac
     done
 
+    if [ -n "$APPLE_AUDIENCE$APPLE_TEAM_ID$APPLE_KEY_ID$APPLE_PRIVATE_KEY" ] \
+        && { [ -z "$APPLE_AUDIENCE" ] || [ -z "$APPLE_TEAM_ID" ] || [ -z "$APPLE_KEY_ID" ] || [ -z "$APPLE_PRIVATE_KEY" ]; }; then
+        error "Apple authentication requires audience, team ID, key ID, and private key so account deletion can revoke authorization."
+    fi
+
     PRACTENTURE_JWT_SECRET="$JWT_SECRET" \
+    PRACTENTURE_PROVIDER_JOB_ENCRYPTION_KEY="$PROVIDER_JOB_KEY" \
     PRACTENTURE_OWNER_USERNAME="$OWNER_USER" \
     PRACTENTURE_OWNER_PASSWORD="$OWNER_PASS" \
     PRACTENTURE_PROFESSOR_USERNAME="${PRACTENTURE_PROFESSOR_USERNAME:-professor}" \
@@ -301,7 +340,10 @@ cmd_deploy() {
     PRACTENTURE_JWT_EXPIRY_HOURS="${PRACTENTURE_JWT_EXPIRY_HOURS:-24}" \
     NGINX_HTTP_PORT="${NGINX_HTTP_PORT:-80}" \
     NGINX_HTTPS_PORT="${NGINX_HTTPS_PORT:-443}" \
-    PRACTENTURE_APPLE_AUDIENCE="${PRACTENTURE_APPLE_AUDIENCE:-}" \
+    PRACTENTURE_APPLE_AUDIENCE="$APPLE_AUDIENCE" \
+    PRACTENTURE_APPLE_TEAM_ID="$APPLE_TEAM_ID" \
+    PRACTENTURE_APPLE_KEY_ID="$APPLE_KEY_ID" \
+    PRACTENTURE_APPLE_PRIVATE_KEY="$APPLE_PRIVATE_KEY" \
     PRACTENTURE_GOOGLE_AUDIENCE="${PRACTENTURE_GOOGLE_AUDIENCE:-}" \
     PRACTENTURE_EMAIL_PROVIDER="$EMAIL_PROVIDER" \
     PRACTENTURE_SES_REGION="$SES_REGION" \
@@ -313,10 +355,13 @@ import os
 import sys
 
 keys = (
-    "PRACTENTURE_JWT_SECRET", "PRACTENTURE_OWNER_USERNAME",
+    "PRACTENTURE_JWT_SECRET", "PRACTENTURE_PROVIDER_JOB_ENCRYPTION_KEY",
+    "PRACTENTURE_OWNER_USERNAME",
     "PRACTENTURE_OWNER_PASSWORD", "PRACTENTURE_PROFESSOR_USERNAME",
     "PRACTENTURE_PROFESSOR_PASSWORD", "PRACTENTURE_JWT_EXPIRY_HOURS",
     "NGINX_HTTP_PORT", "NGINX_HTTPS_PORT", "PRACTENTURE_APPLE_AUDIENCE",
+    "PRACTENTURE_APPLE_TEAM_ID", "PRACTENTURE_APPLE_KEY_ID",
+    "PRACTENTURE_APPLE_PRIVATE_KEY",
     "PRACTENTURE_GOOGLE_AUDIENCE", "PRACTENTURE_EMAIL_PROVIDER",
     "PRACTENTURE_SES_REGION", "PRACTENTURE_SES_SENDER",
     "PRACTENTURE_PUBLIC_ORIGIN",

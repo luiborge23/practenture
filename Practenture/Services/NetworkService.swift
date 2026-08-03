@@ -231,6 +231,25 @@ final class NetworkService {
         try await requestVoid(method: "DELETE", endpoint: endpoint, body: nil)
     }
 
+    func delete<B: Encodable>(_ endpoint: String, body: B) async throws {
+        try await requestVoid(method: "DELETE", endpoint: endpoint, body: body)
+    }
+
+    /// Execute a destructive request once. Automatic replay is unsafe when the
+    /// server may have committed before its response reaches the client.
+    func deleteOnce<B: Encodable>(
+        _ endpoint: String,
+        body: B,
+        timeout: TimeInterval = 30
+    ) async throws {
+        try await performVoidRequest(
+            method: "DELETE",
+            endpoint: endpoint,
+            body: body,
+            timeout: timeout
+        )
+    }
+
     func postVoid(_ endpoint: String, body: Encodable? = nil) async throws {
         try await requestVoid(method: "POST", endpoint: endpoint, body: body)
     }
@@ -285,13 +304,15 @@ final class NetworkService {
         method: String,
         endpoint: String,
         body: Encodable?,
-        retryingAfterRefresh: Bool = false
+        retryingAfterRefresh: Bool = false,
+        timeout: TimeInterval? = nil
     ) async throws {
         guard let url = URL(string: baseURL + endpoint) else {
             throw NetworkError.invalidURL
         }
 
         var request = URLRequest(url: url)
+        if let timeout { request.timeoutInterval = timeout }
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
@@ -317,7 +338,13 @@ final class NetworkService {
             do {
                 let newToken = try await refreshToken()
                 request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
-                return try await performVoidRequest(method: method, endpoint: endpoint, body: body, retryingAfterRefresh: true)
+                return try await performVoidRequest(
+                    method: method,
+                    endpoint: endpoint,
+                    body: body,
+                    retryingAfterRefresh: true,
+                    timeout: timeout
+                )
             } catch {
                 // Refresh failed — force logout and surface the error
                 AuthManager.shared.logout()
@@ -334,9 +361,13 @@ final class NetworkService {
         let errorBody = String(data: data, encoding: .utf8) ?? "Unknown server error"
         var detail = errorBody
         if let jsonData = errorBody.data(using: .utf8),
-           let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-           let msg = json["detail"] as? String {
-            detail = msg
+           let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] {
+            if let message = json["detail"] as? String {
+                detail = message
+            } else if let structured = json["detail"] as? [String: Any],
+                      let message = structured["message"] as? String {
+                detail = message
+            }
         }
         throw NetworkError.serverError(httpResponse.statusCode, detail)
     }

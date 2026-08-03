@@ -48,25 +48,51 @@ def main():
     token=login.get("accessToken") or login.get("access_token")
     assert token, "login response missing token"
     stamp=str(int(time.time()))
+    class_row=request("POST","/api/classes",{
+      "name":"Live E2E "+stamp,"description":"Disposable 20x8 qualification"
+    },token=token,expected=(201,))
+    assert class_row is not None
+    class_id=class_row["id"]
+    join_code=class_row["join_code"]
+    students=[]
+    for i in range(1,21):
+      student_id=f"QA{stamp}{i:02d}"
+      registered=request("POST","/api/auth/register",{
+        "student_id":student_id,"name":f"QA Student {i:02d}",
+        "password":"LocalStudent1!"
+      },expected=(201,))
+      assert registered is not None
+      student_token=registered.get("accessToken") or registered.get("access_token")
+      assert student_token, registered
+      request("POST","/api/classes/join",{"join_code":join_code},
+              token=student_token,expected=(200,))
+      students.append((student_id,student_token))
     created=request("POST","/api/sessions",{
       "config":{"totalRounds":8,"numberOfAICompetitors":3,"randomSeed":20260716,
                 "startingCash":500000.0,"initialEquity":300000.0,
                 "plantCapacity":12000,"baseMarketDemand":50000},
-      "teams":[],"created_by":"live-qa-"+stamp,"maxHumanTeams":30
+      "teams":[],"created_by":"live-qa-"+stamp,"maxHumanTeams":30,
+      "classId":class_id
     },token=token,expected=(200,201))
     code=created["code"]
     teams=[]; submissions=0; process_calls=0; counts=[]
     try:
       for i in range(1,21):
         name=f"LIVEQA-{stamp}-{i:02d}"
-        joined=request("PUT",f"/api/sessions/{code}/join",{"teamName":name,"studentId":f"QA{stamp}{i:02d}"},expected=(200,))
+        student_id,student_token=students[i-1]
+        joined=request("PUT",f"/api/sessions/{code}/join",{
+          "teamName":name,"studentId":student_id
+        },token=student_token,expected=(200,))
         assert joined["teamId"]==name, joined
         teams.append(name)
       assert len(set(teams))==20
+      request("POST",f"/api/sessions/{code}/start",token=token,expected=(200,))
       for rnd in range(1,9):
         for i,name in enumerate(teams,1):
+          _,student_token=students[i-1]
           response=request("POST",f"/api/sessions/{code}/submit_decision",
-            {"round":rnd,"teamId":name,"decision":decision(i,rnd)},expected=(200,204))
+            {"round":rnd,"teamId":name,"decision":decision(i,rnd)},
+            token=student_token,expected=(200,204))
           if response is not None: assert response.get("teamId",name)==name
           submissions+=1
         before=request("GET",f"/api/sessions/{code}/status",token=token)

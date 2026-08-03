@@ -1,6 +1,8 @@
 """Practenture FastAPI application."""
 
 import os
+import asyncio
+from contextlib import suppress
 import sys
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
@@ -29,6 +31,7 @@ from models import (
     TeamsResponse,
 )
 from auth import get_current_user, verify_professor
+from legal_pages import router as legal_pages_router
 from routers import ai, announcements, auth, classes, dashboard, decisions, grades, leaderboard, professor, sessions, websocket
 from admin_v2.errors import AdminError, error_envelope
 from admin_v2.router import router as admin_v2_router
@@ -48,6 +51,12 @@ PORT = int(os.environ.get("PRACTENTURE_PORT", "8000"))
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifecycle — startup/shutdown hooks."""
+    from account_deletion_security import validate_provider_security_configuration
+    from apple_token_revocation import validate_apple_revocation_configuration
+
+    validate_provider_security_configuration()
+    validate_apple_revocation_configuration()
+
     # Bootstrap owner account (creates in SQLite if not exists)
     from auth import ensure_owner, ensure_professor
     ensure_owner()
@@ -58,9 +67,26 @@ async def lifespan(app: FastAPI):
     print(f"[Practenture] CORS origins: {CORS_ORIGINS}")
     print(f"[Practenture] JWT_SECRET configured: {'yes' if os.environ.get('PRACTENTURE_JWT_SECRET') else 'no'}")
     print(f"[Practenture] JWT expiry: {os.environ.get('PRACTENTURE_JWT_EXPIRY_HOURS', '24')} hours")
-    yield
-    # Shutdown
-    print("[Practenture] Shutting down")
+
+    async def provider_revocation_worker() -> None:
+        from account_deletion_security import process_pending_provider_revocations
+        from database import db
+
+        while True:
+            try:
+                await asyncio.to_thread(process_pending_provider_revocations, db)
+            except Exception as exc:
+                print(f"[Practenture] Provider revocation worker error: {exc}")
+            await asyncio.sleep(60)
+
+    revocation_task = asyncio.create_task(provider_revocation_worker())
+    try:
+        yield
+    finally:
+        revocation_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await revocation_task
+        print("[Practenture] Shutting down")
 
 
 app = FastAPI(
@@ -247,6 +273,7 @@ async def health_check():
 # ── Register routers ───────────────────────────────────────────────────────
 
 app.include_router(ai.router)
+app.include_router(legal_pages_router)
 app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(websocket.router)

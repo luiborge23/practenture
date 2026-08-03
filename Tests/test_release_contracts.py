@@ -43,11 +43,16 @@ def test_admin_v2_nginx_routes_precede_spa_and_preserve_prefix() -> None:
     assert "proxy_pass http://practenture-backend:8000/;" not in generic_api_block
     admin_block = config[config.index("location = /admin {") : shell]
     assert "proxy_pass http://practenture-backend:8000/admin-v2;" in admin_block
+    legal = config.index("location ~ ^/(privacy|terms|support)$ {")
+    legal_block = config[legal : config.index("    }", legal)]
+    assert legal < fallback
+    assert "proxy_pass http://practenture-backend:8000;" in legal_block
+    assert "proxy_pass http://practenture-backend:8000/;" not in legal_block
     assert config.count(
         'add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;'
     ) == 2
     assert "$proxy_add_x_forwarded_for" not in config
-    assert config.count("proxy_set_header X-Forwarded-For $remote_addr;") == 9
+    assert config.count("proxy_set_header X-Forwarded-For $remote_addr;") == 10
 
 
 def test_compose_exposes_tls_and_mounts_certificates_read_only() -> None:
@@ -62,7 +67,19 @@ def test_compose_exposes_tls_and_mounts_certificates_read_only() -> None:
 def test_container_defaults_require_a_jwt_secret_and_reject_wildcard_cors() -> None:
     compose = COMPOSE.read_text()
     dockerfile = (ROOT / "Dockerfile").read_text()
+    env_example = (ROOT / ".env.example").read_text()
     assert "${PRACTENTURE_JWT_SECRET:?PRACTENTURE_JWT_SECRET must be set}" in compose
+    assert "${PRACTENTURE_PROVIDER_JOB_ENCRYPTION_KEY:?PRACTENTURE_PROVIDER_JOB_ENCRYPTION_KEY must be set}" in compose
+    assert "PRACTENTURE_APPLE_TEAM_ID=${PRACTENTURE_APPLE_TEAM_ID:-}" in compose
+    assert "PRACTENTURE_APPLE_KEY_ID=${PRACTENTURE_APPLE_KEY_ID:-}" in compose
+    assert "PRACTENTURE_APPLE_PRIVATE_KEY=${PRACTENTURE_APPLE_PRIVATE_KEY:-}" in compose
+    for required_provider_setting in (
+        "PRACTENTURE_PROVIDER_JOB_ENCRYPTION_KEY=",
+        "PRACTENTURE_APPLE_TEAM_ID=",
+        "PRACTENTURE_APPLE_KEY_ID=",
+        "PRACTENTURE_APPLE_PRIVATE_KEY=",
+    ):
+        assert required_provider_setting in env_example
     assert "${PRACTENTURE_OWNER_PASSWORD:?PRACTENTURE_OWNER_PASSWORD must be set}" in compose
     assert "${PRACTENTURE_PROFESSOR_PASSWORD:?PRACTENTURE_PROFESSOR_PASSWORD must be set}" in compose
     assert "FORWARDED_ALLOW_IPS=*" not in compose
@@ -74,6 +91,19 @@ def test_container_defaults_require_a_jwt_secret_and_reject_wildcard_cors() -> N
     assert "nginx:alpine@sha256:" in compose
 
 
+def test_backend_image_drops_root_after_preparing_runtime_paths() -> None:
+    dockerfile = (ROOT / "Dockerfile").read_text()
+    ownership = dockerfile.index("chown -R bizsim:bizsim /app /data")
+    user = dockerfile.index("USER bizsim")
+    command = dockerfile.index('CMD ["gunicorn"')
+    assert ownership < user < command
+    compose = COMPOSE.read_text()
+    assert "db-permissions:" in compose
+    assert 'user: "0:0"' in compose
+    assert "chown -R bizsim:bizsim /data" in compose
+    assert "condition: service_completed_successfully" in compose
+
+
 def test_migration_default_targets_authoritative_mounted_database() -> None:
     env = MIGRATION_ENV.read_text()
     assert "PRACTENTURE_DB_PATH" in env
@@ -83,6 +113,14 @@ def test_migration_default_targets_authoritative_mounted_database() -> None:
 
 def test_deploy_consumes_verified_artifact_and_restores_release_on_rollback() -> None:
     deploy = DEPLOY.read_text()
+    for required_provider_setting in (
+        "PRACTENTURE_PROVIDER_JOB_ENCRYPTION_KEY",
+        "PRACTENTURE_APPLE_TEAM_ID",
+        "PRACTENTURE_APPLE_KEY_ID",
+        "PRACTENTURE_APPLE_PRIVATE_KEY",
+    ):
+        assert required_provider_setting in deploy
+    assert "Apple authentication requires audience, team ID, key ID, and private key" in deploy
     assert "rsync -avz --delete" not in deploy
     assert "build_release_artifact.py" in deploy
     assert "sha256sum -c practenture-release.tar.gz.sha256" in deploy

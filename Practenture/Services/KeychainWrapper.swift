@@ -12,15 +12,26 @@ class KeychainWrapper {
     @discardableResult
     func set(_ value: String, forKey key: String) -> Bool {
         guard let data = value.data(using: .utf8) else { return false }
-        let query: [String: Any] = [
+        let itemQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecValueData as String: data
+            kSecAttrAccount as String: key
         ]
-        
-        SecItemDelete(query as CFDictionary)
-        let status = SecItemAdd(query as CFDictionary, nil)
+
+        let updateStatus = SecItemUpdate(
+            itemQuery as CFDictionary,
+            [kSecValueData as String: data] as CFDictionary
+        )
+        if updateStatus == errSecSuccess {
+            return true
+        }
+        guard updateStatus == errSecItemNotFound else {
+            return false
+        }
+
+        var newItem = itemQuery
+        newItem[kSecValueData as String] = data
+        let status = SecItemAdd(newItem as CFDictionary, nil)
         // A missing Keychain entitlement is expected in some XCTest hosts. Return
         // failure to the caller instead of terminating the entire test process.
         return status == errSecSuccess
@@ -41,12 +52,17 @@ class KeychainWrapper {
         return String(data: data, encoding: .utf8)
     }
     
-    func delete(forKey key: String) {
+    @discardableResult
+    func delete(forKey key: String) -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: key
         ]
-        SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            return false
+        }
+        return string(forKey: key) == nil
     }
 }

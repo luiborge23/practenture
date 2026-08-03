@@ -90,6 +90,8 @@ uvicorn main:app --host 0.0.0.0 --port 8005 --reload
 
 ## Environment Variables
 - `PRACTENTURE_JWT_SECRET` — Required JWT signing secret; no production default
+- `PRACTENTURE_PROVIDER_JOB_ENCRYPTION_KEY` — Required stable encryption key for account-deletion markers and provider-revocation jobs; rotate only with an explicit data migration
+- `PRACTENTURE_APPLE_AUDIENCE` / `PRACTENTURE_APPLE_TEAM_ID` / `PRACTENTURE_APPLE_KEY_ID` / `PRACTENTURE_APPLE_PRIVATE_KEY` — Complete Apple configuration required together so account deletion can revoke Sign in with Apple authorization
 - `DATABASE_URL` — Database connection/path; production uses persistent SQLite
 - `PRACTENTURE_PROFESSOR_USERNAME` / `PRACTENTURE_PROFESSOR_PASSWORD` — Deployment-managed Professor bootstrap credentials; never commit or document values
 - `PRACTENTURE_OWNER_USERNAME` / `PRACTENTURE_OWNER_PASSWORD` — Deployment-managed Administrator credentials; never commit or document values

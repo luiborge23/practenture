@@ -239,6 +239,124 @@ final class NetworkServiceTests: XCTestCase {
         )
     }
 
+    func testAccountDeletionRequirementsDecodeProviderAndMFAContract() async throws {
+        DeterministicURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/auth/account/deletion-requirements")
+            XCTAssertEqual(request.httpMethod, "GET")
+            return DeterministicURLProtocol.response(
+                for: request,
+                statusCode: 200,
+                json: #"{"provider":"password","reauthentication":"password","mfaRequired":true,"confirmationPhrase":"DELETE","challengeId":"challenge-id","challenge":"challenge-token","challengeExpiresAt":1234567890,"operationToken":"challenge-token"}"#
+            )
+        }
+
+        let requirements: AccountDeletionRequirements = try await networkService.get(
+            "/api/auth/account/deletion-requirements"
+        )
+        XCTAssertEqual(requirements.provider, "password")
+        XCTAssertEqual(requirements.reauthentication, "password")
+        XCTAssertTrue(requirements.mfaRequired)
+        XCTAssertEqual(requirements.confirmationPhrase, "DELETE")
+        XCTAssertEqual(requirements.operationToken, "challenge-token")
+    }
+
+    func testAccountDeletionSendsDeleteBodyWithReauthenticationProof() async throws {
+        DeterministicURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/auth/account")
+            XCTAssertEqual(request.httpMethod, "DELETE")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+            let bodyData = try XCTUnwrap(
+                try DeterministicURLProtocol.bodyData(for: request)
+            )
+            let body = try XCTUnwrap(
+                try JSONSerialization.jsonObject(with: bodyData) as? [String: String]
+            )
+            XCTAssertEqual(body["confirmation"], "DELETE")
+            XCTAssertEqual(body["password"], "current-password")
+            XCTAssertEqual(body["mfaCode"], "123456")
+            XCTAssertEqual(body["providerToken"], "provider-token")
+            XCTAssertEqual(body["providerNonce"], "challenge-hash")
+            XCTAssertEqual(body["providerAuthorizationCode"], "authorization-code")
+            XCTAssertEqual(body["challengeId"], "challenge-id")
+            XCTAssertEqual(body["operationToken"], "challenge-token")
+            return DeterministicURLProtocol.response(for: request, statusCode: 204, json: "")
+        }
+
+        try await networkService.deleteOnce(
+            "/api/auth/account",
+            body: DeleteAccountRequest(
+                confirmation: "DELETE",
+                password: "current-password",
+                mfaCode: "123456",
+                providerToken: "provider-token",
+                providerNonce: "challenge-hash",
+                providerAuthorizationCode: "authorization-code",
+                challengeId: "challenge-id",
+                operationToken: "challenge-token"
+            ),
+            timeout: 30
+        )
+    }
+
+    func testAccountDeletionDoesNotReplayAmbiguousServerFailure() async throws {
+        var requestCount = 0
+        DeterministicURLProtocol.handler = { request in
+            requestCount += 1
+            return DeterministicURLProtocol.response(
+                for: request,
+                statusCode: 503,
+                json: #"{"detail":{"code":"apple_exchange_failed","message":"Try Apple again."}}"#
+            )
+        }
+
+        do {
+            try await networkService.deleteOnce(
+                "/api/auth/account",
+                body: DeleteAccountRequest(
+                    confirmation: "DELETE",
+                    password: nil,
+                    mfaCode: nil,
+                    providerToken: "provider-token",
+                    providerNonce: "challenge-hash",
+                    providerAuthorizationCode: "authorization-code",
+                    challengeId: "challenge-id",
+                    operationToken: "challenge-token"
+                )
+            )
+            XCTFail("Expected deletion failure")
+        } catch let NetworkError.serverError(status, message) {
+            XCTAssertEqual(status, 503)
+            XCTAssertEqual(message, "Try Apple again.")
+        }
+        XCTAssertEqual(requestCount, 1)
+    }
+
+    func testAccountDeletionStatusUsesOpaqueUnauthenticatedReceipt() async throws {
+        DeterministicURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/auth/account/deletion-status")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+            let bodyData = try XCTUnwrap(
+                try DeterministicURLProtocol.bodyData(for: request)
+            )
+            let body = try XCTUnwrap(
+                try JSONSerialization.jsonObject(with: bodyData) as? [String: String]
+            )
+            XCTAssertEqual(body["operationToken"], "opaque-operation-token")
+            return DeterministicURLProtocol.response(
+                for: request,
+                statusCode: 200,
+                json: #"{"status":"completed"}"#
+            )
+        }
+
+        let response: AccountDeletionStatusResponse = try await networkService.postUnauthenticated(
+            "/api/auth/account/deletion-status",
+            body: AccountDeletionStatusRequest(operationToken: "opaque-operation-token")
+        )
+        XCTAssertEqual(response.status, "completed")
+    }
+
     // MARK: - Request Construction Tests
 
     /// Test that requests set the correct Content-Type header.

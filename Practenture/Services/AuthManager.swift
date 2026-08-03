@@ -24,6 +24,8 @@ final class AuthManager {
     // MARK: - Single source of truth: Keychain
     private let keychain = KeychainWrapper()
     private let network = NetworkService.shared
+    private let pendingDeletionKey = "pending_account_deletion_operation"
+    private let failClosedKey = "practenture_auth_fail_closed"
     var onAuthChange: (() -> Void)?
 
     /// Read current access token from Keychain (single source of truth)
@@ -220,9 +222,35 @@ final class AuthManager {
         onAuthChange?()
     }
 
-    private func clearPersistedTokens() {
-        keychain.delete(forKey: "jwt_token")
-        keychain.delete(forKey: "refresh_token")
+    @discardableResult
+    private func clearPersistedTokens() -> Bool {
+        let accessDeleted = keychain.delete(forKey: "jwt_token")
+        let refreshDeleted = keychain.delete(forKey: "refresh_token")
+        return accessDeleted && refreshDeleted
+    }
+
+    private var isAuthFailClosed: Bool {
+        get { UserDefaults.standard.bool(forKey: failClosedKey) }
+        set { UserDefaults.standard.set(newValue, forKey: failClosedKey) }
+    }
+
+    private func finishLocalAccountDeletion() {
+        stopTokenRefreshScheduler()
+        BackendState.shared.disconnect()
+        isAuthFailClosed = true
+        let tokensDeleted = clearPersistedTokens()
+        let receiptDeleted = keychain.delete(forKey: pendingDeletionKey)
+        clearAuthState()
+        if tokensDeleted && receiptDeleted {
+            isAuthFailClosed = false
+        }
+        onAuthChange?()
+    }
+
+    private func discardPendingDeletionAfterDefinitiveFailure() {
+        if keychain.delete(forKey: pendingDeletionKey) {
+            isAuthFailClosed = false
+        }
     }
 
     private func clearAuthState() {
@@ -508,9 +536,79 @@ final class AuthManager {
     func logout() {
         stopTokenRefreshScheduler()
         BackendState.shared.disconnect()
-        clearPersistedTokens()
+        isAuthFailClosed = true
+        if clearPersistedTokens() {
+            isAuthFailClosed = false
+        }
         clearAuthState()
         onAuthChange?()
+    }
+
+    @MainActor
+    func accountDeletionRequirements() async throws -> AccountDeletionRequirements {
+        try await network.get("/api/auth/account/deletion-requirements")
+    }
+
+    @MainActor
+    func deleteAccount(
+        provider: String,
+        challengeId: String? = nil,
+        operationToken: String,
+        confirmation: String,
+        password: String? = nil,
+        mfaCode: String? = nil,
+        providerToken: String? = nil,
+        providerNonce: String? = nil,
+        providerAuthorizationCode: String? = nil
+    ) async throws {
+        guard keychain.set(operationToken, forKey: pendingDeletionKey) else {
+            throw AuthError.secureStorageUnavailable
+        }
+        isAuthFailClosed = true
+        do {
+            try await network.deleteOnce(
+                "/api/auth/account",
+                body: DeleteAccountRequest(
+                    confirmation: confirmation,
+                    password: password,
+                    mfaCode: mfaCode,
+                    providerToken: providerToken,
+                    providerNonce: providerNonce,
+                    providerAuthorizationCode: providerAuthorizationCode,
+                    challengeId: challengeId,
+                    operationToken: operationToken
+                ),
+                timeout: 30
+            )
+        } catch {
+            let deletionError = error
+            let receipt: AccountDeletionStatusResponse? = try? await network.postUnauthenticated(
+                "/api/auth/account/deletion-status",
+                body: AccountDeletionStatusRequest(operationToken: operationToken)
+            )
+            if receipt?.status == "completed" {
+                // Continue into the same authoritative local-cleanup path as a 204.
+            } else if isDefinitiveDeletionFailure(deletionError) {
+                discardPendingDeletionAfterDefinitiveFailure()
+                throw deletionError
+            } else {
+                clearAuthState()
+                onAuthChange?()
+                throw deletionError
+            }
+        }
+        // The backend response is authoritative. Revoke every local credential and
+        // disconnect gameplay before any best-effort provider SDK cleanup.
+        finishLocalAccountDeletion()
+#if canImport(GoogleSignIn)
+        if provider == "google" {
+            do {
+                try await GIDSignIn.sharedInstance.disconnect()
+            } catch {
+                Logger.auth.error("Google disconnect failed after account deletion: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+#endif
     }
 
     @MainActor
@@ -538,6 +636,19 @@ final class AuthManager {
     /// Respects `rememberMe` — if disabled, clears all persisted tokens immediately.
     @MainActor
     private func restoreSession() {
+        if let operationToken = keychain.string(forKey: pendingDeletionKey),
+           !operationToken.isEmpty {
+            clearAuthState()
+            Task { await reconcilePendingAccountDeletion(operationToken) }
+            return
+        }
+        if isAuthFailClosed {
+            clearAuthState()
+            if clearPersistedTokens() {
+                isAuthFailClosed = false
+            }
+            return
+        }
         // If rememberMe is disabled, clear all persisted tokens
         if !rememberMe {
             clearPersistedTokens()
@@ -623,6 +734,29 @@ final class AuthManager {
             }
         }
     }
+
+    private func isDefinitiveDeletionFailure(_ error: Error) -> Bool {
+        guard case let NetworkError.serverError(code, _) = error else { return false }
+        return (400...499).contains(code) && code != 408
+    }
+
+    @MainActor
+    private func reconcilePendingAccountDeletion(_ operationToken: String) async {
+        do {
+            let receipt: AccountDeletionStatusResponse = try await network.postUnauthenticated(
+                "/api/auth/account/deletion-status",
+                body: AccountDeletionStatusRequest(operationToken: operationToken)
+            )
+            if receipt.status == "completed" {
+                finishLocalAccountDeletion()
+            }
+        } catch NetworkError.serverError(let code, _) where code == 404 {
+            discardPendingDeletionAfterDefinitiveFailure()
+            restoreSession()
+        } catch {
+            // Keep authentication fail-closed until a later launch can reconcile.
+        }
+    }
 }
 
 // MARK: - Auth Error Types
@@ -632,6 +766,7 @@ enum AuthError: LocalizedError {
     case tokenExpired
     case professorRequired
     case professorCodeInvalid
+    case secureStorageUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -643,6 +778,8 @@ enum AuthError: LocalizedError {
             return "A professor account is required to access this feature."
         case .professorCodeInvalid:
             return "The professor code you entered is invalid or has already been used."
+        case .secureStorageUnavailable:
+            return "Secure storage is unavailable. Account deletion was not started."
         }
     }
 }

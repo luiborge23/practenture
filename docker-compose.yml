@@ -1,4 +1,13 @@
 services:
+  db-permissions:
+    image: practenture-backend:${PRACTENTURE_IMAGE_TAG:-stable}
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["chown -R bizsim:bizsim /data"]
+    restart: "no"
+    volumes:
+      - db-data:/data
+
   practenture-backend:
     build:
       context: ./backend
@@ -6,6 +15,9 @@ services:
     image: practenture-backend:${PRACTENTURE_IMAGE_TAG:-stable}
     container_name: practenture-backend
     restart: unless-stopped
+    depends_on:
+      db-permissions:
+        condition: service_completed_successfully
     ports:
       # nginx is the only public entry point; retain loopback access for host diagnostics.
       - "127.0.0.1:8000:8000"
@@ -14,12 +26,16 @@ services:
     environment:
       - PRACTENTURE_DB_PATH=/data/practenture.db
       - PRACTENTURE_JWT_SECRET=${PRACTENTURE_JWT_SECRET:?PRACTENTURE_JWT_SECRET must be set}
+      - PRACTENTURE_PROVIDER_JOB_ENCRYPTION_KEY=${PRACTENTURE_PROVIDER_JOB_ENCRYPTION_KEY:?PRACTENTURE_PROVIDER_JOB_ENCRYPTION_KEY must be set}
       - PRACTENTURE_OWNER_USERNAME=${PRACTENTURE_OWNER_USERNAME:-owner}
       - PRACTENTURE_OWNER_PASSWORD=${PRACTENTURE_OWNER_PASSWORD:?PRACTENTURE_OWNER_PASSWORD must be set}
       - PRACTENTURE_PROFESSOR_USERNAME=${PRACTENTURE_PROFESSOR_USERNAME:-professor}
       - PRACTENTURE_PROFESSOR_PASSWORD=${PRACTENTURE_PROFESSOR_PASSWORD:?PRACTENTURE_PROFESSOR_PASSWORD must be set}
       - PRACTENTURE_JWT_EXPIRY_HOURS=${PRACTENTURE_JWT_EXPIRY_HOURS:-24}
       - PRACTENTURE_APPLE_AUDIENCE=${PRACTENTURE_APPLE_AUDIENCE:-}
+      - PRACTENTURE_APPLE_TEAM_ID=${PRACTENTURE_APPLE_TEAM_ID:-}
+      - PRACTENTURE_APPLE_KEY_ID=${PRACTENTURE_APPLE_KEY_ID:-}
+      - PRACTENTURE_APPLE_PRIVATE_KEY=${PRACTENTURE_APPLE_PRIVATE_KEY:-}
       - PRACTENTURE_GOOGLE_AUDIENCE=${PRACTENTURE_GOOGLE_AUDIENCE:-}
       - PRACTENTURE_CORS_ORIGINS=${PRACTENTURE_CORS_ORIGINS:-http://localhost,http://localhost:8080,capacitor://}
       - PRACTENTURE_EMAIL_PROVIDER=${PRACTENTURE_EMAIL_PROVIDER:-}

@@ -50,9 +50,9 @@ final class AppState {
         AuthManager.shared.onAuthChange = { [weak self] in
             Task { @MainActor in
                 // Do not auto-switch mode on login; LoginView drives selectMode explicitly.
-                // Only reset to launch on explicit logout (accessToken nil and not authenticated)
+                // Reset on logout and fail-closed deletion reconciliation alike.
                 let auth = AuthManager.shared
-                if !auth.isAuthenticated && auth.accessToken == nil {
+                if !auth.isAuthenticated {
                     self?.resetToLaunch()
                 }
             }
@@ -170,5 +170,8 @@ final class AppState {
         currentMode = nil
         activeSession = nil
         gameController = nil
+        professorSessions.removeAll()
+        professorSelectedTab = "sessions"
+        BackendState.shared.disconnect()
     }
 }

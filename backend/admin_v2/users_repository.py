@@ -104,7 +104,11 @@ class UserRepository:
         owned = conn is None
         connection = conn or self._db.connect()
         try:
-            row = connection.execute(self._select_sql() + " WHERE u.username=?", (user_id,)).fetchone()
+            row = connection.execute(
+                self._select_sql()
+                + " WHERE u.username=? AND COALESCE(u.status, 'active')<>'deleted'",
+                (user_id,),
+            ).fetchone()
             return self._record(row) if row else None
         finally:
             if owned:
@@ -119,7 +123,7 @@ class UserRepository:
         normalized_sort = ("-" if descending else "") + sort_name
         fingerprint = _fingerprint(normalized_search, role, status, organization_id, normalized_sort)
         offset = _decode_cursor(cursor, fingerprint)
-        where: list[str] = []
+        where: list[str] = ["COALESCE(u.status, 'active')<>'deleted'"]
         params: list[Any] = []
         if normalized_search:
             where.append("(lower(u.username) LIKE ? OR lower(COALESCE(u.name,'')) LIKE ? OR lower(COALESCE(u.email,'')) LIKE ?)")

@@ -255,6 +255,59 @@ class Database:
             );
             CREATE INDEX IF NOT EXISTS idx_refresh_user ON refresh_tokens(user_id);
 
+            CREATE TABLE IF NOT EXISTS auth_identities (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                provider TEXT NOT NULL CHECK(provider IN ('password','google','apple')),
+                provider_subject TEXT NOT NULL,
+                email TEXT DEFAULT '',
+                created_at REAL NOT NULL,
+                last_login_at REAL,
+                UNIQUE(provider, provider_subject),
+                UNIQUE(user_id, provider)
+            );
+            CREATE INDEX IF NOT EXISTS idx_auth_identities_user
+                ON auth_identities(user_id);
+
+            CREATE TABLE IF NOT EXISTS account_deletion_challenges (
+                id TEXT PRIMARY KEY,
+                user_id_hash TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                nonce_hash TEXT NOT NULL,
+                issued_at REAL NOT NULL,
+                expires_at REAL NOT NULL,
+                consumed_at REAL
+            );
+            CREATE INDEX IF NOT EXISTS idx_deletion_challenges_user
+                ON account_deletion_challenges(user_id_hash, consumed_at, expires_at);
+
+            CREATE TABLE IF NOT EXISTS account_deletion_markers (
+                user_id_hash TEXT PRIMARY KEY,
+                deleted_at REAL NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS provider_revocation_jobs (
+                id TEXT PRIMARY KEY,
+                provider TEXT NOT NULL,
+                payload_ciphertext TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                attempts INTEGER NOT NULL DEFAULT 0,
+                next_attempt_at REAL NOT NULL,
+                last_error TEXT,
+                created_at REAL NOT NULL,
+                completed_at REAL,
+                lease_token TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_provider_revocation_pending
+                ON provider_revocation_jobs(status, next_attempt_at);
+
+            CREATE TABLE IF NOT EXISTS protected_action_throttles (
+                scope_key TEXT PRIMARY KEY,
+                window_started_at REAL NOT NULL,
+                failures INTEGER NOT NULL DEFAULT 0,
+                blocked_until REAL NOT NULL DEFAULT 0
+            );
+
             -- SOTA Phase 2: MFA secrets
             CREATE TABLE IF NOT EXISTS mfa_secrets (
                 user_id TEXT PRIMARY KEY,
@@ -415,6 +468,14 @@ class Database:
         if "version" not in session_columns:
             conn.execute(
                 "ALTER TABLE sessions ADD COLUMN version INTEGER NOT NULL DEFAULT 0"
+            )
+        revocation_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(provider_revocation_jobs)").fetchall()
+        }
+        if "lease_token" not in revocation_columns:
+            conn.execute(
+                "ALTER TABLE provider_revocation_jobs ADD COLUMN lease_token TEXT"
             )
         class_columns = {
             row["name"] for row in conn.execute("PRAGMA table_info(classes)").fetchall()

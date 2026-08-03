@@ -285,6 +285,15 @@ def ensure_professor() -> None:
         # Update password hash to match current env var
         db_module.db.update_user_password(username, h)
     else:
+        from account_deletion_security import (
+            was_account_deleted,
+            was_bootstrap_professor_deleted,
+        )
+
+        if was_bootstrap_professor_deleted(db_module.db) or was_account_deleted(
+            db_module.db, user_id=username
+        ):
+            return
         db_module.db.create_user(
             username=username, password_hash=h, role="professor", name=username
         )

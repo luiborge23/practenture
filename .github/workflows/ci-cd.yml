@@ -17,6 +17,7 @@ concurrency:
 env:
   PYTHON_VERSION: "3.11"
   PRACTENTURE_JWT_SECRET: "ci-only-secret-never-use-in-production"
+  PRACTENTURE_PROVIDER_JOB_ENCRYPTION_KEY: "ci-only-provider-job-key-at-least-32-bytes"
   SECRET_KEY: "ci-only-secret-never-use-in-production"
   DATABASE_URL: "sqlite:////tmp/practenture-ci.db"
 
@@ -102,6 +103,9 @@ jobs:
             test_auth_comprehensive.py \
             test_auth_enrollment.py \
             test_auth_provider_security.py \
+            test_account_deletion.py \
+            test_apple_token_revocation.py \
+            test_migration_008_account_deletion_security.py \
             test_ai.py \
             --junitxml=pytest-regression.xml
       - if: always()
@@ -222,6 +226,20 @@ jobs:
             echo "Xcode tests emitted warnings; zero-warning QA gate failed." >&2
             exit 1
           fi
+      - name: Run deterministic QA UI workflows
+        run: |
+          set -euo pipefail
+          xcodebuild test \
+            -project Practenture.xcodeproj \
+            -scheme QAUITests \
+            -destination '${{ steps.simulator.outputs.destination }}' \
+            -derivedDataPath "$RUNNER_TEMP/PractentureQADerivedData" \
+            -resultBundlePath "$RUNNER_TEMP/PractentureQAUITests.xcresult" \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$RUNNER_TEMP/ios-qa-ui.log"
+          if grep -nE '(^|[[:space:]])warning:' "$RUNNER_TEMP/ios-qa-ui.log"; then
+            echo "Xcode QA UI tests emitted warnings; zero-warning QA gate failed." >&2
+            exit 1
+          fi
       - name: Upload iOS evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -234,6 +252,8 @@ jobs:
             ${{ runner.temp }}/ios-platform-download.log
             ${{ runner.temp }}/simulator-runtime.log
             ${{ runner.temp }}/PractentureTests.xcresult
+            ${{ runner.temp }}/ios-qa-ui.log
+            ${{ runner.temp }}/PractentureQAUITests.xcresult
 
   android-build-and-test:
     name: Android build and tests
@@ -288,6 +308,19 @@ jobs:
             PRACTENTURE_RELEASE_SHA=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Audit resolved production-image dependencies
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint python --env HOME=/tmp "practenture-backend:${GITHUB_SHA}" -m pip freeze --all > "$RUNNER_TEMP/production-freeze.txt"
+          python3 -m venv "$RUNNER_TEMP/pip-audit-venv"
+          "$RUNNER_TEMP/pip-audit-venv/bin/pip" install --disable-pip-version-check --quiet pip-audit
+          "$RUNNER_TEMP/pip-audit-venv/bin/pip-audit" \
+            --cache-dir "$RUNNER_TEMP/pip-audit-cache" \
+            --no-deps \
+            --disable-pip \
+            --requirement "$RUNNER_TEMP/production-freeze.txt" \
+            --progress-spinner off \
+            2> >(grep -vE '^WARNING:pip_audit\._cli:(--no-deps is supported|Consider using a tool like)' >&2)
       - name: Verify deterministic source artifact
         run: |
           set -euo pipefail
@@ -299,6 +332,7 @@ jobs:
           PRACTENTURE_IMAGE_TAG: ${{ github.sha }}
           PRACTENTURE_OWNER_PASSWORD: CiOwnerPassword123!
           PRACTENTURE_PROFESSOR_PASSWORD: CiProfessorPassword123!
+          PRACTENTURE_PROVIDER_JOB_ENCRYPTION_KEY: ci-only-provider-job-key-at-least-32-bytes
         run: |
           set -euo pipefail
           cleanup() {
@@ -307,7 +341,7 @@ jobs:
           trap cleanup EXIT
           docker compose -p practenture-ci run --rm --no-deps practenture-backend alembic upgrade head
           docker compose -p practenture-ci up -d --no-build --no-deps practenture-backend
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             [ "$(docker inspect practenture-backend --format '{{.State.Health.Status}}')" = healthy ] && break
             sleep 2
           done

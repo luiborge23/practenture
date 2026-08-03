@@ -9,24 +9,113 @@ struct UITestHarnessView: View {
         case student
         case offlineQueue
         case visibleError
+        case accountSettings
+        case accountSettingsStudent
+        case accountSettingsProfessor
+        case accountDeletionPasswordMFA
+        case accountDeletionApple
+        case accountDeletionGoogle
     }
 
     let scenario: Scenario
 
+    @ViewBuilder
+    var body: some View {
+        if scenario == .accountSettings {
+            // SettingsView owns its NavigationStack. Avoid nesting navigation
+            // containers because the inner title and toolbar disappear in UI tests.
+            SettingsView()
+                .accessibilityIdentifier("qa.harness")
+        } else if scenario == .accountSettingsStudent {
+            StudentSettingsRouteFixture()
+                .accessibilityIdentifier("qa.harness")
+        } else if scenario == .accountSettingsProfessor {
+            ProfessorSettingsRouteFixture()
+                .accessibilityIdentifier("qa.harness")
+        } else if scenario == .accountDeletionPasswordMFA {
+            AccountDeletionRequirementsFixture(provider: "password", mfaRequired: true)
+                .accessibilityIdentifier("qa.harness")
+        } else if scenario == .accountDeletionApple {
+            AccountDeletionRequirementsFixture(provider: "apple", mfaRequired: false)
+                .accessibilityIdentifier("qa.harness")
+        } else if scenario == .accountDeletionGoogle {
+            AccountDeletionRequirementsFixture(provider: "google", mfaRequired: false)
+                .accessibilityIdentifier("qa.harness")
+        } else {
+            NavigationStack {
+                switch scenario {
+                case .professor:
+                    ProfessorFixture()
+                case .student:
+                    StudentFixture()
+                case .offlineQueue:
+                    OfflineQueueFixture()
+                case .visibleError:
+                    VisibleErrorFixture()
+                case .accountSettings:
+                    EmptyView()
+                case .accountSettingsStudent,
+                     .accountSettingsProfessor,
+                     .accountDeletionPasswordMFA,
+                     .accountDeletionApple,
+                     .accountDeletionGoogle:
+                    EmptyView()
+                }
+            }
+            .accessibilityIdentifier("qa.harness")
+        }
+    }
+}
+
+private struct StudentSettingsRouteFixture: View {
+    @State private var showSettings = false
+
     var body: some View {
         NavigationStack {
-            switch scenario {
-            case .professor:
-                ProfessorFixture()
-            case .student:
-                StudentFixture()
-            case .offlineQueue:
-                OfflineQueueFixture()
-            case .visibleError:
-                VisibleErrorFixture()
-            }
+            Text("Student workspace")
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showSettings = true
+                        } label: {
+                            Label("Settings", systemImage: "gearshape")
+                        }
+                        .accessibilityIdentifier("studentSettingsButton")
+                    }
+                }
         }
-        .accessibilityIdentifier("qa.harness")
+        .sheet(isPresented: $showSettings) { SettingsView() }
+    }
+}
+
+private struct ProfessorSettingsRouteFixture: View {
+    var body: some View {
+        TabView {
+            Text("Professor sessions")
+                .tabItem { Label("Sessions", systemImage: "calendar") }
+            NavigationStack { SettingsView() }
+                .tabItem { Label("Settings", systemImage: "gearshape") }
+        }
+    }
+}
+
+private struct AccountDeletionRequirementsFixture: View {
+    let provider: String
+    let mfaRequired: Bool
+
+    var body: some View {
+        AccountDeletionView {
+            AccountDeletionRequirements(
+                provider: provider,
+                reauthentication: provider,
+                mfaRequired: mfaRequired,
+                confirmationPhrase: "DELETE",
+                challengeId: "qa-challenge",
+                challenge: "qa-operation-token-with-at-least-thirty-two-characters",
+                challengeExpiresAt: 9_999_999_999,
+                operationToken: "qa-operation-token-with-at-least-thirty-two-characters"
+            )
+        }
     }
 }
 

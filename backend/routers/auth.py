@@ -1,10 +1,11 @@
 """Authentication endpoints for Practenture backend."""
 
 import os
-from typing import Optional
+import secrets
+from typing import NoReturn, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from pydantic import BaseModel, Field
 
 from auth import (
     LoginRequest,
@@ -69,6 +70,38 @@ class UpdateProfessorResponse(BaseModel):
     status: str = "updated"
     email: Optional[str] = None
     department: Optional[str] = None
+
+
+class AccountDeletionRequirementsResponse(BaseModel):
+    provider: str
+    reauthentication: str
+    mfaRequired: bool
+    confirmationPhrase: str = "DELETE"
+    challengeId: Optional[str] = None
+    challenge: Optional[str] = None
+    challengeExpiresAt: Optional[float] = None
+    operationToken: str
+
+
+class DeleteAccountRequest(BaseModel):
+    confirmation: str
+    password: Optional[str] = None
+    mfa_code: Optional[str] = Field(default=None, alias="mfaCode")
+    provider_token: Optional[str] = Field(default=None, alias="providerToken")
+    provider_nonce: Optional[str] = Field(default=None, alias="providerNonce")
+    provider_authorization_code: Optional[str] = Field(
+        default=None, alias="providerAuthorizationCode"
+    )
+    challenge_id: Optional[str] = Field(default=None, alias="challengeId")
+    operation_token: Optional[str] = Field(default=None, alias="operationToken")
+
+
+class AccountDeletionStatusRequest(BaseModel):
+    operation_token: str = Field(alias="operationToken")
+
+
+class AccountDeletionStatusResponse(BaseModel):
+    status: str
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -238,6 +271,229 @@ async def update_professor_info(
         email=email or user_data.get("email"),
         department=department or user_data.get("department"),
     )
+
+
+@router.get(
+    "/account/deletion-requirements",
+    response_model=AccountDeletionRequirementsResponse,
+)
+def account_deletion_requirements(
+    request: Request,
+    user=Depends(get_current_user),
+):
+    """Return the identity proof required before destructive self-deletion."""
+    from database import db
+
+    account = db.get_user(user["sub"])
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    provider = str(account.get("provider") or "password").strip().casefold()
+    if provider not in {"apple", "google"}:
+        provider = "password"
+    from account_deletion_security import create_deletion_challenge
+
+    challenge = create_deletion_challenge(
+        db,
+        user_id=user["sub"],
+        provider=provider,
+    )
+    return AccountDeletionRequirementsResponse(
+        provider=provider,
+        reauthentication=provider,
+        mfaRequired=db.is_mfa_enabled(user["sub"]),
+        challengeId=challenge["challengeId"],
+        challenge=challenge["challenge"],
+        challengeExpiresAt=challenge["expiresAt"],
+        operationToken=challenge["operationToken"],
+    )
+
+
+@router.post(
+    "/account/deletion-status",
+    response_model=AccountDeletionStatusResponse,
+)
+def deletion_status(request: AccountDeletionStatusRequest):
+    """Resolve an opaque receipt after a potentially lost deletion response."""
+    from account_deletion_security import account_deletion_status
+    from database import db
+
+    resolved = account_deletion_status(db, operation_token=request.operation_token)
+    if resolved is None:
+        raise HTTPException(status_code=404, detail="Deletion receipt not found.")
+    return AccountDeletionStatusResponse(status=resolved)
+
+
+@router.delete("/account", status_code=status.HTTP_204_NO_CONTENT)
+def delete_current_account(
+    deletion: DeleteAccountRequest,
+    http_request: Request,
+    user=Depends(get_current_user),
+):
+    """Delete locally and durably enqueue provider revocation in one transaction."""
+    from account_deletion import AccountDeletionError, delete_account
+    from account_deletion_security import (
+        DeletionSecurityError,
+        clear_deletion_failures,
+        reserve_deletion_attempt,
+    )
+    from database import db
+
+    client_signal = "|".join(
+        (
+            http_request.client.host if http_request.client else "unknown",
+            http_request.headers.get("user-agent", "unknown")[:200],
+        )
+    )
+
+    def fail(
+        status_code: int, code: str, message: str, *, count: bool = True
+    ) -> NoReturn:
+        raise HTTPException(
+            status_code=status_code,
+            detail={"code": code, "message": message},
+        )
+
+    try:
+        reserve_deletion_attempt(
+            db,
+            user_id=user["sub"],
+            client_signal=client_signal,
+        )
+    except DeletionSecurityError as error:
+        fail(429, error.code, error.message, count=False)
+
+    account = db.get_user(user["sub"])
+    if not account:
+        fail(404, "not_found", "Account not found.", count=False)
+    assert account is not None
+    provider = str(account.get("provider") or "password").strip().casefold()
+    verified_provider = None
+    verified_subject = None
+    provider_issued_at = None
+    provider_revocation_payload = None
+    if provider in {"apple", "google"}:
+        provider_token = deletion.provider_token
+        if not provider_token:
+            fail(
+                403,
+                "provider_reauthentication_required",
+                f"Reauthenticate with {provider.title()} to delete this account.",
+            )
+        audience = os.environ.get(
+            "PRACTENTURE_APPLE_AUDIENCE"
+            if provider == "apple"
+            else "PRACTENTURE_GOOGLE_AUDIENCE"
+        )
+        payload = (
+            verify_apple_id_token(provider_token, audience)
+            if provider == "apple"
+            else verify_google_id_token(provider_token, audience)
+        )
+        if not payload:
+            fail(403, "provider_token_invalid", "The provider token is invalid.")
+        assert payload is not None
+        if provider == "apple" and not deletion.provider_nonce:
+            fail(403, "provider_nonce_required", "Apple reauthentication is incomplete.")
+        verified_provider = provider
+        verified_subject = str(payload.get("sub") or "")
+        try:
+            provider_issued_at = (
+                float(payload["iat"]) if payload.get("iat") is not None else None
+            )
+        except (TypeError, ValueError):
+            fail(403, "provider_token_invalid", "The provider token is invalid.")
+        if not verified_subject or not secrets.compare_digest(
+            str(account.get("provider_uid") or ""), verified_subject
+        ):
+            fail(
+                403,
+                "provider_identity_mismatch",
+                "The reauthenticated identity does not match this account.",
+            )
+        if provider == "apple":
+            from apple_token_revocation import (
+                AppleRevocationError,
+                exchange_apple_authorization_code,
+            )
+
+            if not deletion.provider_authorization_code:
+                fail(
+                    403,
+                    "apple_authorization_code_required",
+                    "Apple reauthentication did not return an authorization code.",
+                )
+            try:
+                provider_revocation_payload = exchange_apple_authorization_code(
+                    deletion.provider_authorization_code
+                )
+            except AppleRevocationError as error:
+                fail(503, "apple_exchange_failed", str(error), count=False)
+            exchanged_id_token = provider_revocation_payload.get("id_token")
+            exchanged_payload = (
+                verify_apple_id_token(str(exchanged_id_token), audience)
+                if exchanged_id_token
+                else None
+            )
+            if (
+                not exchanged_payload
+                or not secrets.compare_digest(
+                    str(exchanged_payload.get("sub") or ""), verified_subject
+                )
+                or not secrets.compare_digest(
+                    str(exchanged_payload.get("nonce") or ""),
+                    deletion.provider_nonce or "",
+                )
+            ):
+                fail(
+                    403,
+                    "apple_authorization_code_mismatch",
+                    "The Apple authorization code does not match this deletion request.",
+                )
+
+    try:
+        delete_account(
+            db,
+            user_id=user["sub"],
+            confirmation=deletion.confirmation,
+            password=deletion.password,
+            mfa_code=deletion.mfa_code,
+            verified_provider=verified_provider,
+            verified_provider_subject=verified_subject,
+            challenge_id=deletion.challenge_id,
+            operation_token=deletion.operation_token,
+            provider_nonce=deletion.provider_nonce,
+            provider_issued_at=provider_issued_at,
+            provider_revocation_payload=provider_revocation_payload,
+        )
+    except AccountDeletionError as error:
+        status_code = {
+            "not_found": 404,
+            "owner_not_supported": 403,
+            "confirmation_required": 409,
+            "password_reauthentication_required": 403,
+            "provider_reauthentication_required": 403,
+            "provider_identity_mismatch": 403,
+            "mfa_reauthentication_required": 403,
+            "mfa_reauthentication_invalid": 403,
+            "active_sessions_require_resolution": 409,
+            "deletion_challenge_required": 403,
+            "deletion_challenge_invalid": 403,
+            "deletion_challenge_replayed": 403,
+            "provider_nonce_mismatch": 403,
+            "provider_token_not_fresh": 403,
+        }.get(error.code, 400)
+        fail(
+            status_code,
+            error.code,
+            error.message,
+            count=error.code not in {"owner_not_supported", "active_sessions_require_resolution"},
+        )
+    clear_deletion_failures(
+        db,
+        user_id=user["sub"],
+        client_signal=client_signal,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ── SOTA Phase 2: Refresh Token Rotation ────────────────────────────────────

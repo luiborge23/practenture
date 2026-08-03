@@ -52,7 +52,9 @@ enum UserFriendlyError {
                 return "Incorrect username or password. Please check your credentials and try again."
                 
             case 403:
-                return "You don't have permission to access this. Please contact your professor or administrator."
+                return message.isEmpty
+                    ? "You don't have permission to access this. Please contact your professor or administrator."
+                    : message
                 
             case 404:
                 return "The requested resource was not found. Please check your connection and try again."
@@ -64,7 +66,9 @@ enum UserFriendlyError {
                 return message.isEmpty ? "This team name is already taken. Please choose a different team name." : message
                 
             case 429:
-                return "Too many login attempts. Please wait a few minutes before trying again."
+                return message.isEmpty
+                    ? "Too many attempts. Please wait a few minutes before trying again."
+                    : message
                 
             case 500:
                 return "A server error occurred. Please try again in a moment."
@@ -102,6 +106,9 @@ enum UserFriendlyError {
             
         case .professorCodeInvalid:
             return "The professor code you entered is invalid or has already been used. Please check with your administrator."
+
+        case .secureStorageUnavailable:
+            return "Secure storage is unavailable, so account deletion was not started. Restart your device and try again."
         }
     }
     

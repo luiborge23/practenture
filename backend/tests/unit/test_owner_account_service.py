@@ -106,6 +106,40 @@ class TestOwnerAccountService:
         assert len(result) == 2
         usernames = [u["username"] for u in result]
         assert "user-001" in usernames
+
+    def test_deleted_tombstones_are_not_discoverable_or_mutable(self, account_service):
+        """Retained relational tombstones are not owner-manageable user accounts."""
+        from database import db
+        from services.errors import UserNotFoundError
+
+        with db._get_conn() as conn:
+            conn.execute(
+                """
+                    INSERT INTO users (username, role, status, name, email, password_hash)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "deleted-user-tombstone",
+                    "student",
+                    "deleted",
+                    "Deleted User",
+                    None,
+                    "$2b$12$unusable",
+                ),
+            )
+            conn.commit()
+
+        assert account_service.get_user("deleted-user-tombstone") is None
+        assert account_service.get_user_by_username("deleted-user-tombstone") is None
+        assert all(
+            user["username"] != "deleted-user-tombstone"
+            for user in account_service.list_users()
+        )
+        with pytest.raises(UserNotFoundError):
+            account_service.reactivate_user(
+                "deleted-user-tombstone",
+                reactivated_by="owner-001",
+            )
     
     def test_suspend_user(self, account_service):
         """Test suspending a user."""

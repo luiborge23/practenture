@@ -47,8 +47,16 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PRACTENTURE_DB_PATH=/data/bizsim.db
 
-# Create data directory for SQLite (persistent volume)
-RUN mkdir -p /data
+# The pinned base contains older packaging metadata. Patched copies arrive from
+# the builder, so remove only the superseded metadata before auditing/runtime.
+# Create writable runtime paths, then drop root before starting the service.
+RUN rm -rf \
+        /usr/local/lib/python3.11/site-packages/pip-24.0.dist-info \
+        /usr/local/lib/python3.11/site-packages/setuptools-79.0.1.dist-info \
+    && mkdir -p /data \
+    && chown -R bizsim:bizsim /app /data
+
+USER bizsim
 
 # Expose port
 EXPOSE 8000

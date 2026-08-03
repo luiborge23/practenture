@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var selectedLanguageCode = I18N.currentLocale.identifier
     @State private var showLanguagePicker = false
     @State private var rememberMe: Bool = AuthManager.shared.rememberMe
+    @State private var showAccountDeletion = false
     
     private var currentLanguageName: String {
         I18N.availableLanguages.first { $0.code == selectedLanguageCode }?.nativeName ?? "English"
@@ -59,32 +60,40 @@ struct SettingsView: View {
                     LabeledContent("Build") {
                         Text(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1")
                     }
-                    Link("Documentation", destination: URL(string: "https://github.com/luisborges/Practenture")!)
-                    Link("Report Issue", destination: URL(string: "https://github.com/luisborges/Practenture/issues")!)
+                    Link("Documentation", destination: URL(string: "https://github.com/luiborge23/practenture")!)
+                    Link("Report Issue", destination: URL(string: "https://github.com/luiborge23/practenture/issues")!)
+                    Link("Privacy Policy", destination: URL(string: "https://practenture.com/privacy")!)
+                    Link("Support", destination: URL(string: "https://practenture.com/support")!)
+                    Link("Terms of Service", destination: URL(string: "https://practenture.com/terms")!)
                 } header: {
                     Text(L10n.about)
                 }
                 
-                // Account Section
-                if appState.currentMode == .professor {
-                    Section {
-                        Button(role: .destructive) {
-                            handleLogout()
-                        } label: {
-                            HStack {
-                                Spacer()
-                                Image(systemName: "rectangle.portrait.and.arrow.right")
-                                Text(L10n.logout)
-                                Spacer()
-                            }
-                        }
-                    } header: {
-                        Text("Account")
+                Section {
+                    Button("Delete Account", role: .destructive) {
+                        showAccountDeletion = true
                     }
+                    .accessibilityIdentifier("deleteAccountButton")
+
+                    Button(role: .destructive) {
+                        handleLogout()
+                    } label: {
+                        HStack {
+                            Spacer()
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                            Text(L10n.logout)
+                            Spacer()
+                        }
+                    }
+                } header: {
+                    Text("Account")
                 }
             }
             .navigationTitle(L10n.settings)
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showAccountDeletion) {
+                AccountDeletionView()
+            }
         }
     }
     

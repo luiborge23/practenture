@@ -136,7 +136,7 @@ struct LoginView: View {
 
                         Text("Secure access powered by Practenture")
                             .font(.caption)
-                            .foregroundStyle(.white.opacity(0.42))
+                            .foregroundStyle(.white)
                             .padding(.bottom, 24)
                     }
                     .frame(maxWidth: .infinity)
@@ -161,7 +161,10 @@ struct LoginView: View {
                 }
                 ToolbarItem(placement: .cancellationAction) {
                     if step == .authenticationMethods {
-                        Button("Close") { dismiss() }
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark")
+                                .accessibilityLabel("Close")
+                        }
                     }
                 }
             }
@@ -293,7 +296,7 @@ struct LoginView: View {
             if let stepSubtitle = stepSubtitleText {
                 Text(stepSubtitle)
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.64))
+                    .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
                     .lineSpacing(2)
                     .frame(maxWidth: 380)
@@ -363,7 +366,7 @@ struct LoginView: View {
 
             #if canImport(GoogleSignInSwift)
             GoogleSignInButton(
-                scheme: .dark,
+                scheme: .light,
                 style: .wide,
                 state: isLoading ? .disabled : .normal,
                 action: handleGoogleSignIn
@@ -382,9 +385,11 @@ struct LoginView: View {
             Text(selectedRole == .professor
                  ? "First-time Apple or Google professors will need a one-time invitation. Returning professors should use the same method they enrolled with."
                  : "Apple and Google are for returning linked student accounts. New students should create Practenture credentials below.")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.58))
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
+                .padding(8)
+                .background(Color(red: 0.08, green: 0.07, blue: 0.15), in: RoundedRectangle(cornerRadius: 8))
 
             authenticationDivider("OR USE PRACTENTURE")
                 .padding(.vertical, 2)
@@ -403,7 +408,7 @@ struct LoginView: View {
             }
             .buttonStyle(.borderedProminent)
             .buttonBorderShape(.roundedRectangle(radius: 14))
-            .tint(PractentureTheme.accentColor)
+            .tint(Color(red: 0.427, green: 0.157, blue: 0.851))
             .accessibilityHint("Use your Practenture ID and password")
 
             Divider()
@@ -417,7 +422,7 @@ struct LoginView: View {
                         .foregroundStyle(.white)
                     Text("Create a student account, then join the class code your professor shares.")
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.58))
+                        .foregroundStyle(.white)
                         .multilineTextAlignment(.center)
                     Button("Create student account") {
                         errorMessage = nil
@@ -434,17 +439,22 @@ struct LoginView: View {
                         .foregroundStyle(.white)
                     Text("Use your one-time invitation to enroll securely.")
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.58))
+                        .foregroundStyle(.white)
                         .multilineTextAlignment(.center)
-                    Button("Redeem professor invitation") {
+                    Button {
                         pendingOAuthProvider = ""
                         pendingOAuthIdToken = ""
                         pendingOAuthNonce = nil
                         errorMessage = nil
                         step = .professorCodeEntry
+                    } label: {
+                        Text("Redeem professor invitation")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
-                    .font(.subheadline.weight(.semibold))
-                    .frame(minHeight: 44)
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -456,10 +466,11 @@ struct LoginView: View {
             Text(title)
                 .font(.caption2.weight(.bold))
                 .tracking(0.7)
-                .foregroundStyle(.white.opacity(0.52))
-                .fixedSize()
+                .foregroundStyle(.white.opacity(0.82))
+                .multilineTextAlignment(.center)
             Rectangle().fill(.white.opacity(0.14)).frame(height: 1)
         }
+        .accessibilityHidden(true)
     }
 
     private func authenticationMessage(_ message: String, isError: Bool) -> some View {

@@ -49,6 +49,7 @@ struct ContentView: View {
     @Environment(AppState.self) private var appState
     // Observe auth so a forced logout (401 refresh fail) resets UI
     @State private var authManager = AuthManager.shared
+    @State private var showStudentSettings = false
 
     var body: some View {
         Group {
@@ -60,12 +61,25 @@ struct ContentView: View {
             case .student:
                 NavigationStack {
                     studentFlow
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button {
+                                    showStudentSettings = true
+                                } label: {
+                                    Label("Settings", systemImage: "gearshape")
+                                }
+                                .accessibilityIdentifier("studentSettingsButton")
+                            }
+                        }
+                }
+                .sheet(isPresented: $showStudentSettings) {
+                    SettingsView()
                 }
             }
         }
         .onChange(of: authManager.isAuthenticated) { _, isAuthed in
             // If token expired elsewhere (NetworkService 401 path) push back to launch
-            if !isAuthed && authManager.accessToken == nil && appState.currentMode != nil {
+            if !isAuthed && appState.currentMode != nil {
                 appState.resetToLaunch()
             }
         }
