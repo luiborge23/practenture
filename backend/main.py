@@ -32,6 +32,7 @@ from models import (
 )
 from auth import get_current_user, verify_professor
 from legal_pages import router as legal_pages_router
+from ses_feedback import router as ses_feedback_router
 from routers import ai, announcements, auth, classes, dashboard, decisions, grades, leaderboard, professor, sessions, websocket
 from admin_v2.errors import AdminError, error_envelope
 from admin_v2.router import router as admin_v2_router
@@ -274,6 +275,7 @@ async def health_check():
 
 app.include_router(ai.router)
 app.include_router(legal_pages_router)
+app.include_router(ses_feedback_router)
 app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(websocket.router)

@@ -20,7 +20,7 @@ from uuid import uuid4
 from database import db
 from .errors import AdminError
 from .redaction import redact_secrets
-
+from ses_suppression import recipient_suppression_hash
 
 _SORT_COLUMNS = {
     "createdAt": "created_at",
@@ -389,6 +389,14 @@ class InvitationRepository:
             email_matches = hmac.compare_digest(str(invitation[1]), intended_email)
             if not active or not secret_matches or not email_matches:
                 raise AdminError(409, "ADMIN_INVITATION_EMAIL_PROOF_INVALID", "The active invitation, email, or disclosed code is invalid")
+            suppression_hash = recipient_suppression_hash(intended_email)
+            if suppression_hash is not None:
+                suppressed = conn.execute(
+                    "SELECT 1 FROM ses_recipient_suppressions WHERE recipient_hash=? AND active=1",
+                    (suppression_hash,),
+                ).fetchone()
+                if suppressed is not None:
+                    raise AdminError(409, "ADMIN_EMAIL_RECIPIENT_SUPPRESSED", "SES delivery is disabled for this recipient")
             delivery_id = f"idel_{uuid4()}"
             conn.execute(
                 """INSERT INTO invitation_email_deliveries
