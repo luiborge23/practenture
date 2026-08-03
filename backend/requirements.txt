@@ -10,7 +10,7 @@ httpx==0.28.1
 httpx2==2.9.1  # Starlette 1.x TestClient transport
 anyio==4.14.2
 PyJWT[crypto]==2.13.0  # Cryptographic Apple/Google ID-token verification
-cryptography==48.0.1  # Direct dependency for Amazon SNS RSA signature verification
+cryptography==50.0.0  # Direct dependency for Amazon SNS RSA signature verification
 bcrypt==5.0.0  # Secure password hashing (P0 security fix — replaces SHA-256)
 # redis  # Uncomment for production with Redis backend
 # python-jose[cryptography]  # For future JWT authentication
