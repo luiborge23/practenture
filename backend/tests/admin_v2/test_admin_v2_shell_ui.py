@@ -19,7 +19,7 @@ def test_shell_references_only_local_versioned_assets_and_is_not_cached():
     assert 'href="/static/admin_v2/admin-v2.css?v=3"' in response.text
     assert 'href="/static/admin_v2/admin-workspaces.css?v=2"' in response.text
     assert 'src="/static/admin_v2/admin-workspaces.js?v=5"' in response.text
-    assert 'src="/static/admin_v2/admin-v2.js?v=13"' in response.text
+    assert 'src="/static/admin_v2/admin-v2.js?v=20260803-ses-suppression-ui"' in response.text
     assert "http://" not in response.text
     assert "https://" not in response.text
     assert "localStorage" not in response.text
@@ -171,7 +171,10 @@ def test_overview_envelope_and_datetime_filters_match_api_contracts():
     assert "pageInfo: backups.pageInfo" in workspaces
     assert "pageInfo: drills.pageInfo" in workspaces
     assert "row.details ? JSON.stringify(row.details)" in workspaces
-    assert 'try{await reauthenticate();const result=await request(`/invitations/' in core
+    send_handler = core.index('$("send-invitation-email").addEventListener')
+    reauth = core.index("await reauthenticate()", send_handler)
+    send_request = core.index('request(`/invitations/', reauth)
+    assert reauth < send_request
     assert '$("password").required=false' in core
     assert 'dialog.addEventListener("cancel",nativeCancel)' in core
     assert 'dialog.addEventListener("close",nativeClose)' in core
@@ -184,3 +187,17 @@ def test_legacy_admin_surface_remains_available():
     assert legacy.status_code == 200
     assert owner.status_code == 308
     assert owner.headers["location"] == "/admin"
+
+
+def test_invitation_email_button_exposes_pending_success_and_suppressed_states():
+    script = (BACKEND / "static" / "admin_v2" / "admin-v2.js").read_text(encoding="utf-8")
+
+    assert "button.disabled=true" in script
+    assert 'button.textContent="Sending securely…"' in script
+    assert 'button.setAttribute("aria-busy","true")' in script
+    assert 'button.textContent="Sent with SES"' in script
+    assert 'error.code==="ADMIN_EMAIL_RECIPIENT_SUPPRESSED"' in script
+    assert 'button.textContent="Recipient suppressed"' in script
+    assert "do not deliver this invitation manually" in script
+    assert 'button.textContent="Send securely with SES";button.disabled=false' in script
+    assert 'button.removeAttribute("aria-busy")' in script
