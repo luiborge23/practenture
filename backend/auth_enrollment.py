@@ -13,6 +13,9 @@ from typing import Any, Dict, Optional
 from database import db
 
 
+PENDING_PROVIDER_IDENTITY_TTL_SECONDS = 30 * 24 * 60 * 60
+
+
 def ensure_identity_schema() -> None:
     with db._lock:
         conn = db._get_conn()
@@ -30,7 +33,72 @@ def ensure_identity_schema() -> None:
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_auth_identities_user ON auth_identities(user_id)")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS pending_provider_identities (
+                provider TEXT NOT NULL CHECK(provider IN ('google','apple')),
+                provider_subject TEXT NOT NULL,
+                email TEXT NOT NULL,
+                expires_at REAL NOT NULL,
+                PRIMARY KEY(provider, provider_subject)
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_pending_provider_identities_expiry "
+            "ON pending_provider_identities(expires_at)"
+        )
         conn.commit()
+
+
+def remember_or_resolve_pending_provider_email(
+    *, provider: str, subject: str, email: str
+) -> str:
+    """Retain a first-login provider email only until invitation enrollment.
+
+    Apple may omit email after the first authorization. The lookup is scoped to
+    the same server-verified provider subject and never performs email-based
+    account linking.
+    """
+    ensure_identity_schema()
+    now = time.time()
+    normalized_email = email.strip()
+    with db._lock:
+        conn = db._get_conn()
+        conn.execute(
+            "DELETE FROM pending_provider_identities WHERE expires_at<=?", (now,)
+        )
+        if normalized_email:
+            conn.execute(
+                """INSERT INTO pending_provider_identities
+                   (provider, provider_subject, email, expires_at)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(provider, provider_subject) DO UPDATE SET
+                       email=excluded.email,
+                       expires_at=excluded.expires_at""",
+                (
+                    provider,
+                    subject,
+                    normalized_email,
+                    now + PENDING_PROVIDER_IDENTITY_TTL_SECONDS,
+                ),
+            )
+            conn.commit()
+            return normalized_email
+        row = conn.execute(
+            """SELECT email FROM pending_provider_identities
+               WHERE provider=? AND provider_subject=? AND expires_at>?""",
+            (provider, subject, now),
+        ).fetchone()
+        conn.commit()
+        return str(row["email"]) if row else ""
+
+
+def _delete_pending_provider_identity(
+    conn: sqlite3.Connection, *, provider: str, subject: str
+) -> None:
+    conn.execute(
+        "DELETE FROM pending_provider_identities WHERE provider=? AND provider_subject=?",
+        (provider, subject),
+    )
 
 
 def _code_row(conn: sqlite3.Connection, code: str) -> Optional[sqlite3.Row]:
@@ -252,6 +320,7 @@ def enroll_social_professor(*, provider: str, subject: str, email: str, name: st
                 (str(uuid.uuid4()), internal_id, provider, subject, email.strip().lower(), time.time(), time.time()),
             )
             _add_invitation_membership(conn, internal_id, code_info, "")
+            _delete_pending_provider_identity(conn, provider=provider, subject=subject)
             conn.commit()
             return dict(conn.execute("SELECT * FROM users WHERE username=?", (internal_id,)).fetchone())
         except Exception:

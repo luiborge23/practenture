@@ -287,14 +287,15 @@ def test_social_enrollment_uses_provider_subject_and_never_merges_by_email():
 
 def test_verified_google_identity_requires_then_consumes_invitation(monkeypatch):
     seed_invitation()
+    claims = {
+        "sub": "google-http-contract-subject",
+        "email": EMAIL,
+        "name": "Google HTTP Professor",
+    }
     monkeypatch.setattr(
         auth,
         "verify_google_id_token",
-        lambda _token, _audience: {
-            "sub": "google-http-contract-subject",
-            "email": EMAIL,
-            "name": "Google HTTP Professor",
-        },
+        lambda _token, _audience: claims,
     )
 
     authorization_required = client.post(
@@ -305,6 +306,14 @@ def test_verified_google_identity_requires_then_consumes_invitation(monkeypatch)
     assert authorization_required.json()["professorCodeRequired"] is True
     assert authorization_required.json()["providerEmail"] == EMAIL
     assert db.get_user("google_http_contract_subject") is None
+
+    claims.pop("email")
+    authorization_retry = client.post(
+        "/api/auth/login",
+        json={"provider": "google", "id_token": "verified-provider-token"},
+    )
+    assert authorization_retry.status_code == 200
+    assert authorization_retry.json()["providerEmail"] == EMAIL
 
     activated = client.post(
         "/api/auth/login",
@@ -319,6 +328,12 @@ def test_verified_google_identity_requires_then_consumes_invitation(monkeypatch)
     assert body["role"] == "professor"
     assert body["accessToken"]
     assert body["professorCodeRequired"] is False
+    with db._get_conn() as conn:
+        pending_identity = conn.execute(
+            """SELECT 1 FROM pending_provider_identities
+               WHERE provider='google' AND provider_subject='google-http-contract-subject'"""
+        ).fetchone()
+    assert pending_identity is None
 
     returning = client.post(
         "/api/auth/login",
@@ -326,6 +341,49 @@ def test_verified_google_identity_requires_then_consumes_invitation(monkeypatch)
     )
     assert returning.status_code == 200, returning.text
     assert returning.json()["userId"] == body["userId"]
+
+
+def test_expired_pending_provider_email_cannot_redeem_invitation(monkeypatch):
+    seed_invitation()
+    claims = {
+        "sub": "expired-pending-provider-subject",
+        "email": EMAIL,
+        "name": "Expired Pending Provider",
+    }
+    monkeypatch.setattr(auth, "verify_google_id_token", lambda _token, _audience: claims)
+
+    initial = client.post(
+        "/api/auth/login",
+        json={"provider": "google", "id_token": "verified-provider-token"},
+    )
+    assert initial.status_code == 200
+    with db._get_conn() as conn:
+        conn.execute(
+            """UPDATE pending_provider_identities SET expires_at=0
+               WHERE provider='google' AND provider_subject='expired-pending-provider-subject'"""
+        )
+        conn.commit()
+    claims.pop("email")
+
+    response = client.post(
+        "/api/auth/login",
+        json={
+            "provider": "google",
+            "id_token": "verified-provider-token",
+            "professor_code": SECRET,
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {
+        "detail": "Provider email is unavailable. Cancel and sign in again before using an invitation."
+    }
+    with db._get_conn() as conn:
+        identity = conn.execute(
+            """SELECT 1 FROM auth_identities
+               WHERE provider='google' AND provider_subject='expired-pending-provider-subject'"""
+        ).fetchone()
+    assert identity is None
 
 
 @pytest.mark.parametrize("status", ["revoked", "expired"])

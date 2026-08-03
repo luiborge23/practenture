@@ -507,7 +507,11 @@ def login(req: LoginRequest) -> LoginResponse | Dict[str, Any]:
             if not token_nonce or not _hmac.compare_digest(token_nonce, req.provider_nonce):
                 raise HTTPException(status_code=401, detail="Provider nonce mismatch")
 
-        from auth_enrollment import find_social_user, enroll_social_professor
+        from auth_enrollment import (
+            find_social_user,
+            enroll_social_professor,
+            remember_or_resolve_pending_provider_email,
+        )
         from security import hash_password
         from audit import log_event
         subject = str(payload.get("sub") or "")
@@ -520,11 +524,19 @@ def login(req: LoginRequest) -> LoginResponse | Dict[str, Any]:
             user = existing_user
             _require_not_suspended(user)
         else:
+            email = remember_or_resolve_pending_provider_email(
+                provider=req.provider, subject=subject, email=email
+            )
             if not req.professor_code:
                 return LoginResponse(accessToken="", tokenType="bearer", role="professor",
                     userId="", mustChangePassword=False, refreshToken=None,
                     mfaRequired=False, professorCodeRequired=True,
                     providerEmail=email or None).model_dump(by_alias=True)
+            if not email:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Provider email is unavailable. Cancel and sign in again before using an invitation.",
+                )
             try:
                 user = enroll_social_professor(
                     provider=req.provider, subject=subject, email=email, name=name,
