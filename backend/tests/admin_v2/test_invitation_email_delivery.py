@@ -4,13 +4,16 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
+import boto3
 import pytest
+from botocore.exceptions import ClientError
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
 from admin_v2.dependencies import require_admin_session, require_recent_auth_session
 from admin_v2.errors import AdminError, error_envelope
+from admin_v2.invitation_email import send_professor_invitation
 from admin_v2.invitations_routes import router
 from database import db
 
@@ -175,3 +178,35 @@ def test_provider_failure_records_failed_not_sent_and_keeps_manual_fallback(clie
         ).fetchone()[0] == "failed"
     finally:
         conn.close()
+
+
+@pytest.mark.parametrize(
+    ("provider_code", "expected_code"),
+    [
+        ("MessageRejected", "ADMIN_EMAIL_SES_MESSAGE_REJECTED"),
+        ("AccessDenied", "ADMIN_EMAIL_SES_ACCESS_DENIED"),
+        ("ThrottlingException", "ADMIN_EMAIL_SES_THROTTLED"),
+        ("UnexpectedProviderFailure", "ADMIN_EMAIL_SES_CLIENT_ERROR"),
+    ],
+)
+def test_ses_client_errors_are_allowlisted_without_provider_message(
+    monkeypatch, provider_code, expected_code
+):
+    monkeypatch.setenv("PRACTENTURE_EMAIL_PROVIDER", "ses")
+    monkeypatch.setenv("PRACTENTURE_SES_SENDER", "noreply@example.edu")
+    monkeypatch.setenv("PRACTENTURE_SES_REGION", "us-east-1")
+
+    class RejectingClient:
+        def send_email(self, **_kwargs):
+            raise ClientError(
+                {"Error": {"Code": provider_code, "Message": "recipient details must not leak"}},
+                "SendEmail",
+            )
+
+    monkeypatch.setattr(boto3, "client", lambda *_args, **_kwargs: RejectingClient())
+    with pytest.raises(AdminError) as raised:
+        send_professor_invitation(recipient="professor@example.edu", secret="one-time-secret")
+
+    assert raised.value.code == expected_code
+    assert "recipient details" not in raised.value.message
+    assert "one-time-secret" not in raised.value.message

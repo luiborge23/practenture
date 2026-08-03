@@ -15,6 +15,43 @@ class EmailDeliveryReceipt:
     message_id: str
 
 
+def _delivery_error(exc: Exception) -> AdminError:
+    """Classify SES failures without exposing provider error text or recipient data."""
+    from botocore.exceptions import BotoCoreError, ClientError
+
+    if isinstance(exc, ClientError):
+        provider_code = str(exc.response.get("Error", {}).get("Code") or "")
+        code, message = {
+            "MessageRejected": (
+                "ADMIN_EMAIL_SES_MESSAGE_REJECTED",
+                "SES rejected the invitation email",
+            ),
+            "AccessDenied": (
+                "ADMIN_EMAIL_SES_ACCESS_DENIED",
+                "SES denied permission to send the invitation email",
+            ),
+            "AccessDeniedException": (
+                "ADMIN_EMAIL_SES_ACCESS_DENIED",
+                "SES denied permission to send the invitation email",
+            ),
+            "Throttling": (
+                "ADMIN_EMAIL_SES_THROTTLED",
+                "SES temporarily throttled invitation email delivery",
+            ),
+            "ThrottlingException": (
+                "ADMIN_EMAIL_SES_THROTTLED",
+                "SES temporarily throttled invitation email delivery",
+            ),
+        }.get(
+            provider_code,
+            ("ADMIN_EMAIL_SES_CLIENT_ERROR", "SES could not accept the invitation email"),
+        )
+        return AdminError(503, code, message)
+    if isinstance(exc, BotoCoreError):
+        return AdminError(503, "ADMIN_EMAIL_SES_UNAVAILABLE", "SES is temporarily unavailable")
+    return AdminError(503, "ADMIN_EMAIL_DELIVERY_FAILED", "SES could not accept the invitation email")
+
+
 def _settings() -> tuple[str, str, str, str]:
     provider = os.environ.get("PRACTENTURE_EMAIL_PROVIDER", "").strip().casefold()
     sender = os.environ.get("PRACTENTURE_SES_SENDER", "").strip()
@@ -54,5 +91,5 @@ def send_professor_invitation(*, recipient: str, secret: str) -> EmailDeliveryRe
         if not message_id:
             raise KeyError("MessageId")
     except (BotoCoreError, ClientError, KeyError, TypeError) as exc:
-        raise AdminError(503, "ADMIN_EMAIL_DELIVERY_FAILED", "SES could not accept the invitation email") from exc
+        raise _delivery_error(exc) from exc
     return EmailDeliveryReceipt(message_id=message_id)
