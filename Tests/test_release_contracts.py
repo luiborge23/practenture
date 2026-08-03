@@ -248,6 +248,12 @@ def test_deploy_consumes_verified_artifact_and_restores_release_on_rollback() ->
         "docker-compose -p practenture up -d --no-build nginx",
         activation_health,
     )
+    permission_normalization = deploy.index(
+        "docker-compose -p practenture run --rm --no-deps db-permissions"
+    )
+    migration = deploy.index("practenture-backend alembic upgrade head")
+    candidate_build = deploy.index('--tag practenture-backend:stable')
+    assert candidate_build < permission_normalization < migration
     assert "Candidate activation did not produce its completion marker" in deploy
     assert "org.opencontainers.image.revision" in deploy
     assert "Candidate failed a deployment gate; restoring retained application" in deploy

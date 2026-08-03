@@ -695,6 +695,10 @@ docker build \
     "$BUILD_CONTEXT"
 rm -rf "$BUILD_CONTEXT"
 trap - EXIT
+# The existing SQLite volume can be owned by the prior root-run release.  Run
+# the explicit root-owned one-shot service before any candidate migration or
+# restore so the non-root backend container can write the authoritative DB.
+docker-compose -p practenture run --rm --no-deps db-permissions </dev/null
 if [ -z "$PREVIOUS_IMAGE" ]; then
     # A first activation has no retained image, but its database must still be
     # reversible if migration, health, proxy, or TLS qualification fails.
