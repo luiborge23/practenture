@@ -52,19 +52,20 @@ def _delivery_error(exc: Exception) -> AdminError:
     return AdminError(503, "ADMIN_EMAIL_DELIVERY_FAILED", "SES could not accept the invitation email")
 
 
-def _settings() -> tuple[str, str, str, str]:
+def _settings() -> tuple[str, str, str, str, str]:
     provider = os.environ.get("PRACTENTURE_EMAIL_PROVIDER", "").strip().casefold()
     sender = os.environ.get("PRACTENTURE_SES_SENDER", "").strip()
     region = os.environ.get("PRACTENTURE_SES_REGION", "us-east-1").strip()
+    configuration_set = os.environ.get("PRACTENTURE_SES_CONFIGURATION_SET", "").strip()
     public_origin = os.environ.get("PRACTENTURE_PUBLIC_ORIGIN", "https://practenture.com").strip().rstrip("/")
     if provider != "ses" or not sender or not region or not public_origin.startswith("https://"):
         raise AdminError(503, "ADMIN_EMAIL_NOT_CONFIGURED", "Email delivery is not configured")
-    return provider, sender, region, public_origin
+    return provider, sender, region, configuration_set, public_origin
 
 
 def send_professor_invitation(*, recipient: str, secret: str) -> EmailDeliveryReceipt:
     """Send one code through SES using the EC2 instance role credential chain."""
-    _, sender, region, public_origin = _settings()
+    _, sender, region, configuration_set, public_origin = _settings()
     try:
         import boto3
         from botocore.exceptions import BotoCoreError, ClientError
@@ -79,14 +80,17 @@ def send_professor_invitation(*, recipient: str, secret: str) -> EmailDeliveryRe
         "This code expires as shown by your Administrator and can be used once."
     )
     try:
-        response = boto3.client("ses", region_name=region).send_email(
-            Source=sender,
-            Destination={"ToAddresses": [recipient]},
-            Message={
+        send_kwargs = {
+            "Source": sender,
+            "Destination": {"ToAddresses": [recipient]},
+            "Message": {
                 "Subject": {"Data": "Your Practenture professor invitation", "Charset": "UTF-8"},
                 "Body": {"Text": {"Data": body, "Charset": "UTF-8"}},
             },
-        )
+        }
+        if configuration_set:
+            send_kwargs["ConfigurationSetName"] = configuration_set
+        response = boto3.client("ses", region_name=region).send_email(**send_kwargs)
         message_id = str(response["MessageId"])
         if not message_id:
             raise KeyError("MessageId")

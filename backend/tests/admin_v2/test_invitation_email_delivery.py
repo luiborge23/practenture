@@ -210,3 +210,24 @@ def test_ses_client_errors_are_allowlisted_without_provider_message(
     assert raised.value.code == expected_code
     assert "recipient details" not in raised.value.message
     assert "one-time-secret" not in raised.value.message
+
+
+def test_ses_configuration_set_is_attached(monkeypatch):
+    monkeypatch.setenv("PRACTENTURE_EMAIL_PROVIDER", "ses")
+    monkeypatch.setenv("PRACTENTURE_SES_SENDER", "noreply@practenture.com")
+    monkeypatch.setenv("PRACTENTURE_SES_REGION", "us-east-1")
+    monkeypatch.setenv("PRACTENTURE_SES_CONFIGURATION_SET", "practenture-transactional")
+    monkeypatch.setenv("PRACTENTURE_PUBLIC_ORIGIN", "https://practenture.com")
+    calls = []
+
+    class Client:
+        def send_email(self, **kwargs):
+            calls.append(kwargs)
+            return {"MessageId": "provider-id"}
+
+    import boto3
+    monkeypatch.setattr(boto3, "client", lambda *args, **kwargs: Client())
+    from admin_v2.invitation_email import send_professor_invitation
+
+    send_professor_invitation(recipient="professor@example.edu", secret="one-time")
+    assert calls[0]["ConfigurationSetName"] == "practenture-transactional"
