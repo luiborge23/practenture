@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
+import plistlib
 import re
 import subprocess
 import sys
@@ -19,10 +21,82 @@ BUILDER = ROOT / "scripts" / "build_release_artifact.py"
 TLS_RENEWAL_INSTALLER = ROOT / "scripts" / "install_tls_renewal.sh"
 TLS_RENEWAL_RESTORER = ROOT / "scripts" / "restore_tls_renewal.sh"
 RELEASE_VERIFIER = ROOT / "scripts" / "verify_release_manifest.py"
+ROLLBACK_RUNBOOK = ROOT / "backend" / "docs" / "ROLLBACK_PLAN.md"
 CI_WORKFLOW = ROOT / ".github" / "workflows" / "ci-cd.yml"
 BACKEND_DOCKERIGNORE = ROOT / "backend" / ".dockerignore"
 LEGACY_RELEASE_VALIDATION = ROOT / "backend" / "scripts" / "release_validation.sh"
 LEGACY_DEPLOY = ROOT / "backend" / "scripts" / "deploy_backup_gated.sh"
+IOS_INFO_PLIST = ROOT / "Info.plist"
+IOS_PROJECT = ROOT / "Practenture.xcodeproj" / "project.pbxproj"
+IOS_DEBUG_CONFIG = ROOT / "Practenture" / "Config" / "Debug.xcconfig"
+IOS_RELEASE_CONFIG = ROOT / "Practenture" / "Config" / "Release.xcconfig"
+
+
+def test_ios_release_uses_strict_ats_and_one_canonical_https_backend() -> None:
+    canonical_backend = "https://api.practenture.com"
+    project = IOS_PROJECT.read_text(encoding="utf-8")
+
+    target_config_list = re.search(
+        r'(?P<id>[A-F0-9]+) /\* Build configuration list for '
+        r'PBXNativeTarget "Practenture" \*/ = \{(?P<body>.*?)\n\t\t\};',
+        project,
+        re.DOTALL,
+    )
+    assert target_config_list is not None
+
+    release_id_match = re.search(
+        r'(?P<id>[A-F0-9]+) /\* Release \*/,',
+        target_config_list.group("body"),
+    )
+    assert release_id_match is not None
+    release_id = release_id_match.group("id")
+
+    release_config = re.search(
+        rf'{re.escape(release_id)} /\* Release \*/ = \{{'
+        r'(?P<body>.*?)\n\t\t\};',
+        project,
+        re.DOTALL,
+    )
+    assert release_config is not None
+    settings_match = re.search(
+        r'buildSettings = \{(?P<settings>.*?)\n\t\t\t\};',
+        release_config.group("body"),
+        re.DOTALL,
+    )
+    assert settings_match is not None
+    release_settings = settings_match.group("settings")
+
+    def release_setting(name: str) -> str:
+        matches = re.findall(
+            rf'^\s*{re.escape(name)} = (?P<value>.*);$',
+            release_settings,
+            re.MULTILINE,
+        )
+        assert len(matches) == 1
+        return matches[0].strip().strip('"')
+
+    assert release_setting("PRACTENTURE_BACKEND_URL") == canonical_backend
+    assert release_setting("INFOPLIST_FILE") == "Info.plist"
+
+    for critical_setting in ("PRACTENTURE_BACKEND_URL", "INFOPLIST_FILE"):
+        assert re.search(
+            rf'^\s*"?{re.escape(critical_setting)}\[[^]]+\]"?\s*=',
+            project,
+            re.MULTILINE,
+        ) is None
+    assert "INFOPLIST_KEY_NSAppTransportSecurity" not in project
+
+    selected_info_plist = ROOT / release_setting("INFOPLIST_FILE")
+    info = plistlib.loads(selected_info_plist.read_bytes())
+    assert info["PRACTENTURE_BACKEND_URL"] == canonical_backend
+    assert "NSAppTransportSecurity" not in info
+
+    for config in (IOS_DEBUG_CONFIG, IOS_RELEASE_CONFIG):
+        config_text = config.read_text(encoding="utf-8")
+        assert f"PRACTENTURE_BACKEND_URL = {canonical_backend}" in config_text
+        assert "PRACTENTURE_BACKEND_URL[" not in config_text
+        assert "INFOPLIST_FILE[" not in config_text
+        assert "INFOPLIST_KEY_NSAppTransportSecurity" not in config_text
 
 
 def test_admin_v2_nginx_routes_precede_spa_and_preserve_prefix() -> None:
@@ -192,13 +266,136 @@ def test_deploy_consumes_verified_artifact_and_restores_release_on_rollback() ->
     assert "Deployment credentials are incomplete" in deploy
     assert "forbidden test/example marker" in deploy
     assert "Deployment requires a clean Git worktree" in deploy
-    assert "Deployment requires HEAD to match origin/main exactly" in deploy
+    assert "Deployment requires HEAD to match the authoritative GitHub main branch exactly" in deploy
+    assert 'EXPECTED_REPOSITORY="luiborge23/practenture"' in deploy
+    assert "PRACTENTURE_RELEASE_RUN_ID" in deploy
+    assert 'gh run view "$RELEASE_RUN_ID"' in deploy
+    assert '--repo "$EXPECTED_REPOSITORY"' in deploy
+    assert "headSha,status,conclusion,event,headBranch,workflowName" in deploy
+    assert '"Practenture Quality Gates"' in deploy
+    assert '".github/workflows/ci-cd.yml"' in deploy
+    assert "check-suites/$CHECK_SUITE_ID/check-runs" in deploy
+    assert 'gh run download "$RELEASE_RUN_ID"' in deploy
+    assert 'CI_ARTIFACT_NAME="backend-release-$SOURCE_REVISION"' in deploy
+    assert 'cmp "$CI_RELEASE_ARTIFACT" "$LOCAL_REPEAT"' in deploy
+    assert "CI release artifact checksum file does not match its exact bytes" in deploy
+    assert "CI artifact is not byte-identical to the clean local exact-SHA tree" in deploy
     assert '--source-revision "$SOURCE_REVISION"' in deploy
     assert 'EXPLICIT_JWT_SECRET="${PRACTENTURE_JWT_SECRET:-}"' in deploy
     assert 'JWT_SECRET="${EXPLICIT_JWT_SECRET:-${PRACTENTURE_JWT_SECRET:-}}"' in deploy
     assert 'TLS_ROLLBACK_DIR="/var/lib/practenture-deploy/tls-rollback-$DEPLOY_ID"' in deploy
     assert 'sudo ./scripts/restore_tls_renewal.sh "$TLS_ROLLBACK_DIR"' in deploy
     assert 'sudo test -f "$TLS_ROLLBACK_DIR/install-complete"' in deploy
+
+
+def test_deploy_ci_preflight_fails_closed_before_credentials_or_ssh(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    deploy = repo / "ec2-deploy.sh"
+    deploy.write_bytes(DEPLOY.read_bytes())
+    deploy.chmod(0o755)
+    (repo / ".gitignore").write_text(".ec2-state.json\n.env\n", encoding="utf-8")
+    (repo / ".ec2-state.json").write_text(
+        '{"public_ip":"192.0.2.10"}\n', encoding="utf-8"
+    )
+    for command in (
+        ["git", "init", "-b", "main"],
+        ["git", "config", "user.name", "Release Contract"],
+        ["git", "config", "user.email", "release-contract@example.invalid"],
+        ["git", "add", "ec2-deploy.sh", ".gitignore"],
+        ["git", "commit", "-m", "fixture"],
+    ):
+        subprocess.run(command, cwd=repo, check=True, capture_output=True, text=True)
+    revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    subprocess.run(
+        ["git", "update-ref", "refs/remotes/origin/main", revision],
+        cwd=repo,
+        check=True,
+    )
+
+    mock_bin = tmp_path / "bin"
+    mock_bin.mkdir()
+    gh = mock_bin / "gh"
+    gh.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+case "$1 $2" in
+  "run view") printf '%s\\n' "$MOCK_RUN_METADATA" ;;
+  "api repos/luiborge23/practenture/git/ref/heads/main")
+    printf '%s\\n' "$MOCK_MAIN_SHA" ;;
+  "api repos/luiborge23/practenture/actions/runs/123")
+    printf 'suite-1\\t%s\\n' "$MOCK_WORKFLOW_PATH" ;;
+  "api repos/luiborge23/practenture/check-suites/suite-1/check-runs?per_page=100")
+    printf '%s\\n' "$MOCK_ANNOTATIONS" ;;
+  *) printf 'unexpected gh call: %s\\n' "$*" >&2; exit 98 ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    gh.chmod(0o755)
+    for command_name in ("ssh", "scp"):
+        command = mock_bin / command_name
+        command.write_text(
+            "#!/usr/bin/env bash\nprintf remote > \"$MOCK_REMOTE_MARKER\"\nexit 99\n",
+            encoding="utf-8",
+        )
+        command.chmod(0o755)
+
+    valid = f"{revision}\tcompleted\tsuccess\tpush\tmain\tPractenture Quality Gates"
+    canonical_workflow = ".github/workflows/ci-cd.yml"
+    scenarios = (
+        (None, revision, valid, "0", canonical_workflow, "Deployment requires PRACTENTURE_RELEASE_RUN_ID"),
+        ("123", "0" * 40, valid, "0", canonical_workflow, "authoritative GitHub main branch"),
+        ("123", revision, f"{'0' * 40}\tcompleted\tsuccess\tpush\tmain\tPractenture Quality Gates", "0", canonical_workflow, "Release run must be"),
+        ("123", revision, f"{revision}\tin_progress\t\tpush\tmain\tPractenture Quality Gates", "0", canonical_workflow, "Release run must be"),
+        ("123", revision, f"{revision}\tcompleted\tfailure\tpush\tmain\tPractenture Quality Gates", "0", canonical_workflow, "Release run must be"),
+        ("123", revision, f"{revision}\tcompleted\tsuccess\tpull_request\tmain\tPractenture Quality Gates", "0", canonical_workflow, "Release run must be"),
+        ("123", revision, f"{revision}\tcompleted\tsuccess\tpush\tdevelop\tPractenture Quality Gates", "0", canonical_workflow, "Release run must be"),
+        ("123", revision, f"{revision}\tcompleted\tsuccess\tpush\tmain\tOther Workflow", "0", canonical_workflow, "Release run must be"),
+        ("123", revision, valid, "0", ".github/workflows/other.yml", "canonical CI workflow path"),
+        ("123", revision, valid, "1", canonical_workflow, "Exact-SHA checks contain unresolved annotations"),
+        ("123", revision, valid, "0", canonical_workflow, "Deployment credentials are incomplete"),
+    )
+    for run_id, main_sha, metadata, annotations, workflow_path, expected_error in scenarios:
+        marker = tmp_path / "remote-called"
+        marker.unlink(missing_ok=True)
+        env = os.environ.copy()
+        for key in tuple(env):
+            if key.startswith("PRACTENTURE_"):
+                env.pop(key)
+        env.update(
+            {
+                "PATH": f"{mock_bin}:{env['PATH']}",
+                "MOCK_RUN_METADATA": metadata,
+                "MOCK_MAIN_SHA": main_sha,
+                "MOCK_ANNOTATIONS": annotations,
+                "MOCK_WORKFLOW_PATH": workflow_path,
+                "MOCK_REMOTE_MARKER": str(marker),
+            }
+        )
+        if run_id is None:
+            env.pop("PRACTENTURE_RELEASE_RUN_ID", None)
+        else:
+            env["PRACTENTURE_RELEASE_RUN_ID"] = run_id
+        result = subprocess.run(
+            ["bash", str(deploy), "deploy"],
+            cwd=repo,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode != 0
+        assert expected_error in result.stderr
+        assert not marker.exists()
+        assert not (repo / ".env").exists()
 
 
 def test_remote_deployment_heredocs_have_valid_bash_syntax() -> None:
@@ -397,6 +594,24 @@ def test_ci_is_hermetic_and_covers_admin_and_the_production_image() -> None:
     assert "--source-revision \"$GITHUB_SHA\"" in workflow
     assert "zricethezav/gitleaks@sha256:" in workflow
     assert "dir /repo --no-banner --redact" in workflow
+    assert "Audit processed iOS Release transport configuration" in workflow
+    assert "PractentureReleaseDerivedData" in workflow
+    assert "-destination 'generic/platform=iOS'" in workflow
+    assert "Release-iphoneos/Practenture.app/Info.plist" in workflow
+    assert "NSAppTransportSecurity" in workflow
+    assert "https://api.practenture.com" in workflow
+    assert "ios-release-config.json" in workflow
+    assert "Upload immutable exact-SHA release artifact" in workflow
+    assert "name: backend-release-${{ github.sha }}" in workflow
+    assert "practenture-release-${{ github.sha }}.tar.gz.sha256" in workflow
+    assert "if-no-files-found: error" in workflow
+    assert "compression-level: 0" in workflow
+    assert workflow.index("Disposable migration, health, backup, and restore rehearsal") < workflow.index(
+        "Upload immutable exact-SHA release artifact"
+    )
+    assert workflow.index("verify_release_manifest.py") < workflow.index(
+        "Upload immutable exact-SHA release artifact"
+    )
     assert (ROOT / ".gitleaks.toml").is_file()
     for unsafe_live_script in (
         "test_sota_phase2.py",
@@ -419,7 +634,23 @@ def test_legacy_systemd_release_paths_fail_closed() -> None:
         assert script.index("exit 64") < script.index("===")
 
 
+def test_rollback_runbook_matches_the_transactional_docker_workflow() -> None:
+    runbook = ROLLBACK_RUNBOOK.read_text()
+    assert "PRACTENTURE_RELEASE_RUN_ID" in runbook
+    assert "backend-release-<SHA>" in runbook
+    assert "Automatic activation rollback" in runbook
+    assert "Post-promotion operator rollback: **BLOCKED" in runbook
+    for retired_instruction in (
+        "sudo systemctl stop practenture",
+        "s3://practenture-backups",
+        ".venv/bin/alembic downgrade",
+        "/var/www/practenture",
+    ):
+        assert retired_instruction not in runbook
+
+
 def test_git_does_not_track_runtime_state_or_credentials() -> None:
+    assert "/.hermes/" in (ROOT / ".gitignore").read_text().splitlines()
     tracked = subprocess.run(
         ["git", "ls-files"], cwd=ROOT, check=True, capture_output=True, text=True
     ).stdout.splitlines()

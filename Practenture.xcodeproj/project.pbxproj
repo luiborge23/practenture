@@ -488,7 +488,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRACTENTURE_BACKEND_URL = "http://18.215.180.58";
+				PRACTENTURE_BACKEND_URL = "https://api.practenture.com";
 				PRODUCT_BUNDLE_IDENTIFIER = com.luisborges.practenture.Practenture;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -525,7 +525,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRACTENTURE_BACKEND_URL = "https://practenture-backend.herokuapp.com";
+				PRACTENTURE_BACKEND_URL = "https://api.practenture.com";
 				PRODUCT_BUNDLE_IDENTIFIER = com.luisborges.practenture.Practenture;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;

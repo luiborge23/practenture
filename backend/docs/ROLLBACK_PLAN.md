@@ -1,154 +1,122 @@
-# Practenture Rollback Plan
+# Practenture Deployment and Rollback Runbook
 
-## Overview
-This document outlines the rollback procedures for Practenture deployments. All deployments must be backup-gated and include a documented rollback plan.
+## Scope
 
-## Prerequisites
+Production uses the repository-root `ec2-deploy.sh` workflow, Docker Compose,
+immutable source releases, and SQLite online backups. The former systemd and S3
+procedure is retired and must not be used.
 
-### Before Any Deployment
-1. Create a pre-deployment backup
-2. Verify backup integrity
-3. Document current migration version
-4. Test rollback procedure in staging
+This runbook distinguishes two different situations:
 
-### Required Tools
-- AWS CLI (for S3 backup access)
-- Alembic CLI (for database migrations)
-- Systemd (for service management)
+1. **Activation failure:** `ec2-deploy.sh deploy` performs an automatic,
+   transaction-style rollback before promotion is committed.
+2. **Incident after successful promotion:** an automated and fault-injected
+   operator command is not implemented yet. This remains a release-readiness
+   blocker; do not improvise a database downgrade or manually retag containers.
 
-## Rollback Triggers
+## Release prerequisites
 
-Rollback should be initiated if:
-- Health check fails after deployment
-- Smoke tests fail
-- Critical errors appear in logs within 15 minutes
-- Users report functionality issues
+Before invoking a deployment, require all of the following:
 
-## Rollback Procedures
+- a clean worktree with `HEAD == origin/main`;
+- a completed successful `push` run of `Practenture Quality Gates` for that
+  exact SHA;
+- zero annotations on that run's check suite;
+- the run's `backend-release-<SHA>` artifact and checksum;
+- production credentials and provider configuration validated by the deploy
+  preflight without printing secret values;
+- production host access and current health confirmed;
+- a maintenance owner present for the entire operation.
 
-### Database Rollback
-
-#### Step 1: Stop the Service
-```bash
-sudo systemctl stop practenture
-```
-
-#### Step 2: Restore Database from Backup
-```bash
-# List available backups
-aws s3 ls s3://practenture-backups/prod/
-
-# Download latest backup
-aws s3 cp s3://practenture-backups/prod/practenture_pre_deploy_YYYYMMDD_HHMMSS.db /var/www/practenture/backup/
-
-# Restore the database
-cp /var/www/practenture/backup/practenture_pre_deploy_YYYYMMDD_HHMMSS.db /var/www/practenture/practenture.db
-```
-
-#### Step 3: Downgrade Migrations
-```bash
-cd /var/www/practenture/backend
-
-# Check current migration version
-.venv/bin/alembic current
-
-# Downgrade by one migration (or more if needed)
-.venv/bin/alembic downgrade -1
-
-# Verify downgrade
-.venv/bin/alembic current
-```
-
-#### Step 4: Restart Service
-```bash
-sudo systemctl start practenture
-```
-
-### Full Rollback (if needed)
-
-If the database restore alone doesn't resolve issues:
+Invoke deployment only with the authorized run ID:
 
 ```bash
-# 1. Stop service
-sudo systemctl stop practenture
-
-# 2. Restore database (see above)
-
-# 3. Downgrade migrations to pre-deployment version
-.venv/bin/alembic downgrade <pre_deployment_version>
-
-# 4. Restart service
-sudo systemctl start practenture
-
-# 5. Verify health
-curl http://localhost:8000/health
+PRACTENTURE_RELEASE_RUN_ID=<successful-run-id> ./ec2-deploy.sh deploy
 ```
 
-## Rollback Verification
+The script downloads that run's exact-SHA archive, validates its checksum and
+manifest, and requires it to be byte-identical to a deterministic build from
+the clean local tree before uploading anything to EC2.
 
-After rollback, verify:
-1. Service is running: `sudo systemctl status practenture`
-2. Health check passes: `curl http://localhost:8000/health`
-3. Database integrity: `.venv/bin/python -c "from services.database_health_service import DatabaseHealthService; from database import db; print(DatabaseHealthService(db).get_health_report())"`
-4. Critical endpoints work: Test login, session creation
+## Automatic activation rollback
 
-## Post-Rollback Actions
+Before stopping the current backend, the deploy transaction retains:
 
-1. **Investigate Root Cause**
-   - Review deployment logs
-   - Check application logs: `tail -f /var/log/practenture/app.log`
-   - Review database migration logs
+- the prior immutable release path;
+- a tagged prior backend image;
+- a SQLite online backup in `~/practenture-backups/predeploy-<DEPLOY_ID>.db`;
+- a disposable copy used for an integrity-checked restore drill;
+- a TLS renewal rollback snapshot while TLS configuration is changing.
 
-2. **Document Incident**
-   - Record what went wrong
-   - Document rollback steps taken
-   - Note any data loss or corruption
+Promotion is allowed only after migration, container health, image revision,
+Nginx, TLS renewal installation, and public HTTPS health gates pass. If a gate
+fails before promotion commits, the script restores the retained image,
+database, release link, and TLS state, then verifies public HTTPS health.
 
-3. **Create Follow-up Plan**
-   - Fix the underlying issue
-   - Update tests to catch similar issues
-   - Consider additional validation steps
+Treat either of these messages as an incident requiring immediate inspection:
 
-## Emergency Rollback (Zero Downtime)
+- `An existing candidate activation is indeterminate`
+- `Deployment and automatic application rollback both failed`
 
-For critical production issues:
+Do not rerun deployment after an indeterminate activation until the retained
+markers, image, backup, release links, container state, and database integrity
+have been inspected and documented.
 
-```bash
-# 1. Immediately stop accepting traffic
-sudo systemctl stop practenture
+## Retained evidence
 
-# 2. Restore from backup (see above)
+The deployment keeps pre-deployment SQLite backups for 30 days and preserves
+immutable release directories and rollback image tags. A successful deployment
+removes only the temporary in-volume backup and TLS transaction snapshot after
+promotion commits.
 
-# 3. Downgrade migrations
+Read-only checks on the host should confirm:
 
-# 4. Restart service
-sudo systemctl start practenture
+- `PRAGMA integrity_check` returns `ok` for the live database and retained
+  backup;
+- the live Alembic revision is the expected single head;
+- the `practenture-current` link resolves to the expected immutable release;
+- the running image label equals the promoted Git SHA;
+- `https://practenture.com/api/health` succeeds through the local Nginx path.
 
-# 5. Verify and notify stakeholders
-curl http://localhost:8000/health
-```
+Never print `.env`, provider private keys, JWT values, passwords, or database
+contents into logs or incident notes.
 
-## Prevention
+## Post-promotion incident policy
 
-### Best Practices
-1. Always run migrations in staging first
-2. Keep rollback backups for at least 7 days
-3. Test rollback procedure monthly
-4. Monitor deployment health closely for 15 minutes after deploy
+There is currently no supported `ec2-deploy.sh rollback` command. Although the
+prior release, image, and 30-day database backup are retained, manually combining
+them has not passed executable fault-injection coverage. Consequently:
 
-### Automated Checks
-- Pre-deployment: Backup age < 1 hour
-- Post-deployment: Health check within 5 minutes
-- Continuous: Error rate monitoring
+- post-promotion rollback is **BLOCKED**, not assumed ready;
+- do not run the retired systemd commands;
+- do not run `alembic downgrade` against production;
+- do not restore a database with `cp` while a service can access it;
+- do not retag or restart containers without a reviewed, incident-specific
+  recovery plan and a tested roll-forward path.
 
-## Contact
+Closure requires an automated post-promotion rollback command that preserves a
+roll-forward snapshot, restores the prior release/image/database as one
+transaction, validates revision and public HTTPS health, and automatically
+rolls forward if rollback qualification fails. Its failure boundaries must be
+exercised in disposable infrastructure before this gate can pass.
 
-For deployment issues:
-- DevOps Team: devops@practenture.com
-- On-call Engineer: +1-555-DEPLOY
+## Evidence to retain
 
-## Revision History
+For every deployment or rollback attempt, retain without secrets:
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | 2026-07-25 | Initial rollback plan |
+- source SHA and GitHub Actions run ID;
+- release artifact SHA-256;
+- previous and candidate release paths;
+- deployment ID and backup filename;
+- migration revision before and after;
+- image revision before and after;
+- health-check results;
+- whether promotion, automatic rollback, or roll-forward completed;
+- CI artifacts and check-suite annotation count.
+
+## Current readiness classification
+
+- Exact-SHA CI artifact production and activation rollback: required gates.
+- Automatic rollback during failed activation: implemented by
+  `ec2-deploy.sh deploy`.
+- Post-promotion operator rollback: **BLOCKED until implemented and rehearsed**.

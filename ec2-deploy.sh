@@ -5,6 +5,7 @@
 #
 # Prerequisites:
 #   - AWS CLI configured (aws configure)
+#   - GitHub CLI authenticated (gh auth status)
 #   - SSH key pair named "practenture" in us-east-1 (or change REGION)
 #   - jq installed (brew install jq)
 # ──────────────────────────────────────────────────────────────────
@@ -199,7 +200,10 @@ EOF
 
 # ── Deploy App to EC2 ────────────────────────────────────────────
 cmd_deploy() {
-    local state SOURCE_REVISION
+    local state SOURCE_REVISION RELEASE_RUN_ID RUN_METADATA RUN_SHA RUN_STATUS
+    local RUN_CONCLUSION RUN_EVENT RUN_BRANCH RUN_WORKFLOW REPOSITORY RUN_API_METADATA
+    local EXPECTED_REPOSITORY AUTHORITATIVE_MAIN_SHA
+    local CHECK_SUITE_ID RUN_WORKFLOW_PATH ANNOTATION_COUNT
     state=$(load_state)
     local PUBLIC_IP
     PUBLIC_IP=$(echo "$state" | jq -r '.public_ip')
@@ -212,8 +216,46 @@ cmd_deploy() {
         error "Deployment requires a clean Git worktree. Commit and verify the release first."
     fi
     SOURCE_REVISION=$(git -C "$SCRIPT_DIR" rev-parse HEAD)
-    if [ "$SOURCE_REVISION" != "$(git -C "$SCRIPT_DIR" rev-parse origin/main)" ]; then
-        error "Deployment requires HEAD to match origin/main exactly."
+    EXPECTED_REPOSITORY="luiborge23/practenture"
+    RELEASE_RUN_ID="${PRACTENTURE_RELEASE_RUN_ID:-}"
+    if [ -z "$RELEASE_RUN_ID" ]; then
+        error "Deployment requires PRACTENTURE_RELEASE_RUN_ID for the successful exact-SHA CI run."
+    fi
+    if ! command -v gh >/dev/null 2>&1; then
+        error "GitHub CLI is required to verify and download the exact-SHA release artifact."
+    fi
+    AUTHORITATIVE_MAIN_SHA=$(gh api \
+        "repos/$EXPECTED_REPOSITORY/git/ref/heads/main" \
+        --jq .object.sha)
+    if [ "$SOURCE_REVISION" != "$AUTHORITATIVE_MAIN_SHA" ]; then
+        error "Deployment requires HEAD to match the authoritative GitHub main branch exactly."
+    fi
+    RUN_METADATA=$(gh run view "$RELEASE_RUN_ID" \
+        --repo "$EXPECTED_REPOSITORY" \
+        --json headSha,status,conclusion,event,headBranch,workflowName \
+        --jq '[.headSha,.status,.conclusion,.event,.headBranch,.workflowName] | @tsv')
+    IFS=$'\t' read -r RUN_SHA RUN_STATUS RUN_CONCLUSION RUN_EVENT RUN_BRANCH RUN_WORKFLOW <<< "$RUN_METADATA"
+    if [ "$RUN_SHA" != "$SOURCE_REVISION" ] || \
+       [ "$RUN_STATUS" != "completed" ] || \
+       [ "$RUN_CONCLUSION" != "success" ] || \
+       [ "$RUN_EVENT" != "push" ] || \
+       [ "$RUN_BRANCH" != "main" ] || \
+       [ "$RUN_WORKFLOW" != "Practenture Quality Gates" ]; then
+        error "Release run must be a successful completed main-branch push of this exact SHA using Practenture Quality Gates."
+    fi
+    REPOSITORY="$EXPECTED_REPOSITORY"
+    RUN_API_METADATA=$(gh api \
+        "repos/$REPOSITORY/actions/runs/$RELEASE_RUN_ID" \
+        --jq '[.check_suite_id,.path] | @tsv')
+    IFS=$'\t' read -r CHECK_SUITE_ID RUN_WORKFLOW_PATH <<< "$RUN_API_METADATA"
+    if [ "$RUN_WORKFLOW_PATH" != ".github/workflows/ci-cd.yml" ]; then
+        error "Release run must use the repository's canonical CI workflow path."
+    fi
+    ANNOTATION_COUNT=$(gh api \
+        "repos/$REPOSITORY/check-suites/$CHECK_SUITE_ID/check-runs?per_page=100" \
+        --jq '[.check_runs[].output.annotations_count // 0] | add // 0')
+    if [ "$ANNOTATION_COUNT" != "0" ]; then
+        error "Exact-SHA checks contain unresolved annotations."
     fi
 
     info "=== Deploying Practenture to EC2 ($PUBLIC_IP) ==="
@@ -376,15 +418,59 @@ PY
 
     ok "Wrote stable .env (JWT + owner + professor preserved)"
 
-    # Build and stage one checksummed immutable application artifact. Runtime
-    # configuration and the database remain outside the release archive.
-    info "Building immutable release artifact..."
+    # Consume the immutable artifact emitted by the authorized exact-SHA CI run.
+    # A local deterministic rebuild must be byte-identical before any upload.
+    info "Downloading and verifying exact-SHA CI release artifact..."
     RELEASE_DIR=$(mktemp -d)
+    CI_ARTIFACT_NAME="backend-release-$SOURCE_REVISION"
+    CI_DOWNLOAD_DIR="$RELEASE_DIR/ci"
+    mkdir "$CI_DOWNLOAD_DIR"
+    gh run download "$RELEASE_RUN_ID" \
+        --repo "$EXPECTED_REPOSITORY" \
+        --name "$CI_ARTIFACT_NAME" \
+        --dir "$CI_DOWNLOAD_DIR"
+    CI_RELEASE_ARTIFACT="$CI_DOWNLOAD_DIR/practenture-release-$SOURCE_REVISION.tar.gz"
+    CI_RELEASE_CHECKSUM="$CI_RELEASE_ARTIFACT.sha256"
+    python3 - "$CI_DOWNLOAD_DIR" \
+        "$(basename "$CI_RELEASE_ARTIFACT")" \
+        "$(basename "$CI_RELEASE_CHECKSUM")" <<'PY'
+from pathlib import Path
+import sys
+
+directory = Path(sys.argv[1])
+expected = set(sys.argv[2:])
+actual = {path.name for path in directory.iterdir()}
+if actual != expected:
+    raise SystemExit(f"release artifact contains unexpected files: {sorted(actual - expected)}")
+for name in expected:
+    path = directory / name
+    if path.is_symlink() or not path.is_file():
+        raise SystemExit(f"release artifact member is missing or unsafe: {name}")
+PY
+    RELEASE_SHA=$(sha256sum "$CI_RELEASE_ARTIFACT" | awk '{print $1}')
+    EXPECTED_CHECKSUM="$RELEASE_SHA  $(basename "$CI_RELEASE_ARTIFACT")"
+    if [ "$(cat "$CI_RELEASE_CHECKSUM")" != "$EXPECTED_CHECKSUM" ]; then
+        error "CI release artifact checksum file does not match its exact bytes."
+    fi
+    LOCAL_REPEAT="$RELEASE_DIR/local-repeat.tar.gz"
     python3 "$SCRIPT_DIR/scripts/build_release_artifact.py" \
         --root "$SCRIPT_DIR" \
         --source-revision "$SOURCE_REVISION" \
-        --output "$RELEASE_DIR/practenture-release.tar.gz"
-    RELEASE_SHA=$(awk '{print $1}' "$RELEASE_DIR/practenture-release.tar.gz.sha256")
+        --output "$LOCAL_REPEAT"
+    if ! cmp "$CI_RELEASE_ARTIFACT" "$LOCAL_REPEAT"; then
+        error "CI artifact is not byte-identical to the clean local exact-SHA tree."
+    fi
+    LOCAL_VERIFY_DIR="$RELEASE_DIR/verify"
+    mkdir "$LOCAL_VERIFY_DIR"
+    tar -xzf "$CI_RELEASE_ARTIFACT" -C "$LOCAL_VERIFY_DIR"
+    LOCAL_MANIFEST_SHA256=$(sha256sum "$LOCAL_VERIFY_DIR/RELEASE-MANIFEST.json" | awk '{print $1}')
+    python3 "$SCRIPT_DIR/scripts/verify_release_manifest.py" \
+        "$LOCAL_VERIFY_DIR" \
+        --source-revision "$SOURCE_REVISION" \
+        --manifest-sha256 "$LOCAL_MANIFEST_SHA256"
+    cp "$CI_RELEASE_ARTIFACT" "$RELEASE_DIR/practenture-release.tar.gz"
+    printf '%s  %s\n' "$RELEASE_SHA" "practenture-release.tar.gz" \
+        > "$RELEASE_DIR/practenture-release.tar.gz.sha256"
 
     info "Uploading verified release artifact..."
     ssh -o StrictHostKeyChecking=no -i ~/.ssh/$KEY_NAME ec2-user@$PUBLIC_IP \
@@ -835,5 +921,6 @@ case "${1:-help}" in
         echo "  AWS_REGION          (default: us-east-1)"
         echo "  EC2_INSTANCE_TYPE   (default: t3.medium)"
         echo "  EC2_KEY_NAME        (default: practenture)"
+        echo "  PRACTENTURE_RELEASE_RUN_ID (required for deploy; successful exact-SHA CI run)"
         ;;
 esac

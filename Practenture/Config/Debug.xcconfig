@@ -1,5 +1,5 @@
 // Debug.xcconfig
 // Practenture — Development environment configuration
 
-PRACTENTURE_BACKEND_URL = https://practenture.com
+PRACTENTURE_BACKEND_URL = https://api.practenture.com
 PRACTENTURE_ENVIRONMENT = Debug

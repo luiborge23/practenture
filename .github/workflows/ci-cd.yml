@@ -212,6 +212,42 @@ jobs:
             echo "Xcode build emitted warnings; zero-warning QA gate failed." >&2
             exit 1
           fi
+      - name: Audit processed iOS Release transport configuration
+        run: |
+          set -euo pipefail
+          xcodebuild build \
+            -project Practenture.xcodeproj \
+            -scheme Practenture \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/PractentureReleaseDerivedData" \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$RUNNER_TEMP/ios-release-build.log"
+          if grep -nE '(^|[[:space:]])warning:' "$RUNNER_TEMP/ios-release-build.log"; then
+            echo "Xcode Release build emitted warnings; zero-warning QA gate failed." >&2
+            exit 1
+          fi
+          RELEASE_INFO="$RUNNER_TEMP/PractentureReleaseDerivedData/Build/Products/Release-iphoneos/Practenture.app/Info.plist"
+          test -f "$RELEASE_INFO"
+          python3 - "$RELEASE_INFO" "$RUNNER_TEMP/ios-release-config.json" <<'PY'
+          import json
+          import plistlib
+          import sys
+
+          info_path, evidence_path = sys.argv[1:]
+          with open(info_path, "rb") as release_info_file:
+              info = plistlib.load(release_info_file)
+          backend_url = info.get("PRACTENTURE_BACKEND_URL")
+          ats_present = "NSAppTransportSecurity" in info
+          evidence = {
+              "PRACTENTURE_BACKEND_URL": backend_url,
+              "NSAppTransportSecurity_present": ats_present,
+          }
+          with open(evidence_path, "w", encoding="utf-8") as evidence_file:
+              json.dump(evidence, evidence_file, sort_keys=True)
+              evidence_file.write("\n")
+          assert backend_url == "https://api.practenture.com", evidence
+          assert not ats_present, evidence
+          PY
       - name: Test without rebuilding
         run: |
           set -euo pipefail
@@ -247,6 +283,8 @@ jobs:
           name: ios-test-evidence
           path: |
             ${{ runner.temp }}/ios-build.log
+            ${{ runner.temp }}/ios-release-build.log
+            ${{ runner.temp }}/ios-release-config.json
             ${{ runner.temp }}/ios-test.log
             ${{ runner.temp }}/xcode-version.log
             ${{ runner.temp }}/ios-platform-download.log
@@ -324,9 +362,26 @@ jobs:
       - name: Verify deterministic source artifact
         run: |
           set -euo pipefail
-          python3 scripts/build_release_artifact.py --root . --source-revision "$GITHUB_SHA" --output "$RUNNER_TEMP/release-a.tar.gz"
-          python3 scripts/build_release_artifact.py --root . --source-revision "$GITHUB_SHA" --output "$RUNNER_TEMP/release-b.tar.gz"
-          cmp "$RUNNER_TEMP/release-a.tar.gz" "$RUNNER_TEMP/release-b.tar.gz"
+          RELEASE_ARTIFACT="$RUNNER_TEMP/practenture-release-$GITHUB_SHA.tar.gz"
+          REPEAT_ARTIFACT="$RUNNER_TEMP/practenture-release-repeat.tar.gz"
+          python3 scripts/build_release_artifact.py --root . --source-revision "$GITHUB_SHA" --output "$RELEASE_ARTIFACT"
+          python3 scripts/build_release_artifact.py --root . --source-revision "$GITHUB_SHA" --output "$REPEAT_ARTIFACT"
+          cmp "$RELEASE_ARTIFACT" "$REPEAT_ARTIFACT"
+          (
+            cd "$RUNNER_TEMP"
+            sha256sum -c "$(basename "$RELEASE_ARTIFACT").sha256"
+          )
+          mkdir "$RUNNER_TEMP/release-verification"
+          tar -xzf "$RELEASE_ARTIFACT" -C "$RUNNER_TEMP/release-verification"
+          MANIFEST_SHA256=$(sha256sum "$RUNNER_TEMP/release-verification/RELEASE-MANIFEST.json" | awk '{print $1}')
+          python3 scripts/verify_release_manifest.py \
+            "$RUNNER_TEMP/release-verification" \
+            --source-revision "$GITHUB_SHA" \
+            --manifest-sha256 "$MANIFEST_SHA256"
+          rm -rf \
+            "$REPEAT_ARTIFACT" \
+            "$REPEAT_ARTIFACT.sha256" \
+            "$RUNNER_TEMP/release-verification"
       - name: Disposable migration, health, backup, and restore rehearsal
         env:
           PRACTENTURE_IMAGE_TAG: ${{ github.sha }}
@@ -349,3 +404,13 @@ jobs:
           curl -fsS http://127.0.0.1:8000/api/health >/dev/null
           docker exec practenture-backend python -c "import sqlite3,subprocess; heads=[line.split()[0] for line in subprocess.check_output(['alembic','heads'],text=True).splitlines() if line.strip()]; assert len(heads)==1; a=sqlite3.connect('/data/practenture.db'); b=sqlite3.connect('/data/ci-backup.sqlite'); a.backup(b); assert b.execute('pragma integrity_check').fetchone()[0]=='ok'; assert b.execute('select version_num from alembic_version').fetchone()[0]==heads[0]; b.close(); a.close()"
           docker exec practenture-backend python -c "import sqlite3; c=sqlite3.connect('/data/ci-backup.sqlite'); assert c.execute('pragma integrity_check').fetchone()[0]=='ok'; c.close()"
+      - name: Upload immutable exact-SHA release artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-release-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/practenture-release-${{ github.sha }}.tar.gz
+            ${{ runner.temp }}/practenture-release-${{ github.sha }}.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0

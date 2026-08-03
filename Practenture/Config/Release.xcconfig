@@ -1,7 +1,7 @@
 // Release.xcconfig
 // Practenture — Production environment configuration
 
-PRACTENTURE_BACKEND_URL = https://practenture.com
+PRACTENTURE_BACKEND_URL = https://api.practenture.com
 PRACTENTURE_ENVIRONMENT = Release
 
 // Production optimization and hardening
