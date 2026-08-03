@@ -171,6 +171,32 @@ final class NetworkServiceTests: XCTestCase {
                        "A server error occurred. Please try again later.")
     }
 
+    func testInvitationEmailMismatchProvidesActionableGuidance() {
+        let error = NetworkError.serverError(401, "Invitation email does not match")
+        let expected = "This professor invitation must be issued to the email associated with your sign-in provider. Ask your administrator for a matching invitation."
+
+        XCTAssertEqual(error.errorDescription, expected)
+        XCTAssertEqual(UserFriendlyError.message(for: error), expected)
+    }
+
+    func testProfessorCodeRequiredDecodesVerifiedProviderEmail() throws {
+        let payload = Data("""
+        {
+          "accessToken": "",
+          "tokenType": "bearer",
+          "role": "professor",
+          "userId": "",
+          "professorCodeRequired": true,
+          "providerEmail": "professor@example.edu"
+        }
+        """.utf8)
+
+        let response = try JSONDecoder().decode(AuthLoginResponse.self, from: payload)
+
+        XCTAssertTrue(response.professorCodeRequired ?? false)
+        XCTAssertEqual(response.providerEmail, "professor@example.edu")
+    }
+
     // MARK: - Health Check Tests
 
     /// A deterministic client error is handled as an unhealthy backend. The

@@ -60,6 +60,7 @@ struct LoginView: View {
     @State private var pendingOAuthProvider = ""
     @State private var pendingOAuthIdToken = ""
     @State private var pendingOAuthNonce: String? = nil
+    @State private var pendingOAuthEmail: String? = nil
     @State private var activeAppleNonce: String? = nil
 
     // Professor existence — gates student onboarding
@@ -604,6 +605,25 @@ struct LoginView: View {
                 .foregroundStyle(.white.opacity(0.64))
                 .multilineTextAlignment(.center)
 
+            if pendingOAuthProvider != "" {
+                if let providerEmail = pendingOAuthEmail, !providerEmail.isEmpty {
+                    Text("Ask your administrator to issue the invitation to this verified \(providerName) email:")
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.64))
+                        .multilineTextAlignment(.center)
+                    Text(providerEmail)
+                        .font(.caption.weight(.semibold).monospaced())
+                        .foregroundStyle(.white)
+                        .textSelection(.enabled)
+                        .multilineTextAlignment(.center)
+                } else {
+                    Text("\(providerName) did not provide an email for this sign-in. Cancel and sign in again, then ask your administrator for help if no email appears.")
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.64))
+                        .multilineTextAlignment(.center)
+                }
+            }
+
             TextField("One-time invitation code", text: $professorCode)
                 .textInputAutocapitalization(.characters)
                 .autocorrectionDisabled()
@@ -634,6 +654,7 @@ struct LoginView: View {
                 Button {
                     pendingOAuthProvider = ""
                     pendingOAuthIdToken = ""
+                    pendingOAuthEmail = nil
                     professorCode = ""
                     errorMessage = nil
                     step = .roleSelection
@@ -1136,6 +1157,7 @@ struct LoginView: View {
                 pendingOAuthProvider = ""
                 pendingOAuthIdToken = ""
                 pendingOAuthNonce = nil
+                pendingOAuthEmail = nil
                 professorCode = ""
                 step = .authenticationMethods
             }
@@ -1212,6 +1234,7 @@ struct LoginView: View {
                 pendingOAuthProvider = ""
                 pendingOAuthIdToken = ""
                 pendingOAuthNonce = nil
+                pendingOAuthEmail = nil
                 
                 // Social enrollment always creates a professor. Complete as professor.
                 finishOnboarding()
@@ -1414,6 +1437,7 @@ struct LoginView: View {
                     pendingOAuthProvider = "apple"
                     pendingOAuthIdToken = idToken
                     pendingOAuthNonce = nonce
+                    pendingOAuthEmail = response.providerEmail
                     step = .professorCodeEntry
                     return
                 }
@@ -1477,6 +1501,7 @@ struct LoginView: View {
                         pendingOAuthProvider = "google"
                         pendingOAuthIdToken = idToken
                         pendingOAuthNonce = nil
+                        pendingOAuthEmail = response.providerEmail
                         step = .professorCodeEntry
                         return
                         }

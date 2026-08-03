@@ -23,10 +23,13 @@ enum NetworkError: Error, LocalizedError {
             return "Invalid URL. Please check your connection settings."
         case .decodingError:
             return "Failed to decode response from the server."
-        case .serverError(let code, _):
+        case .serverError(let code, let message):
             // Map HTTP status codes to user-friendly messages
             switch code {
             case 401:
+                if message.localizedCaseInsensitiveContains("Invitation email does not match") {
+                    return "This professor invitation must be issued to the email associated with your sign-in provider. Ask your administrator for a matching invitation."
+                }
                 return "Incorrect username or password. Please try again."
             case 404:
                 return "Account not found. Please check your username or contact support."

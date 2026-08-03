@@ -40,6 +40,7 @@ struct AuthLoginResponse: Codable {
     var mustChangePassword: Bool? = false
     var mfaRequired: Bool? = false
     var professorCodeRequired: Bool? = false
+    var providerEmail: String? = nil
     
     enum CodingKeys: String, CodingKey {
         case accessToken
@@ -50,6 +51,7 @@ struct AuthLoginResponse: Codable {
         case mustChangePassword
         case mfaRequired
         case professorCodeRequired = "professorCodeRequired"
+        case providerEmail
     }
 }
 

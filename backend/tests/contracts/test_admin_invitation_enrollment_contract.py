@@ -303,6 +303,7 @@ def test_verified_google_identity_requires_then_consumes_invitation(monkeypatch)
     )
     assert authorization_required.status_code == 200
     assert authorization_required.json()["professorCodeRequired"] is True
+    assert authorization_required.json()["providerEmail"] == EMAIL
     assert db.get_user("google_http_contract_subject") is None
 
     activated = client.post(

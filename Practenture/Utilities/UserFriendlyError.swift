@@ -49,6 +49,9 @@ enum UserFriendlyError {
             // Map HTTP status codes to user-friendly messages with actionable guidance
             switch code {
             case 401:
+                if message.localizedCaseInsensitiveContains("Invitation email does not match") {
+                    return "This professor invitation must be issued to the email associated with your sign-in provider. Ask your administrator for a matching invitation."
+                }
                 return "Incorrect username or password. Please check your credentials and try again."
                 
             case 403:

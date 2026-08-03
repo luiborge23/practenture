@@ -190,6 +190,7 @@ class LoginResponse(BaseModel):
     refresh_token: Optional[str] = Field(default=None, alias="refreshToken")
     mfa_required: bool = Field(default=False, alias="mfaRequired")
     professor_code_required: bool = Field(default=False, alias="professorCodeRequired")
+    provider_email: Optional[str] = Field(default=None, alias="providerEmail")
 
     model_config = {"populate_by_name": True}
 
@@ -512,7 +513,7 @@ def login(req: LoginRequest) -> LoginResponse | Dict[str, Any]:
         subject = str(payload.get("sub") or "")
         if not subject:
             raise HTTPException(status_code=401, detail="Provider token has no stable subject")
-        email = str(payload.get("email") or "")
+        email = str(payload.get("email") or "").strip()
         name = str(payload.get("name") or "")
         existing_user = find_social_user(req.provider, subject)
         if existing_user:
@@ -522,7 +523,8 @@ def login(req: LoginRequest) -> LoginResponse | Dict[str, Any]:
             if not req.professor_code:
                 return LoginResponse(accessToken="", tokenType="bearer", role="professor",
                     userId="", mustChangePassword=False, refreshToken=None,
-                    mfaRequired=False, professorCodeRequired=True).model_dump(by_alias=True)
+                    mfaRequired=False, professorCodeRequired=True,
+                    providerEmail=email or None).model_dump(by_alias=True)
             try:
                 user = enroll_social_professor(
                     provider=req.provider, subject=subject, email=email, name=name,
