@@ -4,6 +4,8 @@ set -euo pipefail
 SERVICE_NAME="practenture-certbot-renew.service"
 TIMER_NAME="practenture-certbot-renew.timer"
 HOOK_PATH="/etc/letsencrypt/renewal-hooks/deploy/practenture-nginx-reload"
+HOOK_DIR=$(dirname -- "$HOOK_PATH")
+WEBROOT_PATH="/var/www/certbot"
 SYSTEMD_DIR="/etc/systemd/system"
 
 if [ "${EUID}" -ne 0 ]; then
@@ -25,28 +27,53 @@ if [ ! -d "$SNAPSHOT_DIR/previous-renewal-configs" ] \
     echo "TLS rollback snapshot is missing renewal configurations" >&2
     exit 1
 fi
+if [ -f "$SNAPSHOT_DIR/hook-dir-existed" ] && [ ! -d "$SNAPSHOT_DIR/previous-hook-dir" ]; then
+    echo "TLS rollback snapshot is missing the previous hook directory" >&2
+    exit 1
+fi
+if [ -f "$SNAPSHOT_DIR/webroot-existed" ] && [ ! -d "$SNAPSHOT_DIR/previous-webroot" ]; then
+    echo "TLS rollback snapshot is missing the previous webroot directory" >&2
+    exit 1
+fi
 
 if [ -f "$SYSTEMD_DIR/$TIMER_NAME" ]; then
     systemctl disable --now "$TIMER_NAME" >/dev/null 2>&1
 fi
 if [ -f "$SNAPSHOT_DIR/service-existed" ]; then
-    install -m 644 "$SNAPSHOT_DIR/previous-service" "$SYSTEMD_DIR/$SERVICE_NAME"
+    rm -f "$SYSTEMD_DIR/$SERVICE_NAME"
+    cp -a "$SNAPSHOT_DIR/previous-service" "$SYSTEMD_DIR/$SERVICE_NAME"
 else
     rm -f "$SYSTEMD_DIR/$SERVICE_NAME"
 fi
 if [ -f "$SNAPSHOT_DIR/timer-existed" ]; then
-    install -m 644 "$SNAPSHOT_DIR/previous-timer" "$SYSTEMD_DIR/$TIMER_NAME"
+    rm -f "$SYSTEMD_DIR/$TIMER_NAME"
+    cp -a "$SNAPSHOT_DIR/previous-timer" "$SYSTEMD_DIR/$TIMER_NAME"
 else
     rm -f "$SYSTEMD_DIR/$TIMER_NAME"
 fi
 if [ -f "$SNAPSHOT_DIR/hook-existed" ]; then
-    install -m 755 "$SNAPSHOT_DIR/previous-hook" "$HOOK_PATH"
+    rm -f "$HOOK_PATH"
+    cp -a "$SNAPSHOT_DIR/previous-hook" "$HOOK_PATH"
 else
     rm -f "$HOOK_PATH"
 fi
 for renewal_config in "$SNAPSHOT_DIR"/previous-renewal-configs/*.conf; do
-    install -m 600 "$renewal_config" "/etc/letsencrypt/renewal/$(basename -- "$renewal_config")"
+    destination="/etc/letsencrypt/renewal/$(basename -- "$renewal_config")"
+    rm -f "$destination"
+    cp -a "$renewal_config" "$destination"
 done
+if [ -f "$SNAPSHOT_DIR/hook-dir-existed" ]; then
+    rm -rf "$HOOK_DIR"
+    cp -a "$SNAPSHOT_DIR/previous-hook-dir" "$HOOK_DIR"
+else
+    rmdir "$HOOK_DIR"
+fi
+if [ -f "$SNAPSHOT_DIR/webroot-existed" ]; then
+    rm -rf "$WEBROOT_PATH"
+    cp -a "$SNAPSHOT_DIR/previous-webroot" "$WEBROOT_PATH"
+else
+    rmdir "$WEBROOT_PATH"
+fi
 systemctl daemon-reload
 if [ -f "$SNAPSHOT_DIR/timer-existed" ]; then
     if [ -f "$SNAPSHOT_DIR/timer-was-enabled" ]; then

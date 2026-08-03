@@ -431,55 +431,72 @@ def test_tls_renewal_installer_is_fail_closed_and_reloads_nginx() -> None:
     assert TLS_RENEWAL_INSTALLER.stat().st_mode & 0o111
     assert TLS_RENEWAL_RESTORER.stat().st_mode & 0o111
     assert "set -euo pipefail" in script
-    assert "no Let's Encrypt renewal configurations were found" in script
+    assert "expected exactly the api.practenture.com and www.practenture.com renewal lineages" in script
     assert "practenture-certbot-renew.service" in script
     assert "practenture-certbot-renew.timer" in script
     assert "OnCalendar=*-*-* 03,15:00:00" in script
     assert "RandomizedDelaySec=3600" in script
     assert "Persistent=true" in script
     assert "WEBROOT_PATH=\"/var/www/certbot\"" in script
-    assert "ExecStart=$CERTBOT_BIN renew --quiet" in script
+    assert "ExecStart=$CERTBOT_BIN renew --quiet --no-random-sleep-on-renew" in script
+    assert "Requires=docker.service" in script
+    assert "ExecStartPre=$DOCKER_BIN inspect practenture-nginx" in script
+    assert "ExecStartPre=$DOCKER_BIN exec practenture-nginx nginx -t" in script
+    assert "NoNewPrivileges=yes" in script
+    assert "ProtectSystem=strict" in script
+    assert "ReadWritePaths=$LETSENCRYPT_DIR" in script
     assert '"$CERTBOT_BIN" reconfigure \\' in script
     assert '--cert-name "$cert_name"' in script
+    reconfigure_block = script.split('"$CERTBOT_BIN" reconfigure \\', 1)[1].split(
+        "grep -Eq '^authenticator = webroot$'", 1
+    )[0]
+    assert "--no-random-sleep-on-renew" not in reconfigure_block
     assert "^authenticator = webroot$" in script
+    assert "^webroot_path = " in script
     assert 'cp -a "$work_dir/previous-renewal-configs" "$snapshot_staging/previous-renewal-configs"' in script
     assert script.index("trap cleanup EXIT") < script.index(
         'install -d -m 700 "$work_dir/previous-renewal-configs"'
     )
     assert '"$DOCKER_BIN" exec practenture-nginx nginx -t' in script
     assert '"$DOCKER_BIN" exec practenture-nginx nginx -s reload' in script
-    assert 'systemctl is-active --quiet "$TIMER_NAME"' in script
+    assert '"$SYSTEMCTL_BIN" is-active --quiet "$TIMER_NAME"' in script
     assert "--dry-run" in script
     assert "--run-deploy-hooks" in script
     assert "--no-random-sleep-on-renew" in script
     assert "TLS_RENEWAL_DRY_RUN_PASSED" in script
-    assert 'systemctl enable "$TIMER_NAME"' in script
-    assert 'systemctl start "$TIMER_NAME"' in script
+    assert '"$SYSTEMCTL_BIN" enable "$TIMER_NAME"' in script
+    assert '"$SYSTEMCTL_BIN" start "$TIMER_NAME"' in script
     assert '"$SYSTEMD_ANALYZE" verify' in script
-    assert 'systemctl is-enabled --quiet "$TIMER_NAME"' in script
-    assert 'systemctl is-active --quiet "$TIMER_NAME"' in script
+    assert '"$SYSTEMCTL_BIN" is-enabled --quiet "$TIMER_NAME"' in script
+    assert '"$SYSTEMCTL_BIN" is-active --quiet "$TIMER_NAME"' in script
     assert "TLS_RENEWAL_TIMER_READY" in script
     assert "TLS_RENEWAL_PREVIOUS_CONFIGURATION_RESTORED" in script
     assert 'timer_was_active=1' in script
     assert 'touch "$snapshot_staging/timer-was-active"' in script
+    assert 'touch "$snapshot_staging/hook-dir-existed"' in script
+    assert 'touch "$snapshot_staging/webroot-existed"' in script
     assert 'snapshot_created=1' in script
     assert 'mv "$snapshot_staging" "$ROLLBACK_DIR"' in script
     assert 'touch "$ROLLBACK_DIR/install-complete"' in script
     assert 'if [ "$rc" -ne 0 ] && [ "$snapshot_created" -eq 1 ]' in script
     assert 'TLS_RENEWAL_RESTORE_INCOMPLETE; durable rollback snapshot retained' in script
     assert '[ "$restore_on_error" -eq 0 ] || [ "$restore_failed" -eq 0 ]' in script
-    assert script.index('systemctl disable --now "$TIMER_NAME"') < script.index('if [ "$restore_failed" -eq 0 ]; then')
+    assert script.index('"$SYSTEMCTL_BIN" disable --now "$TIMER_NAME"') < script.index(
+        'if [ "$restore_failed" -eq 0 ]; then'
+    )
     assert 'if [ "$timer_existed" -eq 0 ] && [ -f "$SYSTEMD_DIR/$TIMER_NAME" ]' not in script
     assert 'if [ -f "$SYSTEMD_DIR/$TIMER_NAME" ]; then' in restore_script
     assert 'systemctl disable --now "$TIMER_NAME" >/dev/null 2>&1' in restore_script
     assert 'systemctl disable --now "$TIMER_NAME" >/dev/null 2>&1 || true' not in restore_script
-    assert 'install -m 644 "$SNAPSHOT_DIR/previous-service"' in restore_script
-    assert 'install -m 644 "$SNAPSHOT_DIR/previous-timer"' in restore_script
+    assert 'cp -a "$SNAPSHOT_DIR/previous-service"' in restore_script
+    assert 'cp -a "$SNAPSHOT_DIR/previous-timer"' in restore_script
     assert 'if [ -f "$SNAPSHOT_DIR/timer-existed" ]; then' in restore_script
-    assert 'install -m 755 "$SNAPSHOT_DIR/previous-hook"' in restore_script
+    assert 'cp -a "$SNAPSHOT_DIR/previous-hook"' in restore_script
     assert 'if [ ! -d "$SNAPSHOT_DIR/previous-renewal-configs" ]' in restore_script
     assert 'compgen -G "$SNAPSHOT_DIR/previous-renewal-configs/*.conf"' in restore_script
-    assert 'install -m 600 "$renewal_config"' in restore_script
+    assert 'cp -a "$renewal_config" "$destination"' in restore_script
+    assert 'rmdir "$HOOK_DIR"' in restore_script
+    assert 'rmdir "$WEBROOT_PATH"' in restore_script
     assert restore_script.index("previous-renewal-configs/*.conf") < restore_script.index(
         'systemctl disable --now "$TIMER_NAME"'
     )
@@ -487,9 +504,277 @@ def test_tls_renewal_installer_is_fail_closed_and_reloads_nginx() -> None:
     assert script.index('"$CERTBOT_BIN" renew \\') < script.index(
         'install -m 644 "$work_dir/$SERVICE_NAME"'
     )
+    aggregate_renew = script.split('"$CERTBOT_BIN" renew \\', 1)[1].split(
+        'echo "TLS_RENEWAL_DRY_RUN_PASSED"', 1
+    )[0]
+    assert "--webroot" not in aggregate_renew
+    assert "--webroot-path" not in aggregate_renew
+    assert "PRACTENTURE_TLS_TEST_ROOT requires PRACTENTURE_TLS_TESTING=1" in script
+    assert 'required_cert_names=("api.practenture.com" "www.practenture.com")' in script
+    assert 'TEST_BIN_DIR="$TEST_ROOT/bin"' in script
     assert nginx.count("location ^~ /.well-known/acme-challenge/") == 2
     assert nginx.count("root /var/www/certbot;") == 2
     assert "- /var/www/certbot:/var/www/certbot:ro" in compose
+
+
+def _tls_installer_fixture(
+    tmp_path: Path, *, fail_renew: bool, existing_runtime: bool = True
+) -> tuple[Path, dict[str, str], dict[Path, bytes], dict[Path, tuple[int, int]]]:
+    root = tmp_path / "root"
+    fake_bin = root / "bin"
+    renewal_dir = root / "etc" / "letsencrypt" / "renewal"
+    hook = root / "etc" / "letsencrypt" / "renewal-hooks" / "deploy" / "practenture-nginx-reload"
+    webroot = root / "var" / "www" / "certbot"
+    systemd = root / "etc" / "systemd" / "system"
+    for directory in (fake_bin, renewal_dir, systemd):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    originals: dict[Path, bytes] = {}
+    for cert_name in ("api.practenture.com", "www.practenture.com"):
+        live = root / "etc" / "letsencrypt" / "live" / cert_name
+        archive = root / "etc" / "letsencrypt" / "archive" / cert_name
+        live.mkdir(parents=True, exist_ok=True)
+        archive.mkdir(parents=True, exist_ok=True)
+        for filename in ("cert.pem", "privkey.pem", "chain.pem", "fullchain.pem"):
+            (archive / filename).write_text("fixture\n", encoding="utf-8")
+            (live / filename).symlink_to(archive / filename)
+        originals[renewal_dir / f"{cert_name}.conf"] = (
+            f"version = 2.6.0\n"
+            f"archive_dir = {archive}\n"
+            f"cert = {live}/cert.pem\n"
+            f"privkey = {live}/privkey.pem\n"
+            f"chain = {live}/chain.pem\n"
+            f"fullchain = {live}/fullchain.pem\n"
+            "[renewalparams]\n"
+            "account = fixture-account\n"
+            "authenticator = standalone\n"
+            "server = https://acme-staging-v02.api.letsencrypt.org/directory\n"
+            "key_type = rsa\n"
+        ).encode()
+    if existing_runtime:
+        hook.parent.mkdir(parents=True, exist_ok=True)
+        webroot.mkdir(parents=True, exist_ok=True)
+        originals.update(
+            {
+                systemd / "practenture-certbot-renew.service": b"previous service\n",
+                systemd / "practenture-certbot-renew.timer": b"previous timer\n",
+                hook: b"#!/usr/bin/env bash\necho previous-hook\n",
+                webroot / "preexisting-challenge-state": b"preserve me\n",
+            }
+        )
+    original_state: dict[Path, tuple[int, int]] = {}
+    modes = (0o600, 0o640, 0o644, 0o620, 0o750)
+    for index, (path, content) in enumerate(originals.items()):
+        path.write_bytes(content)
+        path.chmod(modes[index % len(modes)])
+        timestamp_ns = 1_700_000_000_000_000_000 + index * 1_000_000_000
+        os.utime(path, ns=(timestamp_ns, timestamp_ns))
+        stat = path.stat()
+        original_state[path] = (stat.st_mode & 0o777, stat.st_mtime_ns)
+    if existing_runtime:
+        for index, directory in enumerate((hook.parent, webroot)):
+            directory.chmod(0o710 + index)
+            directory_timestamp_ns = 1_699_999_999_000_000_000 + index * 1_000_000_000
+            os.utime(
+                directory,
+                ns=(directory_timestamp_ns, directory_timestamp_ns),
+            )
+            stat = directory.stat()
+            original_state[directory] = (stat.st_mode & 0o777, stat.st_mtime_ns)
+
+    certbot = fake_bin / "certbot"
+    certbot.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+printf 'certbot %s\\n' "$*" >> "$PRACTENTURE_TLS_TEST_ROOT/commands.log"
+if [ "$1" = reconfigure ]; then
+  cert_name=$3
+  expected="reconfigure --cert-name $cert_name --webroot --webroot-path $PRACTENTURE_TLS_TEST_ROOT/var/www/certbot --run-deploy-hooks"
+  [ "$*" = "$expected" ] || exit 88
+  case "$cert_name" in api.practenture.com|www.practenture.com) ;; *) exit 89 ;; esac
+  config="$PRACTENTURE_TLS_TEST_ROOT/etc/letsencrypt/renewal/$cert_name.conf"
+  sed -e 's/^authenticator = standalone$/authenticator = webroot/' "$config" > "$config.tmp"
+  printf 'webroot_path = %s/var/www/certbot,\\n' "$PRACTENTURE_TLS_TEST_ROOT" >> "$config.tmp"
+  mv "$config.tmp" "$config"
+elif [ "$1" = renew ]; then
+  expected="renew --dry-run --run-deploy-hooks --no-random-sleep-on-renew"
+  [ "$*" = "$expected" ] || exit 90
+  [ "${FAKE_CERTBOT_FAIL_RENEW:-0}" != 1 ] || exit 90
+  for cert_name in api.practenture.com www.practenture.com; do
+    config="$PRACTENTURE_TLS_TEST_ROOT/etc/letsencrypt/renewal/$cert_name.conf"
+    grep -Eq '^archive_dir = .+' "$config"
+    grep -Eq '^cert = .+' "$config"
+    grep -Eq '^privkey = .+' "$config"
+    grep -Eq '^chain = .+' "$config"
+    grep -Eq '^fullchain = .+' "$config"
+    grep -Fqx '[renewalparams]' "$config"
+    grep -Eq '^authenticator = webroot$' "$config"
+    grep -Fqx "webroot_path = $PRACTENTURE_TLS_TEST_ROOT/var/www/certbot," "$config"
+  done
+fi
+touch "$PRACTENTURE_TLS_TEST_ROOT/var/www/certbot/.certbot-temporary-state"
+rm -f "$PRACTENTURE_TLS_TEST_ROOT/var/www/certbot/.certbot-temporary-state"
+hook="$PRACTENTURE_TLS_TEST_ROOT/etc/letsencrypt/renewal-hooks/deploy/practenture-nginx-reload"
+if [ -x "$hook" ]; then
+  "$hook"
+  [ "$1" != renew ] || "$hook"
+fi
+""",
+        encoding="utf-8",
+    )
+    certbot.chmod(0o755)
+
+    for name, body in {
+        "docker": """#!/usr/bin/env bash
+printf 'docker %s\\n' "$*" >> "$PRACTENTURE_TLS_TEST_ROOT/commands.log"
+exit 0
+""",
+        "systemctl": """#!/usr/bin/env bash
+printf 'systemctl %s\\n' "$*" >> "$PRACTENTURE_TLS_TEST_ROOT/commands.log"
+[ "$1" != show ] || printf '2026-08-04 03:00:00 UTC\\n'
+exit 0
+""",
+        "systemd-analyze": """#!/usr/bin/env bash
+printf 'systemd-analyze %s\\n' "$*" >> "$PRACTENTURE_TLS_TEST_ROOT/commands.log"
+exit 0
+""",
+    }.items():
+        executable = fake_bin / name
+        executable.write_text("#!/usr/bin/env bash\nset -euo pipefail\n" + body, encoding="utf-8")
+        executable.chmod(0o755)
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "PRACTENTURE_TLS_TESTING": "1",
+            "PRACTENTURE_TLS_TEST_ROOT": str(root),
+            "FAKE_CERTBOT_FAIL_RENEW": "1" if fail_renew else "0",
+        }
+    )
+    env.pop("PRACTENTURE_TLS_ROLLBACK_DIR", None)
+    return root, env, originals, original_state
+
+
+def test_tls_renewal_installer_executes_persisted_webroot_dry_run(tmp_path: Path) -> None:
+    root, env, _originals, _original_state = _tls_installer_fixture(
+        tmp_path, fail_renew=False
+    )
+    result = subprocess.run(
+        ["bash", str(TLS_RENEWAL_INSTALLER)], env=env, capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+    assert "TLS_RENEWAL_DRY_RUN_PASSED" in result.stdout
+    assert "TLS_RENEWAL_TIMER_READY" in result.stdout
+    service = (
+        root / "etc" / "systemd" / "system" / "practenture-certbot-renew.service"
+    ).read_text(encoding="utf-8")
+    assert "ExecStart=" in service
+    assert "renew --quiet --no-random-sleep-on-renew" in service
+    assert "Requires=docker.service" in service
+    assert "NoNewPrivileges=yes" in service
+    assert "ProtectSystem=strict" in service
+    assert "ExecStartPre=" in service
+    commands = (root / "commands.log").read_text(encoding="utf-8")
+    assert commands.count("certbot reconfigure ") == 2
+    renew_line = next(line for line in commands.splitlines() if line.startswith("certbot renew "))
+    assert "--dry-run" in renew_line
+    assert "--run-deploy-hooks" in renew_line
+    assert "--no-random-sleep-on-renew" in renew_line
+    assert "--webroot" not in renew_line
+    assert "--webroot-path" not in renew_line
+    assert commands.count("docker exec practenture-nginx nginx -t") == 4
+    assert commands.count("docker exec practenture-nginx nginx -s reload") == 4
+    for config in (root / "etc" / "letsencrypt" / "renewal").glob("*.conf"):
+        text = config.read_text(encoding="utf-8")
+        assert "authenticator = webroot" in text
+        assert f"webroot_path = {root}/var/www/certbot," in text
+
+
+def test_tls_renewal_installer_restores_exact_state_when_dry_run_fails(tmp_path: Path) -> None:
+    root, env, originals, original_state = _tls_installer_fixture(
+        tmp_path, fail_renew=True
+    )
+    result = subprocess.run(
+        ["bash", str(TLS_RENEWAL_INSTALLER)], env=env, capture_output=True, text=True
+    )
+    assert result.returncode != 0
+    assert "TLS_RENEWAL_PREVIOUS_CONFIGURATION_RESTORED" in result.stderr
+    for path, content in originals.items():
+        assert path.read_bytes() == content
+    for path, state in original_state.items():
+        stat = path.stat()
+        assert (stat.st_mode & 0o777, stat.st_mtime_ns) == state
+    commands = (root / "commands.log").read_text(encoding="utf-8").splitlines()
+    disable_index = commands.index(
+        "systemctl disable --now practenture-certbot-renew.timer"
+    )
+    reload_index = commands.index("systemctl daemon-reload")
+    enable_index = commands.index("systemctl enable practenture-certbot-renew.timer")
+    start_index = commands.index("systemctl start practenture-certbot-renew.timer")
+    assert disable_index < reload_index < enable_index < start_index
+
+
+def test_tls_renewal_installer_restores_absent_runtime_state(tmp_path: Path) -> None:
+    root, env, _originals, _original_state = _tls_installer_fixture(
+        tmp_path, fail_renew=True, existing_runtime=False
+    )
+    result = subprocess.run(
+        ["bash", str(TLS_RENEWAL_INSTALLER)], env=env, capture_output=True, text=True
+    )
+    assert result.returncode != 0
+    assert "TLS_RENEWAL_PREVIOUS_CONFIGURATION_RESTORED" in result.stderr
+    assert not (root / "etc/systemd/system/practenture-certbot-renew.service").exists()
+    assert not (root / "etc/systemd/system/practenture-certbot-renew.timer").exists()
+    assert not (
+        root / "etc/letsencrypt/renewal-hooks/deploy/practenture-nginx-reload"
+    ).exists()
+    assert not (root / "etc/letsencrypt/renewal-hooks/deploy").exists()
+    assert not (root / "var/www/certbot").exists()
+
+
+def test_tls_renewal_installer_rejects_root_alias_and_lineage_drift(tmp_path: Path) -> None:
+    alias = tmp_path / "root-alias"
+    alias.symlink_to("/")
+    unsafe_env = os.environ.copy()
+    unsafe_env.update(
+        {"PRACTENTURE_TLS_TESTING": "1", "PRACTENTURE_TLS_TEST_ROOT": str(alias)}
+    )
+    unsafe = subprocess.run(
+        ["bash", str(TLS_RENEWAL_INSTALLER)],
+        env=unsafe_env,
+        capture_output=True,
+        text=True,
+    )
+    assert unsafe.returncode == 2
+    assert "must not resolve to the production filesystem root" in unsafe.stderr
+
+    missing_root, missing_env, _originals, _state = _tls_installer_fixture(
+        tmp_path / "missing", fail_renew=False
+    )
+    (missing_root / "etc/letsencrypt/renewal/api.practenture.com.conf").unlink()
+    missing = subprocess.run(
+        ["bash", str(TLS_RENEWAL_INSTALLER)],
+        env=missing_env,
+        capture_output=True,
+        text=True,
+    )
+    assert missing.returncode != 0
+    assert "expected exactly" in missing.stderr
+
+    extra_root, extra_env, _originals, _state = _tls_installer_fixture(
+        tmp_path / "extra", fail_renew=False
+    )
+    (extra_root / "etc/letsencrypt/renewal/stale.example.conf").write_text(
+        "[renewalparams]\nauthenticator = standalone\n", encoding="utf-8"
+    )
+    extra = subprocess.run(
+        ["bash", str(TLS_RENEWAL_INSTALLER)],
+        env=extra_env,
+        capture_output=True,
+        text=True,
+    )
+    assert extra.returncode != 0
+    assert "expected exactly" in extra.stderr
 
 
 def test_release_artifact_is_reproducible_and_excludes_state(tmp_path: Path) -> None:

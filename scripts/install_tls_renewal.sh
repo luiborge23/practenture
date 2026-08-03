@@ -3,17 +3,52 @@ set -euo pipefail
 
 SERVICE_NAME="practenture-certbot-renew.service"
 TIMER_NAME="practenture-certbot-renew.timer"
-HOOK_PATH="/etc/letsencrypt/renewal-hooks/deploy/practenture-nginx-reload"
-SYSTEMD_DIR="/etc/systemd/system"
-WEBROOT_PATH="/var/www/certbot"
+TEST_ROOT=${PRACTENTURE_TLS_TEST_ROOT:-}
+if [ -n "$TEST_ROOT" ]; then
+    if [ "${PRACTENTURE_TLS_TESTING:-}" != "1" ] || [[ "$TEST_ROOT" != /* ]] || [ ! -d "$TEST_ROOT" ]; then
+        echo "PRACTENTURE_TLS_TEST_ROOT requires PRACTENTURE_TLS_TESTING=1 and an existing absolute path" >&2
+        exit 2
+    fi
+    TEST_ROOT=$(cd -P -- "$TEST_ROOT" && pwd -P)
+    if [ "$TEST_ROOT" = "/" ]; then
+        echo "PRACTENTURE_TLS_TEST_ROOT must not resolve to the production filesystem root" >&2
+        exit 2
+    fi
+    TEST_BIN_DIR="$TEST_ROOT/bin"
+    for required_test_command in certbot docker systemctl systemd-analyze; do
+        if [ ! -x "$TEST_BIN_DIR/$required_test_command" ]; then
+            echo "test mode requires isolated executable: $TEST_BIN_DIR/$required_test_command" >&2
+            exit 2
+        fi
+    done
+    CERTBOT_BIN="$TEST_BIN_DIR/certbot"
+    DOCKER_BIN="$TEST_BIN_DIR/docker"
+    SYSTEMCTL_BIN="$TEST_BIN_DIR/systemctl"
+    SYSTEMD_ANALYZE="$TEST_BIN_DIR/systemd-analyze"
+    LETSENCRYPT_DIR="$TEST_ROOT/etc/letsencrypt"
+    SYSTEMD_DIR="$TEST_ROOT/etc/systemd/system"
+    WEBROOT_PATH="$TEST_ROOT/var/www/certbot"
+    PROTECTED_STATE_DIR="$TEST_ROOT/var/lib/practenture-deploy"
+else
+    CERTBOT_BIN=$(command -v certbot || true)
+    DOCKER_BIN=$(command -v docker || true)
+    SYSTEMCTL_BIN=$(command -v systemctl || true)
+    SYSTEMD_ANALYZE=$(command -v systemd-analyze || true)
+    LETSENCRYPT_DIR="/etc/letsencrypt"
+    SYSTEMD_DIR="/etc/systemd/system"
+    WEBROOT_PATH="/var/www/certbot"
+    PROTECTED_STATE_DIR="/var/lib/practenture-deploy"
+fi
+HOOK_PATH="$LETSENCRYPT_DIR/renewal-hooks/deploy/practenture-nginx-reload"
+HOOK_DIR=$(dirname -- "$HOOK_PATH")
 ROLLBACK_DIR=${PRACTENTURE_TLS_ROLLBACK_DIR:-}
 
-if [ "${EUID}" -ne 0 ]; then
+if [ "${EUID}" -ne 0 ] && [ -z "$TEST_ROOT" ]; then
     exec sudo env PRACTENTURE_TLS_ROLLBACK_DIR="$ROLLBACK_DIR" "$0" "$@"
 fi
 
 if [ -n "$ROLLBACK_DIR" ]; then
-    if [ "$(dirname -- "$ROLLBACK_DIR")" != "/var/lib/practenture-deploy" ] \
+    if [ "$(dirname -- "$ROLLBACK_DIR")" != "$PROTECTED_STATE_DIR" ] \
         || [[ "$(basename -- "$ROLLBACK_DIR")" != tls-rollback-* ]] \
         || [[ "$(basename -- "$ROLLBACK_DIR")" == *[!A-Za-z0-9._-]* ]]; then
         echo "PRACTENTURE_TLS_ROLLBACK_DIR is outside the protected deployment state directory" >&2
@@ -25,8 +60,6 @@ if [ -n "$ROLLBACK_DIR" ]; then
     fi
 fi
 
-CERTBOT_BIN=$(command -v certbot || true)
-DOCKER_BIN=$(command -v docker || true)
 if [ -z "$CERTBOT_BIN" ]; then
     echo "certbot is required before TLS renewal can be configured" >&2
     exit 1
@@ -35,14 +68,28 @@ if [ -z "$DOCKER_BIN" ]; then
     echo "docker is required before TLS renewal can be configured" >&2
     exit 1
 fi
-
-shopt -s nullglob
-renewal_configs=(/etc/letsencrypt/renewal/*.conf)
-shopt -u nullglob
-if [ "${#renewal_configs[@]}" -eq 0 ]; then
-    echo "no Let's Encrypt renewal configurations were found" >&2
+if [ -z "$SYSTEMCTL_BIN" ]; then
+    echo "systemctl is required before TLS renewal can be configured" >&2
     exit 1
 fi
+
+shopt -s nullglob
+discovered_renewal_configs=("$LETSENCRYPT_DIR"/renewal/*.conf)
+shopt -u nullglob
+required_cert_names=("api.practenture.com" "www.practenture.com")
+if [ "${#discovered_renewal_configs[@]}" -ne "${#required_cert_names[@]}" ]; then
+    echo "expected exactly the api.practenture.com and www.practenture.com renewal lineages" >&2
+    exit 1
+fi
+renewal_configs=()
+for cert_name in "${required_cert_names[@]}"; do
+    renewal_config="$LETSENCRYPT_DIR/renewal/$cert_name.conf"
+    if [ ! -f "$renewal_config" ] || [ -L "$renewal_config" ]; then
+        echo "required regular renewal lineage is missing: $cert_name" >&2
+        exit 1
+    fi
+    renewal_configs+=("$renewal_config")
+done
 
 work_dir=$(mktemp -d)
 service_existed=0
@@ -53,6 +100,24 @@ timer_was_active=0
 restore_on_error=0
 snapshot_created=0
 snapshot_staging=""
+hook_dir_existed=0
+webroot_existed=0
+hook_dir_created=0
+webroot_created=0
+
+for required_directory in "$HOOK_DIR" "$WEBROOT_PATH"; do
+    if [ -e "$required_directory" ]; then
+        if [ ! -d "$required_directory" ] || [ -L "$required_directory" ]; then
+            echo "TLS runtime path must be a regular directory: $required_directory" >&2
+            exit 1
+        fi
+        if [ "$required_directory" = "$HOOK_DIR" ]; then
+            hook_dir_existed=1
+        else
+            webroot_existed=1
+        fi
+    fi
+done
 
 cleanup() {
     rc=$?
@@ -60,39 +125,61 @@ cleanup() {
     if [ "$rc" -ne 0 ] && [ "$restore_on_error" -eq 1 ]; then
         set +e
         if [ -f "$SYSTEMD_DIR/$TIMER_NAME" ]; then
-            systemctl disable --now "$TIMER_NAME" >/dev/null 2>&1 || restore_failed=1
+            "$SYSTEMCTL_BIN" disable --now "$TIMER_NAME" >/dev/null 2>&1 || restore_failed=1
         fi
         if [ "$restore_failed" -eq 0 ]; then
             if [ "$service_existed" -eq 1 ]; then
-                install -m 644 "$work_dir/previous-service" "$SYSTEMD_DIR/$SERVICE_NAME" || restore_failed=1
+                rm -f "$SYSTEMD_DIR/$SERVICE_NAME" \
+                    && cp -a "$work_dir/previous-service" "$SYSTEMD_DIR/$SERVICE_NAME" \
+                    || restore_failed=1
             else
                 rm -f "$SYSTEMD_DIR/$SERVICE_NAME" || restore_failed=1
             fi
             if [ "$timer_existed" -eq 1 ]; then
-                install -m 644 "$work_dir/previous-timer" "$SYSTEMD_DIR/$TIMER_NAME" || restore_failed=1
+                rm -f "$SYSTEMD_DIR/$TIMER_NAME" \
+                    && cp -a "$work_dir/previous-timer" "$SYSTEMD_DIR/$TIMER_NAME" \
+                    || restore_failed=1
             else
                 rm -f "$SYSTEMD_DIR/$TIMER_NAME" || restore_failed=1
             fi
             if [ "$hook_existed" -eq 1 ]; then
-                install -m 755 "$work_dir/previous-hook" "$HOOK_PATH" || restore_failed=1
+                rm -f "$HOOK_PATH" \
+                    && cp -a "$work_dir/previous-hook" "$HOOK_PATH" \
+                    || restore_failed=1
             else
                 rm -f "$HOOK_PATH" || restore_failed=1
             fi
             for renewal_config in "$work_dir"/previous-renewal-configs/*.conf; do
-                install -m 600 "$renewal_config" "/etc/letsencrypt/renewal/$(basename -- "$renewal_config")" \
+                destination="$LETSENCRYPT_DIR/renewal/$(basename -- "$renewal_config")"
+                rm -f "$destination" \
+                    && cp -a "$renewal_config" "$destination" \
                     || restore_failed=1
             done
-            systemctl daemon-reload || restore_failed=1
+            if [ "$hook_dir_existed" -eq 1 ]; then
+                rm -rf "$HOOK_DIR" \
+                    && cp -a "$work_dir/previous-hook-dir" "$HOOK_DIR" \
+                    || restore_failed=1
+            elif [ "$hook_dir_created" -eq 1 ]; then
+                rmdir "$HOOK_DIR" || restore_failed=1
+            fi
+            if [ "$webroot_existed" -eq 1 ]; then
+                rm -rf "$WEBROOT_PATH" \
+                    && cp -a "$work_dir/previous-webroot" "$WEBROOT_PATH" \
+                    || restore_failed=1
+            elif [ "$webroot_created" -eq 1 ]; then
+                rmdir "$WEBROOT_PATH" || restore_failed=1
+            fi
+            "$SYSTEMCTL_BIN" daemon-reload || restore_failed=1
             if [ "$timer_existed" -eq 1 ]; then
                 if [ "$timer_was_enabled" -eq 1 ]; then
-                    systemctl enable "$TIMER_NAME" || restore_failed=1
+                    "$SYSTEMCTL_BIN" enable "$TIMER_NAME" || restore_failed=1
                 else
-                    systemctl disable "$TIMER_NAME" >/dev/null 2>&1 || restore_failed=1
+                    "$SYSTEMCTL_BIN" disable "$TIMER_NAME" >/dev/null 2>&1 || restore_failed=1
                 fi
                 if [ "$timer_was_active" -eq 1 ]; then
-                    systemctl start "$TIMER_NAME" || restore_failed=1
+                    "$SYSTEMCTL_BIN" start "$TIMER_NAME" || restore_failed=1
                 else
-                    systemctl stop "$TIMER_NAME" >/dev/null 2>&1 || restore_failed=1
+                    "$SYSTEMCTL_BIN" stop "$TIMER_NAME" >/dev/null 2>&1 || restore_failed=1
                 fi
             fi
         fi
@@ -127,10 +214,16 @@ if [ -f "$HOOK_PATH" ]; then
     hook_existed=1
     cp -a "$HOOK_PATH" "$work_dir/previous-hook"
 fi
-if systemctl is-enabled --quiet "$TIMER_NAME" 2>/dev/null; then
+if [ "$hook_dir_existed" -eq 1 ]; then
+    cp -a "$HOOK_DIR" "$work_dir/previous-hook-dir"
+fi
+if [ "$webroot_existed" -eq 1 ]; then
+    cp -a "$WEBROOT_PATH" "$work_dir/previous-webroot"
+fi
+if "$SYSTEMCTL_BIN" is-enabled --quiet "$TIMER_NAME" 2>/dev/null; then
     timer_was_enabled=1
 fi
-if systemctl is-active --quiet "$TIMER_NAME" 2>/dev/null; then
+if "$SYSTEMCTL_BIN" is-active --quiet "$TIMER_NAME" 2>/dev/null; then
     timer_was_active=1
 fi
 
@@ -141,10 +234,14 @@ if [ -n "$ROLLBACK_DIR" ]; then
     [ "$service_existed" -eq 1 ] && cp -a "$work_dir/previous-service" "$snapshot_staging/previous-service"
     [ "$timer_existed" -eq 1 ] && cp -a "$work_dir/previous-timer" "$snapshot_staging/previous-timer"
     [ "$hook_existed" -eq 1 ] && cp -a "$work_dir/previous-hook" "$snapshot_staging/previous-hook"
+    [ "$hook_dir_existed" -eq 1 ] && cp -a "$work_dir/previous-hook-dir" "$snapshot_staging/previous-hook-dir"
+    [ "$webroot_existed" -eq 1 ] && cp -a "$work_dir/previous-webroot" "$snapshot_staging/previous-webroot"
     cp -a "$work_dir/previous-renewal-configs" "$snapshot_staging/previous-renewal-configs"
     [ "$service_existed" -eq 1 ] && touch "$snapshot_staging/service-existed"
     [ "$timer_existed" -eq 1 ] && touch "$snapshot_staging/timer-existed"
     [ "$hook_existed" -eq 1 ] && touch "$snapshot_staging/hook-existed"
+    [ "$hook_dir_existed" -eq 1 ] && touch "$snapshot_staging/hook-dir-existed"
+    [ "$webroot_existed" -eq 1 ] && touch "$snapshot_staging/webroot-existed"
     [ "$timer_was_enabled" -eq 1 ] && touch "$snapshot_staging/timer-was-enabled"
     [ "$timer_was_active" -eq 1 ] && touch "$snapshot_staging/timer-was-active"
     mv "$snapshot_staging" "$ROLLBACK_DIR"
@@ -164,11 +261,20 @@ cat > "$work_dir/$SERVICE_NAME" <<EOF
 [Unit]
 Description=Renew Practenture Let's Encrypt certificates
 Wants=network-online.target
+Requires=docker.service
 After=network-online.target docker.service
 
 [Service]
 Type=oneshot
-ExecStart=$CERTBOT_BIN renew --quiet
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=$LETSENCRYPT_DIR /var/lib/letsencrypt /var/log/letsencrypt $WEBROOT_PATH /run/docker.sock
+ExecStartPre=$DOCKER_BIN inspect practenture-nginx
+ExecStartPre=$DOCKER_BIN exec practenture-nginx nginx -t
+ExecStart=$CERTBOT_BIN renew --quiet --no-random-sleep-on-renew
 EOF
 
 cat > "$work_dir/$TIMER_NAME" <<EOF
@@ -185,14 +291,20 @@ Unit=$SERVICE_NAME
 WantedBy=timers.target
 EOF
 
-SYSTEMD_ANALYZE=$(command -v systemd-analyze || true)
 if [ -n "$SYSTEMD_ANALYZE" ]; then
     "$SYSTEMD_ANALYZE" verify \
         "$work_dir/$SERVICE_NAME" "$work_dir/$TIMER_NAME"
 fi
 
 restore_on_error=1
-install -d -m 755 "$(dirname "$HOOK_PATH")" "$WEBROOT_PATH"
+if [ "$hook_dir_existed" -eq 0 ]; then
+    install -d -m 755 "$HOOK_DIR"
+    hook_dir_created=1
+fi
+if [ "$webroot_existed" -eq 0 ]; then
+    install -d -m 755 "$WEBROOT_PATH"
+    webroot_created=1
+fi
 install -m 755 "$work_dir/practenture-nginx-reload" "$HOOK_PATH"
 for renewal_config in "${renewal_configs[@]}"; do
     cert_name=$(basename -- "$renewal_config" .conf)
@@ -200,26 +312,23 @@ for renewal_config in "${renewal_configs[@]}"; do
         --cert-name "$cert_name" \
         --webroot \
         --webroot-path "$WEBROOT_PATH" \
-        --run-deploy-hooks \
-        --no-random-sleep-on-renew
+        --run-deploy-hooks
     grep -Eq '^authenticator = webroot$' "$renewal_config"
-    grep -Fq "$WEBROOT_PATH" "$renewal_config"
+    grep -Eq "^webroot_path = ${WEBROOT_PATH//\//\\/},?$" "$renewal_config"
 done
 "$CERTBOT_BIN" renew \
     --dry-run \
     --run-deploy-hooks \
-    --no-random-sleep-on-renew \
-    --webroot \
-    --webroot-path "$WEBROOT_PATH"
+    --no-random-sleep-on-renew
 echo "TLS_RENEWAL_DRY_RUN_PASSED"
 install -m 644 "$work_dir/$SERVICE_NAME" "$SYSTEMD_DIR/$SERVICE_NAME"
 install -m 644 "$work_dir/$TIMER_NAME" "$SYSTEMD_DIR/$TIMER_NAME"
-systemctl daemon-reload
-systemctl enable "$TIMER_NAME"
-systemctl restart "$TIMER_NAME"
-systemctl is-enabled --quiet "$TIMER_NAME"
-systemctl is-active --quiet "$TIMER_NAME"
-NEXT_RUN=$(systemctl show "$TIMER_NAME" --property=NextElapseUSecRealtime --value)
+"$SYSTEMCTL_BIN" daemon-reload
+"$SYSTEMCTL_BIN" enable "$TIMER_NAME"
+"$SYSTEMCTL_BIN" restart "$TIMER_NAME"
+"$SYSTEMCTL_BIN" is-enabled --quiet "$TIMER_NAME"
+"$SYSTEMCTL_BIN" is-active --quiet "$TIMER_NAME"
+NEXT_RUN=$("$SYSTEMCTL_BIN" show "$TIMER_NAME" --property=NextElapseUSecRealtime --value)
 test -n "$NEXT_RUN"
 if [ -n "$ROLLBACK_DIR" ]; then
     touch "$ROLLBACK_DIR/install-complete"
