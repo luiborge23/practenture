@@ -331,6 +331,12 @@ configuration_digest() {
     } | sha256sum | cut -d ' ' -f 1
 }
 
+renewal_webroot_matches() {
+    renewal_config=$1
+    grep -Fqx "webroot_path = $WEBROOT_PATH" "$renewal_config" \
+        || grep -Fqx "webroot_path = $WEBROOT_PATH," "$renewal_config"
+}
+
 write_attestation() {
     digest=$1
     attestation_tmp="$PROTECTED_STATE_DIR/.tls-renewal-attestation-v1.$$"
@@ -359,8 +365,7 @@ if [ "$service_existed" -eq 1 ] && [ "$timer_existed" -eq 1 ] \
     for renewal_config in "${renewal_configs[@]}"; do
         grep -Eq '^authenticator = webroot$' "$renewal_config" \
             || renewal_settings_valid=0
-        grep -Eq "^webroot_path = ${WEBROOT_PATH//\//\\/},?$" "$renewal_config" \
-            || renewal_settings_valid=0
+        renewal_webroot_matches "$renewal_config" || renewal_settings_valid=0
     done
     if [ "$renewal_settings_valid" -eq 1 ] \
         && "$SYSTEMCTL_BIN" is-enabled --quiet "$TIMER_NAME" \
@@ -409,7 +414,7 @@ for renewal_config in "${renewal_configs[@]}"; do
         --webroot-path "$WEBROOT_PATH" \
         --run-deploy-hooks
     grep -Eq '^authenticator = webroot$' "$renewal_config"
-    grep -Eq "^webroot_path = ${WEBROOT_PATH//\//\\/},?$" "$renewal_config"
+    renewal_webroot_matches "$renewal_config"
 done
 "$CERTBOT_BIN" renew \
     --dry-run \
