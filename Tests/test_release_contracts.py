@@ -458,7 +458,10 @@ def test_tls_renewal_installer_is_fail_closed_and_reloads_nginx() -> None:
     )[0]
     assert "--no-random-sleep-on-renew" not in reconfigure_block
     assert "^authenticator = webroot$" in script
-    assert "^webroot_path = " in script
+    assert "renewal_webroot_matches" in script
+    assert 'grep -Fqx "webroot_path = $WEBROOT_PATH"' in script
+    assert 'grep -Fqx "webroot_path = $WEBROOT_PATH,"' in script
+    assert "${WEBROOT_PATH//\\//\\\\/}" not in script
     assert 'cp -a "$work_dir/previous-renewal-configs" "$snapshot_staging/previous-renewal-configs"' in script
     assert script.index("trap cleanup EXIT") < script.index(
         'install -d -m 700 "$work_dir/previous-renewal-configs"'
