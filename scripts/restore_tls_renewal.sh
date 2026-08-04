@@ -7,6 +7,7 @@ HOOK_PATH="/etc/letsencrypt/renewal-hooks/deploy/practenture-nginx-reload"
 HOOK_DIR=$(dirname -- "$HOOK_PATH")
 WEBROOT_PATH="/var/www/certbot"
 SYSTEMD_DIR="/etc/systemd/system"
+ATTESTATION_PATH="/var/lib/practenture-deploy/tls-renewal-attestation-v1"
 
 if [ "${EUID}" -ne 0 ]; then
     exec sudo -- "$0" "$@"
@@ -56,6 +57,12 @@ if [ -f "$SNAPSHOT_DIR/hook-existed" ]; then
     cp -a "$SNAPSHOT_DIR/previous-hook" "$HOOK_PATH"
 else
     rm -f "$HOOK_PATH"
+fi
+if [ -f "$SNAPSHOT_DIR/attestation-existed" ]; then
+    rm -f "$ATTESTATION_PATH"
+    cp -a "$SNAPSHOT_DIR/previous-attestation" "$ATTESTATION_PATH"
+else
+    rm -f "$ATTESTATION_PATH"
 fi
 for renewal_config in "$SNAPSHOT_DIR"/previous-renewal-configs/*.conf; do
     destination="/etc/letsencrypt/renewal/$(basename -- "$renewal_config")"

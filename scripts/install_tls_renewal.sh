@@ -41,6 +41,7 @@ else
 fi
 HOOK_PATH="$LETSENCRYPT_DIR/renewal-hooks/deploy/practenture-nginx-reload"
 HOOK_DIR=$(dirname -- "$HOOK_PATH")
+ATTESTATION_PATH="$PROTECTED_STATE_DIR/tls-renewal-attestation-v1"
 ROLLBACK_DIR=${PRACTENTURE_TLS_ROLLBACK_DIR:-}
 
 if [ "${EUID}" -ne 0 ] && [ -z "$TEST_ROOT" ]; then
@@ -95,6 +96,7 @@ work_dir=$(mktemp -d)
 service_existed=0
 timer_existed=0
 hook_existed=0
+attestation_existed=0
 timer_was_enabled=0
 timer_was_active=0
 restore_on_error=0
@@ -148,6 +150,13 @@ cleanup() {
                     || restore_failed=1
             else
                 rm -f "$HOOK_PATH" || restore_failed=1
+            fi
+            if [ "$attestation_existed" -eq 1 ]; then
+                rm -f "$ATTESTATION_PATH" \
+                    && cp -a "$work_dir/previous-attestation" "$ATTESTATION_PATH" \
+                    || restore_failed=1
+            else
+                rm -f "$ATTESTATION_PATH" || restore_failed=1
             fi
             for renewal_config in "$work_dir"/previous-renewal-configs/*.conf; do
                 destination="$LETSENCRYPT_DIR/renewal/$(basename -- "$renewal_config")"
@@ -214,6 +223,14 @@ if [ -f "$HOOK_PATH" ]; then
     hook_existed=1
     cp -a "$HOOK_PATH" "$work_dir/previous-hook"
 fi
+if [ -f "$ATTESTATION_PATH" ]; then
+    if [ -L "$ATTESTATION_PATH" ]; then
+        echo "TLS renewal attestation must be a regular file" >&2
+        exit 1
+    fi
+    attestation_existed=1
+    cp -a "$ATTESTATION_PATH" "$work_dir/previous-attestation"
+fi
 if [ "$hook_dir_existed" -eq 1 ]; then
     cp -a "$HOOK_DIR" "$work_dir/previous-hook-dir"
 fi
@@ -234,12 +251,14 @@ if [ -n "$ROLLBACK_DIR" ]; then
     [ "$service_existed" -eq 1 ] && cp -a "$work_dir/previous-service" "$snapshot_staging/previous-service"
     [ "$timer_existed" -eq 1 ] && cp -a "$work_dir/previous-timer" "$snapshot_staging/previous-timer"
     [ "$hook_existed" -eq 1 ] && cp -a "$work_dir/previous-hook" "$snapshot_staging/previous-hook"
+    [ "$attestation_existed" -eq 1 ] && cp -a "$work_dir/previous-attestation" "$snapshot_staging/previous-attestation"
     [ "$hook_dir_existed" -eq 1 ] && cp -a "$work_dir/previous-hook-dir" "$snapshot_staging/previous-hook-dir"
     [ "$webroot_existed" -eq 1 ] && cp -a "$work_dir/previous-webroot" "$snapshot_staging/previous-webroot"
     cp -a "$work_dir/previous-renewal-configs" "$snapshot_staging/previous-renewal-configs"
     [ "$service_existed" -eq 1 ] && touch "$snapshot_staging/service-existed"
     [ "$timer_existed" -eq 1 ] && touch "$snapshot_staging/timer-existed"
     [ "$hook_existed" -eq 1 ] && touch "$snapshot_staging/hook-existed"
+    [ "$attestation_existed" -eq 1 ] && touch "$snapshot_staging/attestation-existed"
     [ "$hook_dir_existed" -eq 1 ] && touch "$snapshot_staging/hook-dir-existed"
     [ "$webroot_existed" -eq 1 ] && touch "$snapshot_staging/webroot-existed"
     [ "$timer_was_enabled" -eq 1 ] && touch "$snapshot_staging/timer-was-enabled"
@@ -296,6 +315,82 @@ if [ -n "$SYSTEMD_ANALYZE" ]; then
         "$work_dir/$SERVICE_NAME" "$work_dir/$TIMER_NAME"
 fi
 
+configuration_digest() {
+    {
+        for managed_file in \
+            "$work_dir/$SERVICE_NAME" \
+            "$work_dir/$TIMER_NAME" \
+            "$work_dir/practenture-nginx-reload"; do
+            sha256sum "$managed_file" | cut -d ' ' -f 1
+        done
+        for renewal_config in "${renewal_configs[@]}"; do
+            cert_name=$(basename -- "$renewal_config" .conf)
+            printf 'cert_name=%s\n' "$cert_name"
+            grep -E '^(authenticator|webroot_path) = ' "$renewal_config" | LC_ALL=C sort
+        done
+    } | sha256sum | cut -d ' ' -f 1
+}
+
+write_attestation() {
+    digest=$1
+    attestation_tmp="$PROTECTED_STATE_DIR/.tls-renewal-attestation-v1.$$"
+    install -d -m 700 "$PROTECTED_STATE_DIR"
+    umask 077
+    {
+        printf 'version=1\n'
+        printf 'configuration_sha256=%s\n' "$digest"
+        printf 'validated_at_epoch=%s\n' "$(date +%s)"
+    } > "$attestation_tmp"
+    chmod 600 "$attestation_tmp"
+    mv "$attestation_tmp" "$ATTESTATION_PATH"
+}
+
+# Routine releases must not contact ACME when the complete managed renewal
+# configuration is unchanged. A pre-attestation installation may be adopted
+# once only when every managed byte, renewal setting, and timer invariant
+# already matches this release.
+routine_verification=0
+if [ "$service_existed" -eq 1 ] && [ "$timer_existed" -eq 1 ] \
+    && [ "$hook_existed" -eq 1 ] \
+    && cmp -s "$work_dir/$SERVICE_NAME" "$SYSTEMD_DIR/$SERVICE_NAME" \
+    && cmp -s "$work_dir/$TIMER_NAME" "$SYSTEMD_DIR/$TIMER_NAME" \
+    && cmp -s "$work_dir/practenture-nginx-reload" "$HOOK_PATH"; then
+    renewal_settings_valid=1
+    for renewal_config in "${renewal_configs[@]}"; do
+        grep -Eq '^authenticator = webroot$' "$renewal_config" \
+            || renewal_settings_valid=0
+        grep -Eq "^webroot_path = ${WEBROOT_PATH//\//\\/},?$" "$renewal_config" \
+            || renewal_settings_valid=0
+    done
+    if [ "$renewal_settings_valid" -eq 1 ] \
+        && "$SYSTEMCTL_BIN" is-enabled --quiet "$TIMER_NAME" \
+        && "$SYSTEMCTL_BIN" is-active --quiet "$TIMER_NAME"; then
+        NEXT_RUN=$("$SYSTEMCTL_BIN" show "$TIMER_NAME" --property=NextElapseUSecRealtime --value)
+        test -n "$NEXT_RUN"
+        desired_digest=$(configuration_digest)
+        if [ "$attestation_existed" -eq 0 ]; then
+            routine_verification=1
+            echo "TLS_RENEWAL_EXISTING_CONFIGURATION_ADOPTED"
+        elif grep -Fxq 'version=1' "$ATTESTATION_PATH" \
+            && grep -Fxq "configuration_sha256=$desired_digest" "$ATTESTATION_PATH" \
+            && [ -n "$(find "$ATTESTATION_PATH" -mtime -30 -print -quit)" ]; then
+            routine_verification=1
+            echo "TLS_RENEWAL_ATTESTATION_VERIFIED"
+        fi
+    fi
+fi
+
+if [ "$routine_verification" -eq 1 ]; then
+    restore_on_error=1
+    write_attestation "$desired_digest"
+    if [ -n "$ROLLBACK_DIR" ]; then
+        touch "$ROLLBACK_DIR/install-complete"
+    fi
+    restore_on_error=0
+    echo "TLS_RENEWAL_TIMER_READY"
+    exit 0
+fi
+
 restore_on_error=1
 if [ "$hook_dir_existed" -eq 0 ]; then
     install -d -m 755 "$HOOK_DIR"
@@ -330,6 +425,7 @@ install -m 644 "$work_dir/$TIMER_NAME" "$SYSTEMD_DIR/$TIMER_NAME"
 "$SYSTEMCTL_BIN" is-active --quiet "$TIMER_NAME"
 NEXT_RUN=$("$SYSTEMCTL_BIN" show "$TIMER_NAME" --property=NextElapseUSecRealtime --value)
 test -n "$NEXT_RUN"
+write_attestation "$(configuration_digest)"
 if [ -n "$ROLLBACK_DIR" ]; then
     touch "$ROLLBACK_DIR/install-complete"
 fi
