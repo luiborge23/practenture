@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import sqlite3
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import boto3
@@ -14,8 +16,15 @@ from fastapi.testclient import TestClient
 from admin_v2.dependencies import require_admin_session, require_recent_auth_session
 from admin_v2.errors import AdminError, error_envelope
 from admin_v2.invitation_email import send_professor_invitation
+from admin_v2.invitations_repository import SES_FEEDBACK_CORRELATION_RETENTION
 from admin_v2.invitations_routes import router
 from database import db
+from ses_suppression import recipient_suppression_hash
+
+
+@pytest.fixture(autouse=True)
+def suppression_key(monkeypatch) -> None:
+    monkeypatch.setenv("PRACTENTURE_EMAIL_SUPPRESSION_KEY", "ab" * 32)
 
 
 @pytest.fixture
@@ -118,6 +127,19 @@ def test_ses_send_requires_current_secret_exact_email_is_idempotent_and_redacted
         ).fetchone()[0]
         assert "010203040506070809abcdef" not in audit
         assert "ses:010203...cdef" in audit
+        correlation = conn.execute(
+            """SELECT provider, provider_message_id, recipient_hash, accepted_at,
+                      feedback_expires_at
+               FROM ses_feedback_correlations"""
+        ).fetchone()
+        assert tuple(correlation)[:3] == (
+            "ses",
+            "010203040506070809abcdef",
+            recipient_suppression_hash("professor@example.edu", required=True),
+        )
+        accepted_at = datetime.fromisoformat(correlation[3])
+        assert datetime.fromisoformat(correlation[4]) - accepted_at == SES_FEEDBACK_CORRELATION_RETENTION
+        assert invitation["invitation"]["intendedEmail"] not in " ".join(str(v) for v in correlation)
         persisted = " ".join(
             str(value)
             for row in conn.execute("SELECT response_body_json, request_fingerprint FROM admin_idempotency_records")
@@ -153,6 +175,65 @@ def test_ses_send_rejects_wrong_email_or_rotated_secret_without_calling_provider
     assert stale.json()["error"]["code"] == "ADMIN_INVITATION_EMAIL_PROOF_INVALID"
     assert calls == []
     assert rotated["secret"] != invitation["secret"]
+
+
+def test_missing_suppression_key_blocks_before_ses_reservation_or_call(client, monkeypatch):
+    _org()
+    invitation = _create(client)
+    calls = []
+    monkeypatch.delenv("PRACTENTURE_EMAIL_SUPPRESSION_KEY")
+    monkeypatch.setattr(
+        "admin_v2.invitation_email.send_professor_invitation",
+        lambda **kwargs: calls.append(kwargs),
+    )
+
+    response = _send(client, invitation)
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "ADMIN_EMAIL_SUPPRESSION_UNAVAILABLE"
+    assert calls == []
+    conn = db.connect()
+    try:
+        assert tuple(conn.execute("SELECT COUNT(*) FROM invitation_email_deliveries").fetchone()) == (0,)
+    finally:
+        conn.close()
+
+
+def test_accepted_correlation_collision_rolls_back_delivery_finalization(client, monkeypatch):
+    _org()
+    invitation = _create(client)
+    message_id = "duplicate-provider-message-id"
+    original = ("ses", message_id, "a" * 64, "2025-01-01T00:00:00+00:00", "2026-01-01T00:00:00+00:00")
+    conn = db.connect()
+    try:
+        conn.execute(
+            """INSERT INTO ses_feedback_correlations
+               (provider, provider_message_id, recipient_hash, accepted_at, feedback_expires_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            original,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    monkeypatch.setattr(
+        "admin_v2.invitation_email.send_professor_invitation",
+        lambda **_kwargs: SimpleNamespace(message_id=message_id),
+    )
+
+    with pytest.raises(sqlite3.IntegrityError):
+        _send(client, invitation)
+
+    conn = db.connect()
+    try:
+        assert tuple(conn.execute(
+            "SELECT state, provider, provider_message_id FROM invitation_email_deliveries"
+        ).fetchone()) == ("pending", None, None)
+        assert tuple(conn.execute(
+            """SELECT provider, provider_message_id, recipient_hash, accepted_at, feedback_expires_at
+               FROM ses_feedback_correlations"""
+        ).fetchone()) == original
+    finally:
+        conn.close()
 
 
 def test_provider_failure_records_failed_not_sent_and_keeps_manual_fallback(client, monkeypatch):

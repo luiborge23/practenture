@@ -946,16 +946,40 @@ async function renderOperationsWorkspace(
   finally { page.setAttribute("aria-busy", "false"); }
 }
 
+function wsCleanupValues(form, name) {
+  return [...new Set(String(new FormData(form).get(name) || "").split(/[\s,]+/).map((item) => item.trim()).filter(Boolean))].sort();
+}
+
+function wsCleanupNotice(error, fallback) {
+  if (!/cancelled/i.test(error?.message || "")) notice(fallback, true);
+}
+
+function wsCleanupBlockerText(type, count) {
+  const total = Number(count) || 0;
+  if (!total) return "";
+  if (type === "invitations") {
+    return `${total} selected invitation${total === 1 ? " is" : "s are"} not eligible for deletion. Revoke it or wait for it to become terminal, then create a new plan.`;
+  }
+  return `${total} selected record${total === 1 ? " is" : "s are"} not eligible for cleanup. Resolve the prerequisite and create a new plan.`;
+}
+
 async function renderCleanupWorkspace() {
   const fragment = document.createDocumentFragment();
   fragment.append(header("cleanup"));
   const warning = wsElement("section", "card danger-zone stack");
   warning.append(
-    wsElement("h2", "", "Delete only explicitly named simulation sessions"),
-    wsElement("p", "", "Cleanup is fail-closed: the server requires a current verified backup, a successful restore drill, a fresh plan hash, exact confirmation, and recent Administrator authentication."),
+    wsElement("h2", "", "Manual cleanup for explicitly selected data"),
+    wsElement("p", "", "Only the owner runs this workspace. It does not schedule or automatically retain or delete data."),
+    wsElement("p", "muted", "The server requires a verified backup, successful restore drill, recent reauthentication, drift detection, and exact confirmation before execution."),
   );
   const form = wsElement("form", "stack");
-  form.append(wsField("Session codes (comma or newline separated)", "sessionCodes", { multiline: true, rows: 4, required: true, placeholder: "ABC123\nDEF456" }));
+  form.append(
+    wsField("Simulation session codes (comma or newline separated)", "sessionCodes", { multiline: true, rows: 4, placeholder: "ABC123\nDEF456" }),
+    wsElement("h3", "", "Selected pre-production test data"),
+    wsElement("p", "muted", "Enter only explicit invitation IDs copied from authorized Admin records. Do not enter names or email addresses. Invitations must already be revoked or otherwise terminal."),
+    wsField("Invitation IDs (comma or newline separated)", "invitationIds", { multiline: true, rows: 3, placeholder: "Invitation IDs from authorized Admin records" }),
+    wsElement("p", "muted", "This workspace does not delete user accounts. Suspend unwanted test users from Users to preserve audit history and prevent sign-in."),
+  );
   const submit = button("Preview cleanup plan", "button-primary");
   submit.type = "submit";
   form.append(submit);
@@ -963,45 +987,83 @@ async function renderCleanupWorkspace() {
   fragment.append(warning);
   page.replaceChildren(fragment);
   page.setAttribute("aria-busy", "false");
+  let previewPending = false;
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const raw = new FormData(form).get("sessionCodes") || "";
-    const codes = [...new Set(String(raw).split(/[\s,]+/).map((item) => item.trim()).filter(Boolean))].sort();
-    if (!codes.length) { notice("Enter at least one session code.", true); return; }
+    if (previewPending) return;
+    const selector = {};
+    const sessionCodes = wsCleanupValues(form, "sessionCodes");
+    const invitationIds = wsCleanupValues(form, "invitationIds");
+    if (sessionCodes.length) selector.sessionCodes = sessionCodes;
+    if (invitationIds.length) selector.invitationIds = invitationIds;
+    if (!Object.keys(selector).length) { notice("Enter at least one explicit session code or invitation ID.", true); return; }
+    previewPending = true;
     submit.disabled = true;
+    submit.setAttribute("aria-busy", "true");
     try {
-      const response = await wsRecentMutation("/operations/cleanup-plans", { body: { selector: { sessionCodes: codes } } });
+      const response = await wsRecentMutation("/operations/cleanup-plans", { body: { selector } });
       const plan = response.plan;
+      const rows = Object.entries(plan.previewCounts || {}).map(([type, count]) => ({ type: titleCase(type), count }));
+      const total = rows.reduce((sum, row) => sum + (Number(row.count) || 0), 0);
       const panel = wsElement("section", "card stack cleanup-plan");
-      panel.append(wsElement("h2", "", "Review deletion plan"));
-      panel.append(wsElement("p", "muted", `Plan expires ${wsDate(plan.expiresAt)}. Any data drift invalidates it.`));
-      panel.append(wsTable([
-        { label: "Record type", value: (row) => row.type },
-        { label: "Count", value: (row) => row.count },
-      ], Object.entries(plan.previewCounts || {}).map(([type, count]) => ({ type: titleCase(type), count }))));
-      const confirmation = wsField("Type the exact confirmation text", "confirmation", { required: true, value: "" });
-      panel.append(wsElement("code", "confirmation-text", plan.confirmationText), confirmation);
+      panel.append(
+        wsElement("h2", "", "Review server-generated cleanup plan"),
+        wsElement("p", "muted", `Plan expires ${wsDate(plan.expiresAt)}. Any data drift invalidates it.`),
+        wsElement("p", "", `Aggregate records selected for deletion: ${total}.`),
+        wsTable([
+          { label: "Record type", value: (row) => row.type },
+          { label: "Count", value: (row) => row.count },
+        ], rows),
+      );
+      const blockerCounts = plan && typeof plan.blockerCounts === "object" && plan.blockerCounts !== null ? plan.blockerCounts : {};
+      const blockers = Object.entries(blockerCounts).filter(([, count]) => (Number(count) || 0) > 0);
+      if (blockers.length) {
+        const blockerSection = wsElement("section", "stack");
+        blockerSection.append(wsElement("h3", "", "Safety blockers"));
+        const list = wsElement("ul", "");
+        for (const [type, count] of blockers) list.append(wsElement("li", "", wsCleanupBlockerText(type, count)));
+        blockerSection.append(list, wsElement("p", "muted", "Blocker guidance is derived only from aggregate server counts and does not display selected record identities."));
+        panel.append(blockerSection);
+      }
+      const confirmation = wsField("Type the exact confirmation text", "confirmation", { required: true, value: "", autocomplete: "off" });
       const execute = button("Execute bounded cleanup", "button-danger");
-      panel.append(execute);
+      execute.disabled = blockers.length > 0;
+      if (blockers.length) execute.setAttribute("aria-disabled", "true");
+      panel.append(wsElement("code", "confirmation-text", plan.confirmationText), confirmation, execute);
+      let executePending = false;
       execute.addEventListener("click", async () => {
+        if (executePending || execute.disabled) return;
         const typed = confirmation.querySelector("input").value;
         if (typed !== plan.confirmationText) { notice("Confirmation text does not match the server plan.", true); return; }
+        executePending = true;
         execute.disabled = true;
+        execute.textContent = "Executing bounded cleanup…";
+        execute.setAttribute("aria-busy", "true");
         try {
           const result = await wsRecentMutation(`/operations/cleanup-plans/${encodeURIComponent(plan.id)}/execute`, {
             body: { planHash: plan.planHash, confirmation: typed },
           });
+          const deleted = Object.values(result.deletedCounts || {}).reduce((sum, value) => sum + (Number(value) || 0), 0);
           await renderCleanupWorkspace();
-          notice(`Cleanup completed. ${Object.values(result.deletedCounts || {}).reduce((sum, value) => sum + value, 0)} records deleted from the scoped sessions.`);
-        } catch (error) { if (!/cancelled/i.test(error.message)) notice(error.message, true); }
-        finally { execute.disabled = false; }
+          notice(`Cleanup completed. ${deleted} records deleted.`);
+        } catch (error) { wsCleanupNotice(error, "Cleanup could not be completed. Refresh the plan and review the safety requirements before trying again."); }
+        finally {
+          executePending = false;
+          execute.disabled = false;
+          execute.removeAttribute("aria-busy");
+          execute.textContent = "Execute bounded cleanup";
+        }
       });
       warning.after(panel);
-      notice("Review the server-generated plan before executing.");
-    } catch (error) { if (!/cancelled/i.test(error.message)) notice(error.message, true); }
-    finally { submit.disabled = false; }
+      notice("Review the server-generated plan, expiry, counts, and any safety blockers before executing.");
+    } catch (error) { wsCleanupNotice(error, "Cleanup plan could not be created. Verify the selected records and required safety prerequisites, then try again."); }
+    finally {
+      previewPending = false;
+      submit.disabled = false;
+      submit.removeAttribute("aria-busy");
+    }
   });
-  status("Scoped cleanup ready");
+  status("Data retention and cleanup ready");
 }
 
 async function renderAccountWorkspace() {

@@ -18,8 +18,8 @@ def test_shell_references_only_local_versioned_assets_and_is_not_cached():
     assert "default-src 'self'" in response.headers["content-security-policy"]
     assert 'href="/static/admin_v2/admin-v2.css?v=3"' in response.text
     assert 'href="/static/admin_v2/admin-workspaces.css?v=2"' in response.text
-    assert 'src="/static/admin_v2/admin-workspaces.js?v=5"' in response.text
-    assert 'src="/static/admin_v2/admin-v2.js?v=20260803-ses-suppression-ui"' in response.text
+    assert 'src="/static/admin_v2/admin-workspaces.js?v=6"' in response.text
+    assert 'src="/static/admin_v2/admin-v2.js?v=20260804-data-retention-cleanup"' in response.text
     assert "http://" not in response.text
     assert "https://" not in response.text
     assert "localStorage" not in response.text
@@ -106,6 +106,45 @@ def test_shell_has_accessible_landmarks_and_no_inline_executable_code():
     assert "localStorage" not in html
     assert "sessionStorage" not in html
     assert "Delete all" not in html
+
+
+def test_manual_cleanup_workspace_supports_explicit_test_data_without_persistence():
+    html = (BACKEND / "templates" / "admin_v2.html").read_text(encoding="utf-8")
+    core = (BACKEND / "static" / "admin_v2" / "admin-v2.js").read_text(encoding="utf-8")
+    script = (BACKEND / "static" / "admin_v2" / "admin-workspaces.js").read_text(encoding="utf-8")
+
+    cleanup = script[script.index("function wsCleanupValues") : script.index("async function renderAccountWorkspace")]
+    assert 'data-view="cleanup">Data retention &amp; cleanup</a>' in html
+    assert 'cleanup:["Data retention & cleanup"' in core
+    for marker in (
+        "Selected pre-production test data",
+        "Simulation session codes (comma or newline separated)",
+        "if (sessionCodes.length) selector.sessionCodes = sessionCodes;",
+        "Invitation IDs (comma or newline separated)",
+        "authorized Admin records",
+        "does not delete user accounts",
+        "Suspend unwanted test users",
+        "invitationIds",
+        "sessionCodes",
+        "wsRecentMutation(\"/operations/cleanup-plans\"",
+        "Plan expires",
+        "Aggregate records selected for deletion",
+        "Safety blockers",
+        "blockerCounts",
+        "Object.entries(blockerCounts)",
+        "Type the exact confirmation text",
+        "Executing bounded cleanup…",
+        "await renderCleanupWorkspace()",
+    ):
+        assert marker in cleanup
+    assert "localStorage" not in cleanup
+    assert "sessionStorage" not in cleanup
+    assert "console.log" not in cleanup
+    assert ".dataset" not in cleanup
+    assert "search-by-email" not in cleanup
+    assert "User IDs (comma or newline separated)" not in cleanup
+    assert "selector.userIds" not in cleanup
+    assert 'execute.disabled = blockers.length > 0;' in cleanup
 
 
 def test_admin_shell_makes_professor_enrollment_a_primary_visible_action():

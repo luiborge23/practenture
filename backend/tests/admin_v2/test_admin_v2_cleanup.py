@@ -115,10 +115,12 @@ def test_preview_selected_only_and_canonical_hash(client):
     second=client.post("/api/admin/v2/operations/cleanup-plans",json={"selector":{"sessionCodes":["A","B"]}})
     assert first.status_code == second.status_code == 201
     a,b=first.json()["plan"],second.json()["plan"]
-    assert a["selector"] == {"sessionCodes":["A","B"]}
+    assert "selector" not in a and "selector" not in b
     assert a["previewCounts"] == {"sessions":2,"decisions":2,"results":2,"teamStates":2,"announcements":2,"createRequests":2}
     assert a["planHash"] == b["planHash"] and len(a["planHash"]) == 64
-    assert client.get(f"/api/admin/v2/operations/cleanup-plans/{a['id']}").json()["plan"]["planHash"] == a["planHash"]
+    public_get = client.get(f"/api/admin/v2/operations/cleanup-plans/{a['id']}").json()["plan"]
+    assert public_get["planHash"] == a["planHash"]
+    assert "selector" not in public_get
 
 
 def test_backup_required_and_drift_are_fail_closed(client):
@@ -179,7 +181,7 @@ def test_stale_failed_unverified_or_undrilled_backup_is_denied(client, evidence)
 def test_mid_delete_failure_rolls_back_deletes_plan_audit_and_idempotency(client, cleanup_service, monkeypatch):
     seed(); backup()
     plan=client.post("/api/admin/v2/operations/cleanup-plans",json={"selector":{"sessionCodes":["A"]}}).json()["plan"]
-    def partial_then_fail(conn, codes):
+    def partial_then_fail(conn, codes, invitation_ids=None):
         conn.execute("DELETE FROM announcements WHERE session_id='sid-a'")
         raise RuntimeError("injected mid-delete failure")
     monkeypatch.setattr(cleanup_service.repository, "delete_selected", partial_then_fail)
@@ -201,3 +203,160 @@ def test_anonymous_plan_read_and_recent_auth_execute_boundaries(app, client):
     app.dependency_overrides.pop(require_recent_auth_session)
     denied_execute=client.post("/api/admin/v2/operations/cleanup-plans/unknown/execute",json={"planHash":"a"*64,"confirmation":"x"},headers={"Idempotency-Key":"auth-boundary"})
     assert denied_execute.status_code == 401 and denied_execute.json()["error"]["code"] == "ADMIN_AUTH_REQUIRED"
+
+
+def seed_invitation(invitation_id: str, *, status: str = "revoked", expires_at: datetime | None = None, delivery_id: str | None = None):
+    now = datetime.now(timezone.utc)
+    conn = db.connect()
+    try:
+        conn.execute(
+            """INSERT INTO professor_invitations
+               (id,secret_hash,masked_code,organization_id,intended_email,status,expires_at,max_uses,use_count,issued_by)
+               VALUES (?, 'hash', 'masked', 'org', 'private@example.edu', ?, ?, 1, 0, 'owner')""",
+            (invitation_id, status, (expires_at or now + timedelta(hours=1)).isoformat()),
+        )
+        if delivery_id:
+            conn.execute(
+                """INSERT INTO invitation_email_deliveries
+                   (id,invitation_id,recipient_email,owner_id,idempotency_key_hash,request_fingerprint,state,provider,provider_message_id,created_at,updated_at)
+                   VALUES (?, ?, 'private@example.edu', 'owner', ?, 'fp', 'accepted', 'ses', 'provider-private', ?, ?)""",
+                (delivery_id, invitation_id, f"key-{delivery_id}", now.isoformat(), now.isoformat()),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_selector_allows_canonical_session_and_invitation_combination(client):
+    seed(); seed_invitation("inv-b"); seed_invitation("inv-a")
+    response = client.post(
+        "/api/admin/v2/operations/cleanup-plans",
+        json={"selector":{"sessionCodes":[" B ","A"],"invitationIds":[" inv-b ","inv-a"]}},
+    )
+    assert response.status_code == 201
+    plan = response.json()["plan"]
+    assert "selector" not in plan
+    serialized = json.dumps(plan)
+    assert "inv-a" not in serialized and "inv-b" not in serialized
+    assert '"A"' not in serialized and '"B"' not in serialized
+    assert plan["previewCounts"]["invitations"] == 2
+
+
+@pytest.mark.parametrize("payload", [
+    {"selector":{"invitationIds":[]}},
+    {"selector":{"invitationIds":[" "]}},
+    {"selector":{"invitationIds":["x","x"]}},
+    {"selector":{"sessionCodes":["A"],"userIds":["u"]}},
+])
+def test_invitation_selector_validation_rejects_empty_duplicates_and_user_ids(client, payload):
+    assert client.post("/api/admin/v2/operations/cleanup-plans", json=payload).status_code == 422
+
+
+def test_terminal_invitation_deletes_deliveries_first_and_preserves_ses_evidence(client):
+    seed_invitation("inv-terminal", delivery_id="delivery-terminal")
+    conn = db.connect()
+    try:
+        conn.execute("INSERT INTO ses_recipient_suppressions VALUES (?, 'permanent_bounce', '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00', 1)", ("a" * 64,))
+        conn.execute("INSERT INTO ses_feedback_events VALUES ('sns-private', 'Bounce', 'provider-private', 'suppressed', '2026-01-01T00:00:00+00:00')")
+        conn.execute(
+            """INSERT INTO ses_feedback_correlations
+               (provider, provider_message_id, recipient_hash, accepted_at, feedback_expires_at)
+               VALUES ('ses', 'provider-private', ?, '2026-01-01T00:00:00+00:00', '2027-01-01T00:00:00+00:00')""",
+            ("b" * 64,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    backup()
+    plan = client.post("/api/admin/v2/operations/cleanup-plans", json={"selector":{"invitationIds":["inv-terminal"]}}).json()["plan"]
+    result = client.post(f"/api/admin/v2/operations/cleanup-plans/{plan['id']}/execute", json={"planHash":plan["planHash"],"confirmation":plan["confirmationText"]}, headers={"Idempotency-Key":"invite-ok"})
+    assert result.status_code == 200
+    assert result.json()["deletedCounts"] == {"invitations":1,"invitationEmailDeliveries":1}
+    conn = db.connect()
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM professor_invitations").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM invitation_email_deliveries").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM ses_recipient_suppressions").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM ses_feedback_events").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM ses_feedback_correlations").fetchone()[0] == 1
+        audit = conn.execute("SELECT metadata_json FROM admin_audit_events WHERE action='cleanup.execute'").fetchone()[0]
+        assert "private@example.edu" not in audit and "provider-private" not in audit and "delivery-terminal" not in audit
+    finally:
+        conn.close()
+
+
+def test_active_or_missing_invitations_block_without_mutation_and_get_recalculates(client):
+    seed_invitation("inv-active", status="active")
+    backup()
+    plan = client.post("/api/admin/v2/operations/cleanup-plans", json={"selector":{"invitationIds":["inv-active","inv-missing"]}}).json()["plan"]
+    assert plan["blockerCounts"] == {"invitations":2}
+    result = client.post(f"/api/admin/v2/operations/cleanup-plans/{plan['id']}/execute", json={"planHash":plan["planHash"],"confirmation":plan["confirmationText"]}, headers={"Idempotency-Key":"invite-blocked"})
+    assert result.status_code == 409 and result.json()["error"]["code"] == "ADMIN_CLEANUP_BLOCKED"
+    assert client.get(f"/api/admin/v2/operations/cleanup-plans/{plan['id']}").json()["plan"]["blockerCounts"] == {"invitations":2}
+    conn = db.connect(); assert conn.execute("SELECT COUNT(*) FROM professor_invitations").fetchone()[0] == 1; conn.close()
+
+
+def test_expired_active_invitation_is_eligible_and_same_count_delivery_swap_is_drift(client):
+    seed_invitation("inv-expired", status="active", expires_at=datetime.now(timezone.utc)-timedelta(seconds=1), delivery_id="delivery-one")
+    backup()
+    plan = client.post("/api/admin/v2/operations/cleanup-plans", json={"selector":{"invitationIds":["inv-expired"]}}).json()["plan"]
+    conn = db.connect()
+    try:
+        conn.execute("DELETE FROM invitation_email_deliveries WHERE id='delivery-one'")
+        now = datetime.now(timezone.utc).isoformat()
+        conn.execute("""INSERT INTO invitation_email_deliveries (id,invitation_id,recipient_email,owner_id,idempotency_key_hash,request_fingerprint,state,created_at,updated_at)
+                      VALUES ('delivery-two','inv-expired','other-private@example.edu','owner','key-two','fp','accepted',?,?)""", (now, now))
+        conn.commit()
+    finally:
+        conn.close()
+    result = client.post(f"/api/admin/v2/operations/cleanup-plans/{plan['id']}/execute", json={"planHash":plan["planHash"],"confirmation":plan["confirmationText"]}, headers={"Idempotency-Key":"delivery-drift"})
+    assert result.status_code == 409 and result.json()["error"]["code"] == "ADMIN_CLEANUP_PLAN_CHANGED"
+
+
+def test_expired_active_invitation_executes_when_its_exact_set_is_unchanged(client):
+    seed_invitation("inv-expired-ok", status="active", expires_at=datetime.now(timezone.utc)-timedelta(seconds=1))
+    backup()
+    plan = client.post("/api/admin/v2/operations/cleanup-plans", json={"selector":{"invitationIds":["inv-expired-ok"]}}).json()["plan"]
+    assert "blockerCounts" not in plan
+    result = client.post(f"/api/admin/v2/operations/cleanup-plans/{plan['id']}/execute", json={"planHash":plan["planHash"],"confirmation":plan["confirmationText"]}, headers={"Idempotency-Key":"expired-ok"})
+    assert result.status_code == 200 and result.json()["deletedCounts"] == {"invitations":1,"invitationEmailDeliveries":0}
+
+
+def test_stored_expired_invitation_with_future_expiry_executes_after_backup_gate(client):
+    seed_invitation("inv-stored-expired", status="expired", expires_at=datetime.now(timezone.utc) + timedelta(days=1))
+    plan = client.post("/api/admin/v2/operations/cleanup-plans", json={"selector":{"invitationIds":["inv-stored-expired"]}}).json()["plan"]
+    assert "blockerCounts" not in plan
+    missing_backup = client.post(
+        f"/api/admin/v2/operations/cleanup-plans/{plan['id']}/execute",
+        json={"planHash":plan["planHash"],"confirmation":plan["confirmationText"]},
+        headers={"Idempotency-Key":"stored-expired-no-backup"},
+    )
+    assert missing_backup.status_code == 409 and missing_backup.json()["error"]["code"] == "ADMIN_BACKUP_REQUIRED"
+    backup()
+    completed = client.post(
+        f"/api/admin/v2/operations/cleanup-plans/{plan['id']}/execute",
+        json={"planHash":plan["planHash"],"confirmation":plan["confirmationText"]},
+        headers={"Idempotency-Key":"stored-expired-backup"},
+    )
+    assert completed.status_code == 200
+
+
+def test_invitation_delete_failure_after_child_removal_rolls_back_and_public_data_stays_redacted(client, cleanup_service, monkeypatch):
+    seed_invitation("inv-rollback", delivery_id="delivery-rollback"); backup()
+    plan = client.post("/api/admin/v2/operations/cleanup-plans", json={"selector":{"invitationIds":["inv-rollback"]}}).json()["plan"]
+    serialized = json.dumps(plan)
+    assert "private@example.edu" not in serialized and "provider-private" not in serialized and "delivery-rollback" not in serialized
+    def fail_after_child(conn, codes, invitation_ids):
+        conn.execute("DELETE FROM invitation_email_deliveries WHERE invitation_id=?", (invitation_ids[0],))
+        raise RuntimeError("injected invitation root failure")
+    monkeypatch.setattr(cleanup_service.repository, "delete_selected", fail_after_child)
+    with pytest.raises(RuntimeError, match="injected invitation root failure"):
+        client.post(f"/api/admin/v2/operations/cleanup-plans/{plan['id']}/execute", json={"planHash":plan["planHash"],"confirmation":plan["confirmationText"]}, headers={"Idempotency-Key":"invite-rollback"})
+    conn = db.connect()
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM professor_invitations").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM invitation_email_deliveries").fetchone()[0] == 1
+        metadata = conn.execute("SELECT metadata_json FROM admin_audit_events WHERE action='cleanup.execute'").fetchall()
+        assert all("private@example.edu" not in row[0] and "provider-private" not in row[0] for row in metadata)
+    finally:
+        conn.close()

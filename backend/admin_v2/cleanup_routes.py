@@ -11,7 +11,11 @@ def get_cleanup_service() -> CleanupService: return _service
 
 @router.post("/cleanup-plans",response_model=CleanupPlanResponse,status_code=201)
 def create_cleanup_plan(payload: CleanupPlanCreateRequest, session: AuthenticatedSession=Depends(require_csrf_session), service: CleanupService=Depends(get_cleanup_service)):
-    return service.create_plan(session=session,session_codes=payload.selector.session_codes)
+    return service.create_plan(
+        session=session,
+        session_codes=payload.selector.session_codes,
+        invitation_ids=payload.selector.invitation_ids,
+    )
 
 @router.get("/cleanup-plans/{plan_id}",response_model=CleanupPlanResponse)
 def get_cleanup_plan(plan_id: str, session: AuthenticatedSession=Depends(require_admin_session), service: CleanupService=Depends(get_cleanup_service)):

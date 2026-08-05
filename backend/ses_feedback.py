@@ -20,7 +20,7 @@ from starlette.concurrency import run_in_threadpool
 
 from admin_v2.redaction import redact_secrets
 from database import db
-from ses_suppression import normalize_recipient, recipient_suppression_hash
+from ses_suppression import recipient_suppression_hash, upsert_recipient_suppression
 
 router = APIRouter(prefix="/api/email", tags=["email-feedback"])
 _MAX_BODY_BYTES = 256 * 1024
@@ -164,38 +164,44 @@ def process_ses_feedback(payload: dict) -> str:
         if existing is not None:
             conn.commit()
             return str(existing[0])
+        correlation = None
         delivery = None
         if provider_message_id:
+            correlation = conn.execute(
+                """SELECT recipient_hash FROM ses_feedback_correlations
+                   WHERE provider='ses' AND provider_message_id=?
+                     AND feedback_expires_at > ?""",
+                (provider_message_id, now),
+            ).fetchone()
+            # Delivery existence is optional: its retained correlation is the
+            # authoritative privacy-safe feedback tombstone after cleanup.
             delivery = conn.execute(
-                """SELECT invitation_id, recipient_email FROM invitation_email_deliveries
+                """SELECT invitation_id FROM invitation_email_deliveries
                    WHERE provider='ses' AND state='accepted' AND provider_message_id=?
                    ORDER BY created_at DESC LIMIT 1""",
                 (provider_message_id,),
             ).fetchone()
-        if suppress_reason and delivery is not None:
-            recipient_email = str(delivery[1])
-            recipient_hash = recipient_suppression_hash(recipient_email, required=True)
-            assert recipient_hash is not None
-            conn.execute(
-                """INSERT INTO ses_recipient_suppressions
-                       (recipient_hash, reason, first_observed_at, last_observed_at, active)
-                   VALUES (?, ?, ?, ?, 1)
-                   ON CONFLICT(recipient_hash) DO UPDATE SET
-                       reason=excluded.reason, last_observed_at=excluded.last_observed_at, active=1""",
-                (recipient_hash, suppress_reason, now, now),
+        if suppress_reason and correlation is not None:
+            recipient_hash = str(correlation["recipient_hash"])
+            upsert_recipient_suppression(
+                conn, recipient_hash=recipient_hash, reason=suppress_reason, observed_at=now
             )
-            normalized = normalize_recipient(recipient_email)
-            result = conn.execute(
-                """UPDATE professor_invitations
-                   SET status='revoked', revoked_at=?, revoked_by='ses-feedback'
-                   WHERE lower(trim(intended_email))=? AND lower(status)='active'""",
-                (now, normalized),
-            )
+            revoked_count = 0
+            invitation_id: str | None = None
+            if delivery is not None:
+                invitation_id = str(delivery["invitation_id"])
+                result = conn.execute(
+                    """UPDATE professor_invitations
+                       SET status='revoked', revoked_at=?, revoked_by='ses-feedback'
+                       WHERE id=? AND lower(status)='active'""",
+                    (now, invitation_id),
+                )
+                revoked_count = result.rowcount
             metadata = redact_secrets({
                 "feedbackType": suppress_reason,
                 "providerMessageIdHash": hashlib.sha256(provider_message_id.encode("utf-8")).hexdigest(),
                 "recipientHashPrefix": recipient_hash[:12],
-                "revokedCount": result.rowcount,
+                "revokedCount": revoked_count,
             })
             conn.execute(
                 """INSERT INTO admin_audit_events
@@ -204,7 +210,11 @@ def process_ses_feedback(payload: dict) -> str:
                 (
                     f"audit_{uuid4()}", f"sns_{sns_message_id}",
                     json.dumps({"id": "amazon-ses", "role": "system"}, separators=(",", ":")),
-                    json.dumps({"type": "invitation", "id": str(delivery[0])}, separators=(",", ":")),
+                    json.dumps(
+                        {"type": "invitation", "id": invitation_id}
+                        if invitation_id is not None else {"type": "recipient_suppression"},
+                        separators=(",", ":"),
+                    ),
                     json.dumps(metadata, separators=(",", ":"), sort_keys=True), now,
                 ),
             )

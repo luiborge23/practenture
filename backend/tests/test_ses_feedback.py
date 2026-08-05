@@ -31,7 +31,7 @@ def isolated_feedback(monkeypatch):
     monkeypatch.setenv("PRACTENTURE_EMAIL_SUPPRESSION_KEY", KEY)
     conn = db.connect()
     try:
-        for table in ("ses_feedback_events", "ses_recipient_suppressions", "invitation_email_deliveries"):
+        for table in ("ses_feedback_events", "ses_recipient_suppressions", "ses_feedback_correlations", "invitation_email_deliveries"):
             conn.execute(f"DELETE FROM {table}")
         conn.execute("DELETE FROM professor_invitations")
         conn.commit()
@@ -60,6 +60,13 @@ def _accepted_delivery(email="professor@example.edu", message_id="ses-message-1"
                        'fingerprint', 'accepted', 'ses', ?, ?, ?)""",
             (email, message_id, now, now),
         )
+        conn.execute(
+            """INSERT INTO ses_feedback_correlations
+               (provider, provider_message_id, recipient_hash, accepted_at, feedback_expires_at)
+               VALUES ('ses', ?, ?, ?, ?)""",
+            (message_id, recipient_suppression_hash(email, required=True), now,
+             (datetime.now(timezone.utc) + timedelta(days=365)).isoformat()),
+        )
         conn.commit()
     finally:
         conn.close()
@@ -86,6 +93,7 @@ def test_permanent_bounce_hashes_recipient_revokes_and_is_idempotent():
         assert conn.execute("SELECT COUNT(*) FROM ses_feedback_events").fetchone()[0] == 1
         audit = conn.execute("SELECT metadata_json FROM admin_audit_events WHERE action='invitation.email_feedback'").fetchone()[0]
         assert "ses-message-1" not in audit
+        assert "professor@example.edu" not in audit
         assert "providerMessageIdHash" in audit
     finally:
         conn.close()
@@ -108,6 +116,52 @@ def test_unknown_provider_message_is_recorded_without_suppression():
     conn = db.connect()
     try:
         assert conn.execute("SELECT COUNT(*) FROM ses_recipient_suppressions").fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
+def test_terminal_feedback_uses_correlation_after_delivery_and_invitation_are_deleted():
+    _accepted_delivery(email="delayed@example.edu", message_id="delayed-message")
+    conn = db.connect()
+    try:
+        conn.execute("DELETE FROM invitation_email_deliveries")
+        conn.execute("DELETE FROM professor_invitations")
+        conn.commit()
+    finally:
+        conn.close()
+    payload = _sns_message(kind="Complaint", message_id="delayed-message", sns_id="sns-delayed")
+    assert ses_feedback.process_ses_feedback(payload) == "suppressed"
+    assert ses_feedback.process_ses_feedback(payload) == "suppressed"
+    conn = db.connect()
+    try:
+        assert tuple(conn.execute(
+            "SELECT recipient_hash, reason FROM ses_recipient_suppressions"
+        ).fetchone()) == (recipient_suppression_hash("delayed@example.edu"), "complaint")
+        assert conn.execute("SELECT COUNT(*) FROM ses_feedback_events").fetchone()[0] == 1
+        correlation = conn.execute("SELECT * FROM ses_feedback_correlations").fetchone()
+        assert "delayed@example.edu" not in str(tuple(correlation))
+        audit = conn.execute("SELECT metadata_json FROM admin_audit_events WHERE action='invitation.email_feedback'").fetchone()[0]
+        assert "delayed@example.edu" not in audit and "delayed-message" not in audit
+    finally:
+        conn.close()
+
+
+def test_expired_correlation_is_ignored_unknown_without_suppression():
+    _accepted_delivery(email="expired@example.edu", message_id="expired-message")
+    conn = db.connect()
+    try:
+        conn.execute(
+            "UPDATE ses_feedback_correlations SET feedback_expires_at=? WHERE provider_message_id=?",
+            ((datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat(), "expired-message"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    assert ses_feedback.process_ses_feedback(_sns_message(message_id="expired-message", sns_id="sns-expired")) == "ignored_unknown"
+    conn = db.connect()
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM ses_recipient_suppressions").fetchone()[0] == 0
+        assert conn.execute("SELECT status FROM professor_invitations WHERE id='inv-feedback'").fetchone()[0] == "active"
     finally:
         conn.close()
 
@@ -151,6 +205,13 @@ def test_sns_signature_topic_and_certificate_host_are_verified(monkeypatch):
     payload["Signature"] = base64.b64encode(private_key.sign(ses_feedback._canonical_message(payload), padding.PKCS1v15(), hashes.SHA1())).decode()
     monkeypatch.setattr(ses_feedback, "_fetch_signing_certificate", lambda *_: cert_pem)
     assert ses_feedback.verify_sns_message(payload) == (TOPIC, "us-east-1")
+    _accepted_delivery(message_id="m")
+    ses_feedback.handle_sns_payload(payload, "Notification")
+    conn = db.connect()
+    try:
+        assert tuple(conn.execute("SELECT reason FROM ses_recipient_suppressions").fetchone()) == ("permanent_bounce",)
+    finally:
+        conn.close()
     payload["TopicArn"] = "arn:aws:sns:us-east-1:123456789012:wrong"
     with pytest.raises(ValueError, match="unexpected SNS topic"):
         ses_feedback.verify_sns_message(payload)

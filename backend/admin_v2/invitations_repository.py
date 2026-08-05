@@ -9,7 +9,7 @@ from __future__ import annotations
 import base64
 import binascii
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
 import json
@@ -28,6 +28,9 @@ _SORT_COLUMNS = {
     "intendedEmail": "lower(i.intended_email)",
     "status": "effective_status",
 }
+
+# Accepted SES message IDs remain correlatable with feedback for one year.
+SES_FEEDBACK_CORRELATION_RETENTION = timedelta(days=365)
 
 
 @dataclass(frozen=True)
@@ -367,6 +370,17 @@ class InvitationRepository:
         now_iso = now.astimezone(timezone.utc).isoformat()
         conn = self._db.connect()
         try:
+            # A successful SES send must always have a feedback tombstone. Verify
+            # this prerequisite before reserving the non-replayable provider call.
+            try:
+                suppression_hash = recipient_suppression_hash(intended_email, required=True)
+            except RuntimeError as exc:
+                raise AdminError(
+                    503,
+                    "ADMIN_EMAIL_SUPPRESSION_UNAVAILABLE",
+                    "Email delivery is temporarily unavailable",
+                ) from exc
+            assert suppression_hash is not None
             conn.execute("BEGIN IMMEDIATE")
             existing = conn.execute(
                 "SELECT * FROM invitation_email_deliveries WHERE owner_id=? AND idempotency_key_hash=?",
@@ -389,14 +403,12 @@ class InvitationRepository:
             email_matches = hmac.compare_digest(str(invitation[1]), intended_email)
             if not active or not secret_matches or not email_matches:
                 raise AdminError(409, "ADMIN_INVITATION_EMAIL_PROOF_INVALID", "The active invitation, email, or disclosed code is invalid")
-            suppression_hash = recipient_suppression_hash(intended_email)
-            if suppression_hash is not None:
-                suppressed = conn.execute(
-                    "SELECT 1 FROM ses_recipient_suppressions WHERE recipient_hash=? AND active=1",
-                    (suppression_hash,),
-                ).fetchone()
-                if suppressed is not None:
-                    raise AdminError(409, "ADMIN_EMAIL_RECIPIENT_SUPPRESSED", "SES delivery is disabled for this recipient")
+            suppressed = conn.execute(
+                "SELECT 1 FROM ses_recipient_suppressions WHERE recipient_hash=? AND active=1",
+                (suppression_hash,),
+            ).fetchone()
+            if suppressed is not None:
+                raise AdminError(409, "ADMIN_EMAIL_RECIPIENT_SUPPRESSED", "SES delivery is disabled for this recipient")
             delivery_id = f"idel_{uuid4()}"
             conn.execute(
                 """INSERT INTO invitation_email_deliveries
@@ -437,6 +449,33 @@ class InvitationRepository:
                 raise RuntimeError("email delivery reservation disappeared")
             delivery = self._delivery(row)
             if result.rowcount == 1:
+                if accepted:
+                    try:
+                        recipient_hash = recipient_suppression_hash(
+                            delivery.recipient_email, required=True
+                        )
+                    except RuntimeError as exc:
+                        raise AdminError(
+                            503,
+                            "ADMIN_EMAIL_SUPPRESSION_UNAVAILABLE",
+                            "Email delivery is temporarily unavailable",
+                        ) from exc
+                    assert recipient_hash is not None
+                    feedback_expires_at = (
+                        now.astimezone(timezone.utc) + SES_FEEDBACK_CORRELATION_RETENTION
+                    ).isoformat()
+                    conn.execute(
+                        """INSERT INTO ses_feedback_correlations
+                           (provider, provider_message_id, recipient_hash, accepted_at,
+                            feedback_expires_at)
+                           VALUES ('ses', ?, ?, ?, ?)""",
+                        (
+                            provider_message_id,
+                            recipient_hash,
+                            now_iso,
+                            feedback_expires_at,
+                        ),
+                    )
                 metadata = redact_secrets({
                     "deliveryId": delivery.id, "invitationId": delivery.invitation_id,
                     "recipientEmail": delivery.recipient_email, "provider": delivery.provider,
