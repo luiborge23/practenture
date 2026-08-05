@@ -9,7 +9,7 @@ from __future__ import annotations
 import base64
 import binascii
 from dataclasses import dataclass, replace
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import hashlib
 import hmac
 import json
@@ -20,7 +20,10 @@ from uuid import uuid4
 from database import db
 from .errors import AdminError
 from .redaction import redact_secrets
-from ses_suppression import recipient_suppression_hash
+from ses_suppression import (
+    SES_FEEDBACK_CORRELATION_RETENTION,
+    recipient_suppression_hash,
+)
 
 _SORT_COLUMNS = {
     "createdAt": "created_at",
@@ -28,10 +31,6 @@ _SORT_COLUMNS = {
     "intendedEmail": "lower(i.intended_email)",
     "status": "effective_status",
 }
-
-# Accepted SES message IDs remain correlatable with feedback for one year.
-SES_FEEDBACK_CORRELATION_RETENTION = timedelta(days=365)
-
 
 @dataclass(frozen=True)
 class InvitationRecord:

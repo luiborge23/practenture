@@ -5,6 +5,11 @@ import hashlib
 import hmac
 import os
 import sqlite3
+from datetime import timedelta
+
+
+# Accepted SES message IDs remain correlatable with feedback for one year.
+SES_FEEDBACK_CORRELATION_RETENTION = timedelta(days=365)
 
 
 def normalize_recipient(email: str) -> str:
