@@ -41,7 +41,7 @@ def health_database(tmp_path: Path) -> TemporaryDatabase:
     conn.executescript(
         """
         CREATE TABLE alembic_version (version_num TEXT PRIMARY KEY);
-        INSERT INTO alembic_version VALUES ('006');
+        INSERT INTO alembic_version VALUES ('012');
         CREATE TABLE users (
             username TEXT PRIMARY KEY,
             role TEXT NOT NULL,
@@ -143,7 +143,7 @@ def test_healthy_report_covers_every_required_layer_and_is_read_only(
     assert report.status == "healthy"
     assert report.request_id == "req-health"
     assert report.engine.name == "sqlite"
-    assert report.engine.migration_version == "006"
+    assert report.engine.migration_version == "012"
     assert report.summary.failed == 0
     assert report.summary.warnings == 0
     assert {check.code for check in report.checks} == {
@@ -158,6 +158,29 @@ def test_healthy_report_covers_every_required_layer_and_is_read_only(
         "SQLITE_STORAGE",
     }
     assert before == after
+
+
+def test_current_structured_backup_verification_is_healthy(
+    health_database: TemporaryDatabase,
+) -> None:
+    conn = health_database.connect()
+    conn.execute(
+        """UPDATE backup_runs SET status='succeeded', integrity_result=?
+           WHERE id='backup-1'""",
+        (
+            '{"quickCheck":"ok","integrityCheck":"ok",'
+            '"foreignKeyViolations":0,"tableCounts":{"users":3}}',
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    report = _service(health_database).get_health(request_id="req-current", now=NOW)
+    checks = {check.code: check for check in report.checks}
+
+    assert report.status == "healthy"
+    assert checks["MIGRATION_VERSION"].status == "pass"
+    assert checks["BACKUP_FRESHNESS"].status == "pass"
 
 
 def test_seeded_orphans_domain_drift_and_failed_evidence_are_machine_readable_and_redacted(

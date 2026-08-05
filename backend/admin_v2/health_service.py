@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import hashlib
+import json
 import os
 from typing import Any, Literal
 
@@ -145,10 +146,15 @@ class OperationsHealthService:
                 details={"state": "notRecorded", "maxAgeSeconds": max_age},
             )
         status = str(row.get("status") or "").casefold()
-        integrity = str(row.get("integrity_result") or "").casefold()
+        integrity_verified = self._verified_backup_integrity(
+            row.get("integrity_result")
+        )
         timestamp = self._parse_timestamp(row.get("ended_at") or row.get("started_at"))
         age = self._age_seconds(timestamp, checked_at)
-        verified = status in {"completed", "success", "succeeded"} and integrity == "ok"
+        verified = (
+            status in {"completed", "success", "succeeded"}
+            and integrity_verified
+        )
         if not verified:
             return self._check(
                 "BACKUP_FRESHNESS", "fail", "critical", affected_count=1,
@@ -160,6 +166,24 @@ class OperationsHealthService:
             "BACKUP_FRESHNESS", "pass" if fresh else "warn",
             "info" if fresh else "warning", affected_count=0 if fresh else 1,
             details={"state": "fresh" if fresh else "stale", "ageSeconds": age, "maxAgeSeconds": max_age},
+        )
+
+    @staticmethod
+    def _verified_backup_integrity(value: Any) -> bool:
+        """Accept legacy ``ok`` evidence and the current structured verifier result."""
+        if not isinstance(value, str) or not value.strip():
+            return False
+        if value.strip().casefold() == "ok":
+            return True
+        try:
+            evidence = json.loads(value)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return False
+        return (
+            isinstance(evidence, dict)
+            and evidence.get("quickCheck") == "ok"
+            and evidence.get("integrityCheck") == "ok"
+            and evidence.get("foreignKeyViolations") == 0
         )
 
     def _restore_check(

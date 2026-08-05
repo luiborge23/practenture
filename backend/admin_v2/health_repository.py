@@ -19,7 +19,7 @@ class DatabaseConnectionProvider(Protocol):
     def connect(self) -> sqlite3.Connection: ...
 
 
-EXPECTED_MIGRATION_VERSION = "006"
+EXPECTED_MIGRATION_VERSION = "012"
 _SAMPLE_LIMIT = 10
 
 
