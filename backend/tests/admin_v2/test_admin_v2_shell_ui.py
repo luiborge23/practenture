@@ -18,7 +18,7 @@ def test_shell_references_only_local_versioned_assets_and_is_not_cached():
     assert "default-src 'self'" in response.headers["content-security-policy"]
     assert 'href="/static/admin_v2/admin-v2.css?v=3"' in response.text
     assert 'href="/static/admin_v2/admin-workspaces.css?v=2"' in response.text
-    assert 'src="/static/admin_v2/admin-workspaces.js?v=6"' in response.text
+    assert 'src="/static/admin_v2/admin-workspaces.js?v=7-empty-state"' in response.text
     assert 'src="/static/admin_v2/admin-v2.js?v=20260804-data-retention-cleanup"' in response.text
     assert "http://" not in response.text
     assert "https://" not in response.text
@@ -175,6 +175,15 @@ def test_invitation_handoff_exposes_code_only_and_manual_email_actions():
     assert "Generate replacement" in workspace_script
     assert "The previous code is no longer valid" in workspace_script
     assert 'button("Resend")' not in script
+
+
+def test_empty_admin_collections_return_an_element_that_supports_workspace_classes():
+    script = (BACKEND / "static" / "admin_v2" / "admin-workspaces.js").read_text(encoding="utf-8")
+    table_helper = script[script.index("function wsTable") : script.index("function wsToolbar")]
+
+    assert 'wsElement("div", "workspace-empty-state")' in table_helper
+    assert 'return $("empty-template").content.cloneNode(true)' not in table_helper
+    assert 'empty.append($("empty-template").content.cloneNode(true))' in table_helper
 
 
 def test_scalable_admin_lists_expose_filters_cursor_paging_and_mobile_actions():

@@ -220,7 +220,11 @@ function wsConfirmMfaEnrollment(enrollment) {
 }
 
 function wsTable(columns, rows, rowActions) {
-  if (!rows.length) return $("empty-template").content.cloneNode(true);
+  if (!rows.length) {
+    const empty = wsElement("div", "workspace-empty-state");
+    empty.append($("empty-template").content.cloneNode(true));
+    return empty;
+  }
   const card = wsElement("div", "table-card");
   const scroll = wsElement("div", "table-scroll");
   const table = document.createElement("table");
