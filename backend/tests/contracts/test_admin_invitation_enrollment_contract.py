@@ -502,9 +502,12 @@ def test_public_login_is_the_secure_professor_portal_shell():
     assert 'id="forgot-password"' in response.text
     assert 'id="reset-form"' in response.text
     assert 'id="reset-success"' in response.text
-    assert "portal.css?v=4" in response.text
-    assert "portal.js?v=8" in response.text
+    assert "portal.css?v=5" in response.text
+    assert "portal.js?v=9" in response.text
     assert 'id="create-form"' in response.text
+    assert 'class="scenario-picker"' in response.text
+    assert 'id="create-class-help"' in response.text
+    assert "Link to existing class" in response.text
     assert 'id="nav-security"' in response.text
     assert 'id="mfa-start-form"' in response.text
     assert 'id="mfa-recovery-panel"' in response.text

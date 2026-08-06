@@ -176,9 +176,20 @@ async function loadCreationOptions() {
     if (previousScenario) scenarioSelect.value = previousScenario;
 
     const classSelect = $("create-class");
+    const classHelp = $("create-class-help");
     const previousClass = classSelect.value;
-    classSelect.replaceChildren(new Option("No class", ""));
-    for (const item of classData.classes || []) {
+    const classes = classData.classes || [];
+    classSelect.replaceChildren();
+    if (classes.length === 0) {
+      classSelect.append(new Option("No existing classes — standalone session", ""));
+      classSelect.disabled = true;
+      classHelp.textContent = "No classes exist yet. This session will remain standalone, and students can still join with its session code.";
+    } else {
+      classSelect.append(new Option("Standalone session — do not link a class", ""));
+      classSelect.disabled = false;
+      classHelp.textContent = "Optional: link this session to an existing class and its enrolled students.";
+    }
+    for (const item of classes) {
       classSelect.append(new Option(item.name, item.id));
     }
     if (previousClass) classSelect.value = previousClass;

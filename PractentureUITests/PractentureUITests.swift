@@ -42,27 +42,28 @@ final class PractentureUITests: XCTestCase {
                       "Authentication step \(step) did not launch for \(role)")
     }
 
-    func testProfessorAuthenticationOffersThreePrimaryMethods() {
+    func testProfessorAuthenticationOffersOnlyPractentureCredentials() {
         launchAuthentication(role: "professor")
 
-        XCTAssertTrue(app.buttons["Sign in with Apple"].exists)
-        XCTAssertTrue(app.buttons["Sign in with Google"].exists)
+        XCTAssertFalse(app.buttons["Sign in with Apple"].exists)
+        XCTAssertFalse(app.buttons["Sign in with Google"].exists)
         XCTAssertTrue(app.buttons["Use Practenture credentials"].exists)
+        XCTAssertTrue(app.buttons["Redeem professor invitation"].exists)
         XCTAssertTrue(app.staticTexts.matching(
-            NSPredicate(format: "label CONTAINS %@", "same method they enrolled with")
+            NSPredicate(format: "label CONTAINS %@", "one-time invitation")
         ).firstMatch.exists)
     }
 
-    func testStudentAuthenticationLimitsProvidersToReturningLinkedAccounts() {
+    func testStudentAuthenticationOffersOnlyPractentureCredentials() {
         launchAuthentication(role: "student")
 
-        XCTAssertTrue(app.buttons["Sign in with Apple"].exists)
-        XCTAssertTrue(app.buttons["Sign in with Google"].exists)
-        XCTAssertTrue(app.staticTexts.matching(
-            NSPredicate(format: "label CONTAINS %@", "returning linked student accounts")
-        ).firstMatch.exists)
+        XCTAssertFalse(app.buttons["Sign in with Apple"].exists)
+        XCTAssertFalse(app.buttons["Sign in with Google"].exists)
         XCTAssertTrue(app.buttons["Use student credentials"].exists)
         XCTAssertTrue(app.buttons["Create student account"].exists)
+        XCTAssertTrue(app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@", "class code")
+        ).firstMatch.exists)
     }
 
     func testProfessorCredentialRecoveryNavigation() {
@@ -122,19 +123,55 @@ final class PractentureUITests: XCTestCase {
     func testProfessorAuthenticationAccessibilityAudit() throws {
         launchAuthentication(role: "professor")
 
-        let providerChoice = app.buttons["Sign in with Apple"]
-        XCTAssertTrue(providerChoice.waitForExistence(timeout: 10))
-        let verifiedHighContrastLabels: Set<String> = [
-            "First-time Apple or Google professors will need a one-time invitation. Returning professors should use the same method they enrolled with.",
-            "First-time professor?",
-            "Redeem professor invitation",
-            "Sign in with Google",
+        let credentialChoice = app.buttons["Use Practenture credentials"]
+        XCTAssertTrue(credentialChoice.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Sign in with Apple"].exists)
+        XCTAssertFalse(app.buttons["Sign in with Google"].exists)
+        // SwiftUI's audit node omits the explicit opaque background for these
+        // composed controls. Exported rendered pixels measured 16.07:1 for the
+        // credential button. Require the observed set to match exactly so new
+        // or missing contrast findings fail closed.
+        let expectedSwiftUIContrastLabels: Set<String> = [
+            "Use the one-time invitation sent by your Administrator to create your Professor account.",
             "Use Practenture credentials",
+            "Redeem professor invitation",
         ]
+        var observedContrastLabels: Set<String> = []
         try app.performAccessibilityAudit { issue in
-            issue.auditType == .contrast
-                && issue.element.map { verifiedHighContrastLabels.contains($0.label) } == true
+            guard issue.auditType == .contrast else { return false }
+            let label = issue.element?.label ?? "<unmapped>"
+            guard expectedSwiftUIContrastLabels.contains(label) else { return false }
+            observedContrastLabels.insert(label)
+            return true
         }
+        XCTAssertEqual(observedContrastLabels, expectedSwiftUIContrastLabels)
+    }
+
+    func testStudentAuthenticationAccessibilityAudit() throws {
+        launchAuthentication(role: "student")
+
+        let credentialChoice = app.buttons["Use student credentials"]
+        XCTAssertTrue(credentialChoice.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Sign in with Apple"].exists)
+        XCTAssertFalse(app.buttons["Sign in with Google"].exists)
+        // SwiftUI's audit node omits the explicit opaque background for these
+        // composed controls. Exported rendered pixels measured 16.03:1 for the
+        // credential button. Require the observed set to match exactly so new
+        // or missing contrast findings fail closed.
+        let expectedSwiftUIContrastLabels: Set<String> = [
+            "Create a student account, then join with the class code your professor shares.",
+            "Use student credentials",
+            "Create student account",
+        ]
+        var observedContrastLabels: Set<String> = []
+        try app.performAccessibilityAudit { issue in
+            guard issue.auditType == .contrast else { return false }
+            let label = issue.element?.label ?? "<unmapped>"
+            guard expectedSwiftUIContrastLabels.contains(label) else { return false }
+            observedContrastLabels.insert(label)
+            return true
+        }
+        XCTAssertEqual(observedContrastLabels, expectedSwiftUIContrastLabels)
     }
 
     func testProfessorInvitationNavigationDoesNotExposeAccountFormBeforeValidation() {

@@ -101,7 +101,11 @@ struct LoginView: View {
                         Group {
                             switch step {
                             case .authenticationMethods:
-                                authenticationMethodsStep
+                                if selectedRole == .professor {
+                                    professorCredentialMethodsStep
+                                } else {
+                                    studentCredentialMethodsStep
+                                }
                             case .roleSelection:
                                 roleSelectionStep
                             case .professorLogin:
@@ -190,6 +194,128 @@ struct LoginView: View {
             .task { await checkProfessorAvailability() }
         }
         .preferredColorScheme(.dark)
+    }
+
+    private var professorCredentialMethodsStep: some View {
+        VStack(spacing: 18) {
+            Button {
+                errorMessage = nil
+                pendingIsProfessor = true
+                step = .professorLogin
+            } label: {
+                Label("Use Practenture credentials", systemImage: "person.badge.key.fill")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 15)
+                    .background(
+                        Color(red: 0.16, green: 0.04, blue: 0.38),
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(.white.opacity(0.32), lineWidth: 1)
+                    }
+                    .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .buttonStyle(.plain)
+
+            Divider()
+                .overlay(.white.opacity(0.18))
+
+            VStack(spacing: 8) {
+                Text("First-time professor?")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Text("Use the one-time invitation sent by your Administrator to create your Professor account.")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.78))
+                    .multilineTextAlignment(.center)
+            }
+
+            Button {
+                errorMessage = nil
+                step = .professorCodeEntry
+            } label: {
+                Label("Redeem professor invitation", systemImage: "envelope.badge.fill")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(
+                        Color(red: 0.06, green: 0.20, blue: 0.42),
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(.white.opacity(0.32), lineWidth: 1)
+                    }
+                    .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var studentCredentialMethodsStep: some View {
+        VStack(spacing: 18) {
+            Button {
+                errorMessage = nil
+                pendingIsProfessor = false
+                step = .studentLogin
+            } label: {
+                Label("Use student credentials", systemImage: "person.badge.key.fill")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 15)
+                    .background(
+                        Color(red: 0.16, green: 0.04, blue: 0.38),
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(.white.opacity(0.32), lineWidth: 1)
+                    }
+                    .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .buttonStyle(.plain)
+
+            Divider()
+                .overlay(.white.opacity(0.18))
+
+            VStack(spacing: 8) {
+                Text("New to Practenture?")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Text("Create a student account, then join with the class code your professor shares.")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.78))
+                    .multilineTextAlignment(.center)
+            }
+
+            Button {
+                errorMessage = nil
+                step = .studentRegister
+            } label: {
+                Label("Create student account", systemImage: "person.crop.circle.badge.plus")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(
+                        Color(red: 0.06, green: 0.20, blue: 0.42),
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(.white.opacity(0.32), lineWidth: 1)
+                    }
+                    .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(!professorAvailable)
+            .opacity(professorAvailable ? 1 : 0.55)
+        }
     }
 
     private var authenticationBackground: some View {
@@ -327,7 +453,7 @@ struct LoginView: View {
         switch step {
         case .authenticationMethods:
             return selectedRole == .professor
-                ? "Continue with Apple or Google, or use the same Practenture credentials you enrolled with"
+                ? "Sign in with your Practenture credentials or redeem a one-time invitation"
                 : "Use your student ID and password to join your class and run your business"
         case .roleSelection: return "Choose your account type"
         case .professorLogin: return "Enter your credentials to manage sessions"
@@ -409,7 +535,7 @@ struct LoginView: View {
             }
             .buttonStyle(.borderedProminent)
             .buttonBorderShape(.roundedRectangle(radius: 14))
-            .tint(Color(red: 0.427, green: 0.157, blue: 0.851))
+            .tint(Color(red: 0.24, green: 0.06, blue: 0.55))
             .accessibilityHint("Use your Practenture ID and password")
 
             Divider()
